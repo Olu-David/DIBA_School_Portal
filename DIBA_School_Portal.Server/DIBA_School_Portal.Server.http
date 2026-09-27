@@ -1,0 +1,6 @@
+@DIBA_School_Portal.Server_HostAddress = http://localhost:5245
+
+GET {{DIBA_School_Portal.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

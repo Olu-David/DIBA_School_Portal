@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="DIBA_School_Portal.AppHost/DIBA_School_Portal.AppHost.csproj" />
+  <Project Path="diba_school_portal.client/diba_school_portal.client.esproj">
+    <Build />
+  </Project>
+  <Project Path="DIBA_School_Portal.Server/DIBA_School_Portal.Server.csproj" />
+  <Project Path="DIBA_School_Portal.ServiceDefaults/DIBA_School_Portal.ServiceDefaults.csproj" />
+</Solution>
