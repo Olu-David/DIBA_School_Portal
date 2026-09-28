@@ -1,3 +1,7 @@
+using DIBA_School_Portal.Server.Contracts;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
@@ -8,8 +12,68 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-var app = builder.Build();
+//Add Cors policy to allow requests from the frontend application
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", builder =>
+    {
+        builder.WithOrigins(allowedOrigins)
+               .AllowAnyMethod()
+               .AllowAnyHeader();
+    });
+});
+// Configure Rate Limiter Policies
+builder.Services.AddRateLimiter(options =>
+{
+    // 1. Fixed Window Policy (General API protection)
+    options.AddFixedWindowLimiter("FixedPolicy", opt =>
+    {
+        opt.PermitLimit = 100;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 2;
+    });
 
+    // 2. Sliding Window Policy (Secure / Public endpoints)
+    options.AddSlidingWindowLimiter("SlidingPolicy", opt =>
+    {
+        opt.PermitLimit = 30;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.SegmentsPerWindow = 3; // Breaks the window into 3 chunks for smooth rolling
+        opt.QueueLimit = 1;
+    });
+
+    // 3. Token Bucket Policy (Teacher rapid data entry bursts)
+    options.AddTokenBucketLimiter("TokenBucketPolicy", opt =>
+    {
+        opt.TokenLimit = 20;           // Max bucket capacity
+        opt.QueueLimit = 5;
+        opt.ReplenishmentPeriod = TimeSpan.FromSeconds(10);
+        opt.TokensPerPeriod = 5;       // Adds 5 tokens back every 10 seconds
+        opt.AutoReplenishment = true;
+    });
+
+    // 4. Concurrency Policy (Heavy PDF / Report generation)
+    options.AddConcurrencyLimiter("ConcurrencyPolicy", opt =>
+    {
+        opt.PermitLimit = 5;           // Max 5 simultaneous heavy requests
+        opt.QueueLimit = 10;           // Max 10 requests allowed to wait in line
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
+
+    // Custom Response when a user gets rate limited (HTTP 429)
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsync("{\"error\": \"Rate limit exceeded. Please slow down and try again later.\"}");
+    };
+});
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddControllers();
+var app = builder.Build();
+;
+app.MapHub<DashboardHub>("/hubs/dashboard");
 app.MapDefaultEndpoints();
 
 app.UseDefaultFiles();
@@ -19,8 +83,10 @@ app.MapStaticAssets();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+   
 }
-
+app.UseCors("Frontend");
+app.UseRateLimiter();
 app.UseHttpsRedirection();
 
 app.UseAuthorization();

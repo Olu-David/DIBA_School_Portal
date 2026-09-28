@@ -5,4 +5,5 @@
   </Project>
   <Project Path="DIBA_School_Portal.Server/DIBA_School_Portal.Server.csproj" />
   <Project Path="DIBA_School_Portal.ServiceDefaults/DIBA_School_Portal.ServiceDefaults.csproj" />
+  <Project Path="DIBA_School_Portal.Test/DIBA_School_Portal.Test.csproj" />
 </Solution>
