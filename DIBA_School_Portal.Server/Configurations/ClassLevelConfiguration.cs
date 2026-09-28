@@ -10,15 +10,26 @@ namespace DIBA_School_Portal.Server.Configurations
         {
             builder.HasKey(cl => cl.Id);
             builder.Property(cl => cl.Name).IsRequired().HasMaxLength(50);
+            builder.Property(cl => cl.DisplayOrder).IsRequired();
 
             builder.HasMany(cl => cl.ClassRooms)
                    .WithOne(cr => cr.ClassLevel)
                    .HasForeignKey(cr => cr.ClassLevelId)
                    .OnDelete(DeleteBehavior.Cascade);
 
+            builder.HasMany(cl => cl.ClassSubjects)
+                   .WithOne(cs => cs.ClassLevel)
+                   .HasForeignKey(cs => cs.ClassLevelId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
             builder.HasMany(cl => cl.Fees)
-                   .WithOne(sf => sf.ClassLevel)
-                   .HasForeignKey(sf => sf.ClassLevelId)
+                   .WithOne(f => f.ClassLevel)
+                   .HasForeignKey(f => f.ClassLevelId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasMany(cl => cl.Assessments)
+                   .WithOne(a => a.ClassLevel)
+                   .HasForeignKey(a => a.ClassLevelId)
                    .OnDelete(DeleteBehavior.Cascade);
         }
     }

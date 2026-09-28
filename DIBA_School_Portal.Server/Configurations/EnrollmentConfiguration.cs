@@ -34,6 +34,16 @@ namespace DIBA_School_Portal.Server.Configurations
                    .WithMany()
                    .HasForeignKey(e => e.TermId)
                    .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasMany(e => e.PaymentTransactions)
+                   .WithOne(pt => pt.Enrollment)
+                   .HasForeignKey(pt => pt.EnrollmentId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasMany(e => e.TermResults)
+                   .WithOne(tr => tr.Enrollment)
+                   .HasForeignKey(tr => tr.EnrollmentId)
+                   .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

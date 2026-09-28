@@ -18,8 +18,13 @@ namespace DIBA_School_Portal.Server.Configurations
                    .OnDelete(DeleteBehavior.Cascade);
 
             builder.HasMany(s => s.Fees)
-                   .WithOne(sf => sf.AcademicSession)
-                   .HasForeignKey(sf => sf.AcademicSessionId)
+                   .WithOne(f => f.AcademicSession)
+                   .HasForeignKey(f => f.AcademicSessionId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasMany(s => s.Assessments)
+                   .WithOne(a => a.AcademicSession)
+                   .HasForeignKey(a => a.AcademicSessionId)
                    .OnDelete(DeleteBehavior.Restrict);
         }
     }

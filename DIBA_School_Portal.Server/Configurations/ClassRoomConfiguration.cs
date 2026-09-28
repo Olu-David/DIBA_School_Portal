@@ -14,7 +14,7 @@ namespace DIBA_School_Portal.Server.Configurations
             builder.HasMany(cr => cr.Enrollments)
                    .WithOne(e => e.ClassRoom)
                    .HasForeignKey(e => e.ClassRoomId)
-                   .OnDelete(DeleteBehavior.Restrict);
+                   .OnDelete(DeleteBehavior.Restrict); // Protect rooms with active enrollments
         }
     }
 }
