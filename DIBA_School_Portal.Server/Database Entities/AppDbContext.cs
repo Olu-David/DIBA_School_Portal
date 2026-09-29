@@ -26,6 +26,7 @@ namespace DIBA_School_Portal.Server.Configurations
         public DbSet<Subject> Subjects { get; set; }
         public DbSet<SchoolClass> SchoolClasses { get; set; }
         public DbSet<ClassSubject> ClassSubjects { get; set; }
+        public DbSet<Fee> Fees { get; set; }
 
         // Profiles & Enrollments
         public DbSet<StudentProfile> StudentProfiles { get; set; }

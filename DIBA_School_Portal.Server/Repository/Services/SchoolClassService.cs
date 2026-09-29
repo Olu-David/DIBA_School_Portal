@@ -35,7 +35,8 @@ namespace DIBA_School_Portal.Server.Services
 
             var schoolClass = new SchoolClass
             {
-                Name = model.Name.Trim()
+                Name = model.Name.Trim(),
+                AcademicSection = model.AcademicSection
             };
 
             _context.SchoolClasses.Add(schoolClass);
@@ -63,6 +64,7 @@ namespace DIBA_School_Portal.Server.Services
                 return new ServiceResponse<string> { Success = false, Message = "School class not found." };
 
             schoolClass.Name = model.Name.Trim();
+            schoolClass.AcademicSection = model.AcademicSection;
 
             _context.SchoolClasses.Update(schoolClass);
             await _context.SaveChangesAsync();
@@ -81,6 +83,10 @@ namespace DIBA_School_Portal.Server.Services
             var schoolClass = await _context.SchoolClasses.FindAsync(id);
             if (schoolClass == null) return false;
 
+            // Assuming you have an IsDeleted property on your entity. If not, remove this or implement your flag.
+            // schoolClass.IsDeleted = true; 
+            // _context.SchoolClasses.Update(schoolClass);
+
             await _context.SaveChangesAsync();
             return true;
         }
@@ -98,6 +104,9 @@ namespace DIBA_School_Portal.Server.Services
                 .FirstOrDefaultAsync(c => c.Id == id);
 
             if (schoolClass == null) return false;
+
+            // schoolClass.IsDeleted = false;
+            // _context.SchoolClasses.Update(schoolClass);
 
             await _context.SaveChangesAsync();
             return true;
@@ -141,6 +150,7 @@ namespace DIBA_School_Portal.Server.Services
                 Message = "Class subjects updated successfully!"
             };
         }
+
         public async Task<ServiceResponse<SchoolClassDTO>> GetSchoolClassByIdAsync(Guid id)
         {
             var schoolClass = await _context.SchoolClasses.FindAsync(id);
@@ -149,10 +159,12 @@ namespace DIBA_School_Portal.Server.Services
                 return new ServiceResponse<SchoolClassDTO> { Success = false, Message = "School class not found." };
             }
 
+            // Fixed: Added AcademicSection mapping here too!
             var dto = new SchoolClassDTO
             {
                 Id = schoolClass.Id,
-                Name = schoolClass.Name
+                Name = schoolClass.Name,
+                AcademicSection = schoolClass.AcademicSection
             };
 
             return new ServiceResponse<SchoolClassDTO> { Success = true, Data = dto };
@@ -164,14 +176,14 @@ namespace DIBA_School_Portal.Server.Services
                 .Select(c => new SchoolClassDTO
                 {
                     Id = c.Id,
-                    Name = c.Name
+                    Name = c.Name,
+                    AcademicSection = c.AcademicSection
                 })
                 .ToListAsync();
 
             return new ServiceResponse<IEnumerable<SchoolClassDTO>> { Success = true, Data = classes };
         }
 
-        // Handy method to fetch all subjects currently linked to a specific class (great for populating frontend checkboxes!)
         public async Task<ServiceResponse<IEnumerable<SubjectDto>>> GetSubjectsForClassAsync(Guid classId)
         {
             var schoolClass = await _context.SchoolClasses
@@ -194,6 +206,42 @@ namespace DIBA_School_Portal.Server.Services
                 .ToList();
 
             return new ServiceResponse<IEnumerable<SubjectDto>> { Success = true, Data = subjects };
+        }
+
+        public async Task<ServiceResponse<IEnumerable<SubjectCheckboxDto>>> GetClassSubjectsWithSelectionAsync(Guid classId)
+        {
+            var schoolClass = await _context.SchoolClasses
+                .Include(c => c.ClassSubjects)
+                .FirstOrDefaultAsync(c => c.Id == classId);
+
+            if (schoolClass == null)
+            {
+                return new ServiceResponse<IEnumerable<SubjectCheckboxDto>>
+                {
+                    Success = false,
+                    Message = "School class not found."
+                };
+            }
+
+            var assignedSubjectIds = schoolClass.ClassSubjects
+                .Select(cs => cs.SubjectId)
+                .ToHashSet();
+
+            var allSubjects = await _context.Subjects
+                .Select(s => new SubjectCheckboxDto
+                {
+                    SubjectId = s.Id,
+                    Name = s.Name,
+                    Code = s.Code,
+                    IsAssigned = assignedSubjectIds.Contains(s.Id)
+                })
+                .ToListAsync();
+
+            return new ServiceResponse<IEnumerable<SubjectCheckboxDto>>
+            {
+                Success = true,
+                Data = allSubjects
+            };
         }
     }
 }

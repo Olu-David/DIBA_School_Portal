@@ -15,12 +15,6 @@ namespace DIBA_School_Portal.Server.Entities
         public StudentProfile StudentProfile { get; set; } = null!;
 
         [Required]
-        public Guid ClassRoomId { get; set; }
-
-        [ForeignKey(nameof(ClassRoomId))]
-        public ClassRoom ClassRoom { get; set; } = null!;
-
-        [Required]
         public Guid AcademicSessionId { get; set; }
 
         [ForeignKey(nameof(AcademicSessionId))]

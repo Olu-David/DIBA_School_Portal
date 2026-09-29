@@ -20,10 +20,10 @@ namespace DIBA_School_Portal.Server.Configurations
                    .HasForeignKey(e => e.StudentProfileId)
                    .OnDelete(DeleteBehavior.Cascade);
 
-            builder.HasOne(e => e.ClassRoom)
-                   .WithMany(cr => cr.Enrollments)
-                   .HasForeignKey(e => e.ClassRoomId)
-                   .OnDelete(DeleteBehavior.Restrict);
+            //builder.HasOne(e => e.ClassRoom)
+            //       .WithMany(cr => cr.Enrollments)
+            //       .HasForeignKey(e => e.ClassRoomId)
+            //       .OnDelete(DeleteBehavior.Restrict);
 
             builder.HasOne(e => e.AcademicSession)
                    .WithMany()

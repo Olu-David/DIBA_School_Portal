@@ -11,7 +11,7 @@ namespace DIBA_School_Portal.Server.Configurations
             builder.HasKey(cs => cs.Id);
 
             // Prevent duplicate subject assignment to the same class level
-            builder.HasIndex(cs => new { cs.ClassLevelId, cs.SubjectId }).IsUnique();
+            builder.HasIndex(cs => new { cs.SchoolClassId, cs.SubjectId }).IsUnique();
         }
     }
 }

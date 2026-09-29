@@ -12,5 +12,6 @@ namespace DIBA_School_Portal.Server.Repository.IServices
         Task<bool> SoftDeleteSchoolClass(Guid id, string currentUserId);
         Task<bool> RestoreSchoolClass(Guid id, string currentUserId);
         Task<ServiceResponse<string>> UpdateClassSubjectsAsync(Guid classId, List<Guid> subjectIds, string currentUserId);
+        Task<ServiceResponse<IEnumerable<SubjectCheckboxDto>>> GetClassSubjectsWithSelectionAsync(Guid classId);
     }
 }

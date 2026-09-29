@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using DIBA_School_Portal.Server.Enums;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DIBA_School_Portal.Server.Entities
@@ -40,6 +41,12 @@ namespace DIBA_School_Portal.Server.Entities
 
         [ForeignKey(nameof(TermId))]
         public SchoolTerm Term { get; set; } = null!;
+        [ForeignKey(nameof(SchoolClassId))]
+        public virtual SchoolClass SchoolClass { get; set; } = null!;
+        public Guid SchoolClassId { get;  set; }
+
+        public AcademicSection Section { get; set; }
+        public ClassStream ClassStream { get; set; }
     }
 }
 

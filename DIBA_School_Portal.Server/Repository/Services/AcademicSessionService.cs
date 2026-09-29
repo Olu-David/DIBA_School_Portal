@@ -5,8 +5,6 @@ using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Caching.Memory;
-using static System.Collections.Specialized.BitVector32;
 
 namespace DIBA_School_Portal.Server.Repository.Services
 {
@@ -24,9 +22,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _Cache = cache ?? throw new ArgumentNullException(nameof(cache));
         }
-        #region CreateSession
 
-        public async Task<ServiceResponse<bool>> CreateAcademicSessionAsync(AcademicSessionDto Session, SchoolTermDto termDto)
+        #region CreateSession
+        public async Task<ServiceResponse<bool>> CreateAcademicSessionAsync(AcademicSessionDto Session)
         {
             var response = new ServiceResponse<bool>();
 
@@ -64,29 +62,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 response.Success = false;
                 response.Message = "Academic Session Already Exists";
                 response.StatusCode = 409;
-                return response; 
+                return response;
             }
 
-            if (termDto != null)
-            {
-                // Check if term starts before the session starts
-                if (termDto.StartDate < Session.StartDate)
-                {
-                    response.Success = false;
-                    response.Message = "The term start date cannot be earlier than the academic session start date.";
-                    response.StatusCode = 400;
-                    return response;
-                }
-
-                // Check if term ends after the session ends (good practice to include!)
-                if (termDto.EndDate > Session.EndDate)
-                {
-                    response.Success = false;
-                    response.Message = "The term end date cannot be later than the academic session end date.";
-                    response.StatusCode = 400;
-                    return response;
-                }
-            }
             var strategy = _Context.Database.CreateExecutionStrategy();
 
             return await strategy.ExecuteAsync(async () =>
@@ -94,46 +72,46 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 await using var transaction = await _Context.Database.BeginTransactionAsync();
                 try
                 {
+                    // Handle nullable DateTime safely
+                    var startDate = Session.StartDate ?? DateTime.UtcNow;
+                    var endDate = Session.EndDate ?? startDate.AddYears(1);
+
                     var newSession = new AcademicSession
                     {
                         Id = Guid.NewGuid(),
-                        Name = Session.Name,
+                        Name = Session.Name.Trim(),
                         IsCurrentSession = Session.IsCurrentSession,
-                        StartDate = Session.StartDate,
-                        EndDate = Session.EndDate,
+                        StartDate = startDate,
+                        EndDate = endDate,
                         IsActive = Session.IsActive
                     };
 
                     await _Context.AcademicSessions.AddAsync(newSession);
                     await _Context.SaveChangesAsync();
 
-                    // If a initial term was provided, create and link it
-                    if (termDto != null)
+                    // Automatically generate the 3 mandatory terms for the session
+                    var terms = new List<SchoolTerm>
                     {
-                        var newTerm = new SchoolTerm // Update entity name if it's AcademicTerm in your DB
-                        {
-                            Id = Guid.NewGuid(),
-                            Name = termDto.Name,
-                            AcademicSessionId = newSession.Id,
-                            StartDate = termDto.StartDate,
-                            EndDate = termDto.EndDate,
-                            IsCurrentTerm = termDto.IsCurrentTerm
-                        };
+                        new SchoolTerm { Id = Guid.NewGuid(), Name = "First Term", AcademicSessionId = newSession.Id, StartDate = startDate, EndDate = startDate.AddMonths(4) },
+                        new SchoolTerm { Id = Guid.NewGuid(), Name = "Second Term", AcademicSessionId = newSession.Id, StartDate = startDate.AddMonths(4), EndDate = startDate.AddMonths(8) },
+                        new SchoolTerm { Id = Guid.NewGuid(), Name = "Third Term", AcademicSessionId = newSession.Id, StartDate = startDate.AddMonths(8), EndDate = endDate }
+                    };
 
-                        await _Context.SchoolTerms.AddAsync(newTerm); // Update DbSet name if needed
-                        await _Context.SaveChangesAsync();
-                    }
+                    await _Context.SchoolTerms.AddRangeAsync(terms);
+                    await _Context.SaveChangesAsync();
 
                     await transaction.CommitAsync();
 
                     response.Success = true;
-                    response.Message = "Academic session and term created successfully.";
+                    response.Message = "Academic session and its 3 standard terms created successfully.";
                     response.StatusCode = 200;
+                    response.Data = true;
                     return response;
                 }
                 catch (Exception ex)
                 {
                     await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Error occurred while creating academic session.");
 
                     response.Success = false;
                     response.Message = $"An error occurred while creating the session: {ex.Message}";
@@ -145,24 +123,26 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         #region GetAllSessionsAsync
-        public async Task<ServiceResponse<PaginatedViewModel<AcademicSessionDto>>> GetAllSessionsAsync(Guid SessionID,int pageNumber = 1, int pageSize = 10)
+        public async Task<ServiceResponse<PaginatedViewModel<AcademicSessionDto>>> GetAllSessionsAsync(Guid SessionID, int pageNumber = 1, int pageSize = 10)
         {
             var response = new ServiceResponse<PaginatedViewModel<AcademicSessionDto>>();
             try
             {
                 pageNumber = Math.Max(1, pageNumber);
                 pageSize = Math.Max(1, pageSize);
-
                 int skip = (pageNumber - 1) * pageSize;
 
-              
                 string cacheKey = $"AcademicSessions_Page_{SessionID}_{pageNumber}_Size_{pageSize}";
                 string cacheCountKey = $"AcademicSessions_Count_{SessionID}";
 
-  
-                var query = _Context.AcademicSessions.Include(m => m.Terms).Where(m => m.Id == SessionID); 
-                int count;
+                var query = _Context.AcademicSessions.Include(m => m.Terms).AsQueryable();
 
+                if (SessionID != Guid.Empty)
+                {
+                    query = query.Where(m => m.Id == SessionID);
+                }
+
+                int count;
                 string? countedSessions = _Cache.GetString(cacheCountKey);
                 if (countedSessions == null)
                 {
@@ -195,7 +175,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
                 else
                 {
-                    var sessions = await query.Skip(skip).Take(pageSize).ToListAsync();
+                    var sessions = await query.OrderByDescending(s => s.StartDate).Skip(skip).Take(pageSize).ToListAsync();
                     var sessionDtos = sessions.Select(s => new AcademicSessionDto
                     {
                         Id = s.Id,
@@ -234,6 +214,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error fetching academic sessions.");
                 response.Success = false;
                 response.Message = $"An error occurred: {ex.Message}";
                 response.StatusCode = 500;
@@ -245,50 +226,42 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #region GetSessionByIdAsync
         public async Task<AcademicSessionDto?> GetSessionByIdAsync(Guid sessionId)
         {
-            var Session = await _Context.AcademicSessions.Include(s => s.Terms).Where(m => m.Id == sessionId).Select(m => new AcademicSessionDto
-            {
-                Id= m.Id,
-                Name =m.Name,
-                StartDate= m.StartDate,
-                EndDate = m.EndDate,
-                IsActive=m.IsActive,
-                IsCurrentSession= m.IsCurrentSession,
-                Terms = m.Terms.Select(t => new SchoolTermDto
+            return await _Context.AcademicSessions
+                .Include(s => s.Terms)
+                .Where(m => m.Id == sessionId)
+                .Select(m => new AcademicSessionDto
                 {
-                    Id = t.Id,
-                    Name = t.Name,
-                    StartDate = t.StartDate,
-                    EndDate = t.EndDate,
-                    IsCurrentTerm = t.IsCurrentTerm
-                }).ToList()
-            }).FirstOrDefaultAsync();
-
-
-            return Session;
+                    Id = m.Id,
+                    Name = m.Name,
+                    StartDate = m.StartDate,
+                    EndDate = m.EndDate,
+                    IsActive = m.IsActive,
+                    IsCurrentSession = m.IsCurrentSession,
+                    Terms = m.Terms.Select(t => new SchoolTermDto
+                    {
+                        Id = t.Id,
+                        Name = t.Name,
+                        StartDate = t.StartDate,
+                        EndDate = t.EndDate,
+                        IsCurrentTerm = t.IsCurrentTerm
+                    }).ToList()
+                })
+                .FirstOrDefaultAsync();
         }
         #endregion
 
         #region SetCurrentSessionAsync
         public async Task<bool> SetCurrentSessionAsync(Guid sessionId, Guid termId)
         {
-            // 1. Fetch the target session and its terms, ensuring it exists
             var session = await _Context.AcademicSessions
                 .Include(s => s.Terms)
                 .FirstOrDefaultAsync(s => s.Id == sessionId);
 
-            if (session == null)
-            {
-                return false; // Session not found
-            }
+            if (session == null) return false;
 
-            // 2. Validate that the term actually belongs to this session BEFORE changing any state
             var termToSetCurrent = session.Terms.FirstOrDefault(t => t.Id == termId);
-            if (termToSetCurrent == null)
-            {
-                return false; // Term not found in the specified session
-            }
+            if (termToSetCurrent == null) return false;
 
-            // 3. Set all sessions to not current
             var allSessions = await _Context.AcademicSessions.Where(s => s.IsCurrentSession).ToListAsync();
             foreach (var s in allSessions)
             {
@@ -296,7 +269,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
             session.IsCurrentSession = true;
 
-            // 4. Set ALL terms across the entire database to not current (to ensure only ONE term is current globally)
             var allTerms = await _Context.SchoolTerms.Where(t => t.IsCurrentTerm).ToListAsync();
             foreach (var t in allTerms)
             {
@@ -304,7 +276,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
             termToSetCurrent.IsCurrentTerm = true;
 
-            // 5. Save all changes together
             await _Context.SaveChangesAsync();
             return true;
         }
@@ -323,7 +294,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            // 1. Find the existing session including its terms
             var existingSession = await _Context.AcademicSessions
                 .Include(s => s.Terms)
                 .FirstOrDefaultAsync(s => s.Id == sessionDto.Id);
@@ -336,7 +306,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            // 2. Check if the new name already exists for a DIFFERENT session
             bool nameExists = await _Context.AcademicSessions
                 .AnyAsync(s => s.Name == sessionDto.Name && s.Id != sessionDto.Id);
             if (nameExists)
@@ -347,21 +316,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            // 3. Date validation if termDto is provided
             if (termDto != null)
             {
-                if (termDto.StartDate < sessionDto.StartDate)
+                if (termDto.StartDate < sessionDto.StartDate || termDto.EndDate > sessionDto.EndDate)
                 {
                     response.Success = false;
-                    response.Message = "The term start date cannot be earlier than the academic session start date.";
-                    response.StatusCode = 400;
-                    return response;
-                }
-
-                if (termDto.EndDate > sessionDto.EndDate)
-                {
-                    response.Success = false;
-                    response.Message = "The term end date cannot be later than the academic session end date.";
+                    response.Message = "Term dates must fall within the academic session start and end dates.";
                     response.StatusCode = 400;
                     return response;
                 }
@@ -374,38 +334,21 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 await using var transaction = await _Context.Database.BeginTransactionAsync();
                 try
                 {
-                    // 4. Update session properties
-                    existingSession.Name = sessionDto.Name;
+                    existingSession.Name = sessionDto.Name.Trim();
                     existingSession.StartDate = sessionDto.StartDate;
                     existingSession.EndDate = sessionDto.EndDate;
                     existingSession.IsActive = sessionDto.IsActive;
                     existingSession.IsCurrentSession = sessionDto.IsCurrentSession;
 
-                    // 5. Handle term updating or creation if termDto is provided
                     if (termDto != null)
                     {
                         var existingTerm = existingSession.Terms.FirstOrDefault(t => t.Id == termDto.Id);
                         if (existingTerm != null)
                         {
-                            // Update the existing term
                             existingTerm.Name = termDto.Name;
                             existingTerm.StartDate = termDto.StartDate;
                             existingTerm.EndDate = termDto.EndDate;
                             existingTerm.IsCurrentTerm = termDto.IsCurrentTerm;
-                        }
-                        else
-                        {
-                            // Add as a new term if the ID doesn't match an existing one
-                            var newTerm = new SchoolTerm
-                            {
-                                Id = termDto.Id == Guid.Empty ? Guid.NewGuid() : termDto.Id,
-                                Name = termDto.Name,
-                                AcademicSessionId = existingSession.Id,
-                                StartDate = termDto.StartDate,
-                                EndDate = termDto.EndDate,
-                                IsCurrentTerm = termDto.IsCurrentTerm
-                            };
-                            await _Context.SchoolTerms.AddAsync(newTerm);
                         }
                     }
 
@@ -421,6 +364,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 catch (Exception ex)
                 {
                     await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Error updating academic session.");
 
                     response.Success = false;
                     response.Message = $"An error occurred while updating the session: {ex.Message}";
