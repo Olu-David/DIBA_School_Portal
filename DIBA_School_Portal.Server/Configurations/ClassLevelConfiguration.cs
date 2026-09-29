@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace DIBA_School_Portal.Server.Configurations
 {
-    public class ClassLevelConfiguration: IEntityTypeConfiguration<ClassLevel>
+    public class ClassLevelConfiguration: IEntityTypeConfiguration<SchoolClass>
     {
-        public void Configure(EntityTypeBuilder<ClassLevel> builder)
+        public void Configure(EntityTypeBuilder<SchoolClass> builder)
         {
             builder.HasKey(cl => cl.Id);
             builder.Property(cl => cl.Name).IsRequired().HasMaxLength(50);

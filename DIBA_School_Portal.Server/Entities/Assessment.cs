@@ -20,7 +20,7 @@ namespace DIBA_School_Portal.Server.Entities
         public Guid ClassLevelId { get; set; }
 
         [ForeignKey(nameof(ClassLevelId))]
-        public ClassLevel ClassLevel { get; set; } = null!;
+        public SchoolClass ClassLevel { get; set; } = null!;
 
         [Required]
         public Guid AcademicSessionId { get; set; }

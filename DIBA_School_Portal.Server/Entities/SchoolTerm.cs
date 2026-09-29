@@ -22,5 +22,7 @@ namespace DIBA_School_Portal.Server.Entities
 
         public virtual ICollection<Fee> Fees { get; set; } = new List<Fee>();
         public virtual ICollection<Assessment> Assessments { get; set; } = new List<Assessment>();
+        public DateTime? StartDate { get;  set; }
+        public DateTime? EndDate { get;  set; }
     }
 }

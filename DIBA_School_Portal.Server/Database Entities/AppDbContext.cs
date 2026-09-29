@@ -22,9 +22,9 @@ namespace DIBA_School_Portal.Server.Configurations
         public DbSet<PaymentLog> PaymentLogs { get;  set; }
         public DbSet<AcademicSession> AcademicSessions { get; set; }
         public DbSet<SchoolTerm> SchoolTerms { get; set; }
-        public DbSet<ClassLevel> ClassLevels { get; set; }  
-        public DbSet<ClassRoom> ClassRooms { get; set; }
+        public DbSet<SchoolClass> ClassLevels { get; set; }  
         public DbSet<Subject> Subjects { get; set; }
+        public DbSet<SchoolClass> SchoolClasses { get; set; }
         public DbSet<ClassSubject> ClassSubjects { get; set; }
 
         // Profiles & Enrollments

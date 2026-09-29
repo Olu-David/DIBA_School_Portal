@@ -9,10 +9,10 @@ namespace DIBA_School_Portal.Server.Entities
         public Guid Id { get; set; } = Guid.NewGuid();
 
         [Required]
-        public Guid ClassLevelId { get; set; }
+        public Guid SchoolClassId { get; set; }
 
-        [ForeignKey(nameof(ClassLevelId))]
-        public ClassLevel ClassLevel { get; set; } = null!;
+        [ForeignKey(nameof(SchoolClassId))]
+        public SchoolClass SchoolClass { get; set; } = null!;
 
         [Required]
         public Guid SubjectId { get; set; }
