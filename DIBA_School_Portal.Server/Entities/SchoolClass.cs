@@ -16,7 +16,6 @@ namespace DIBA_School_Portal.Server.Entities
         public AcademicSection AcademicSection { get; set; }
         public virtual ICollection<ClassSubject> ClassSubjects { get; set; } = new List<ClassSubject>();
         public virtual ICollection<Fee> Fees { get; set; } = new List<Fee>();
-        public  virtual ICollection<Assessment> Assessments { get; set; } = new List<Assessment>();
         public bool IsDeleted { get; internal set; }
     }
 }

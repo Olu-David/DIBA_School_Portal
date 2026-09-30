@@ -21,11 +21,14 @@ namespace DIBA_School_Portal.Server.Configurations
         public DbSet<NotificationLog> NotificationLogs { get; set; }
         public DbSet<PaymentLog> PaymentLogs { get;  set; }
         public DbSet<AcademicSession> AcademicSessions { get; set; }
+        public DbSet<StudentPayment> StudentPayments { get; set; }
         public DbSet<SchoolTerm> SchoolTerms { get; set; }
         public DbSet<SchoolClass> ClassLevels { get; set; }  
         public DbSet<Subject> Subjects { get; set; }
         public DbSet<SchoolClass> SchoolClasses { get; set; }
         public DbSet<ClassSubject> ClassSubjects { get; set; }
+        public DbSet<TermResult> TermResults { get; set; }   
+        public DbSet<TermSubjectResult> TermSubjectResults {get; set; }
         public DbSet<Fee> Fees { get; set; }
 
         // Profiles & Enrollments

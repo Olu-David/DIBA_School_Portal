@@ -6,7 +6,7 @@ namespace DIBA_School_Portal.Server.Enums
     public enum PaymentStatus
     {
         Pending,
-        Success,
+        Successful,
         Failed,
         Refunded
     }

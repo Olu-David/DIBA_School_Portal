@@ -52,7 +52,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             payment.Status = newStatus;
 
-            if (newStatus == PaymentStatus.Success)
+            if (newStatus == PaymentStatus.Successful)
             {
                 payment.VerifiedAt = DateTime.UtcNow;
             }

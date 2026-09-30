@@ -27,10 +27,7 @@ namespace DIBA_School_Portal.Server.Configurations
                    .HasForeignKey(f => f.ClassLevelId)
                    .OnDelete(DeleteBehavior.Cascade);
 
-            builder.HasMany(cl => cl.Assessments)
-                   .WithOne(a => a.ClassLevel)
-                   .HasForeignKey(a => a.ClassLevelId)
-                   .OnDelete(DeleteBehavior.Cascade);
+          
         }
     }
 }

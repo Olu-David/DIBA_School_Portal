@@ -23,6 +23,6 @@ namespace DIBA_School_Portal.Server.Entities
         // Navigation collections
         public ICollection<SchoolTerm> Terms { get; set; } = new List<SchoolTerm>();
         public ICollection<Fee> Fees { get; set; } = new List<Fee>();
-        public ICollection<Assessment> Assessments { get; set; } = new List<Assessment>();
+      
     }
 }

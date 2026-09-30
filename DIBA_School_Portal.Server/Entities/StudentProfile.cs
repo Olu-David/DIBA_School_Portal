@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DIBA_School_Portal.Server.Entities
 {
@@ -23,10 +24,19 @@ namespace DIBA_School_Portal.Server.Entities
         [MaxLength(100)]
         public string LastName { get; set; } = string.Empty;
 
+        // --- Added: Current Class Link ---
+        [Required]
+        public Guid SchoolClassId { get; set; }
+
+        [ForeignKey(nameof(SchoolClassId))]
+        public SchoolClass SchoolClass { get; set; } = null!;
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        // --- Updated Collections to match your actual entities ---
         public ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();
-        public ICollection<PaymentTransaction> PaymentTransactions { get; set; } = new List<PaymentTransaction>();
-        public ICollection<ScoreEntry> ScoreEntries { get; set; } = new List<ScoreEntry>();
+
+        // Aligns with your StudentPayment entity
+        public ICollection<StudentPayment> StudentPayments { get; set; } = new List<StudentPayment>();
     }
 }
