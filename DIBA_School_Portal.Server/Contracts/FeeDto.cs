@@ -13,5 +13,6 @@ namespace DIBA_School_Portal.Server.Contracts
         public AcademicSection Section { get; set; }
         public ClassStream Stream { get; set; } = ClassStream.General;
         public Guid AcademicSessionId { get;  set; }
+        public List<ClassFeePriceInputDto> ClassPrices { get; set; } = new List<ClassFeePriceInputDto>();
     }
 }

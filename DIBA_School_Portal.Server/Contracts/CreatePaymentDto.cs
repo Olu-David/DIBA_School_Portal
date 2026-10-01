@@ -10,6 +10,7 @@ namespace DIBA_School_Portal.Server.Contracts
         public PaymentGateway Gateway { get; set; }
         public Guid AcademicSessionId { get; set; }
         public Guid TermId { get; set; }
+        public Guid? FeeId { get; set; }
         public string? ProofOfPaymentUrl { get; set; }
     }
 }

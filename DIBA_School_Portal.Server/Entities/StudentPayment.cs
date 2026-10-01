@@ -41,9 +41,15 @@ namespace DIBA_School_Portal.Server.Entities
         [ForeignKey(nameof(TermId))]
         public SchoolTerm Term { get; set; } = null!;
 
+        public Guid? FeeId { get; set; }     
+        [ForeignKey(nameof(FeeId))]
+        public virtual Fee Fees { get; set; } = null!;    
+
         public DateTime PaymentDate { get; set; } = DateTime.UtcNow;
 
         [MaxLength(255)]
         public string? ProofOfPaymentUrl { get; set; } // Supabase link for manual bank teller uploads
+        public virtual StudentEnrollments? StudentEnrollment {   get;  set; }
+        public ICollection<StudentPaymentItem> PaymentItems = new List<StudentPaymentItem>();
     }
 }

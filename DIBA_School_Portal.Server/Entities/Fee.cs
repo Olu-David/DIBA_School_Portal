@@ -20,9 +20,10 @@ namespace DIBA_School_Portal.Server.Entities
         [Column(TypeName = "decimal(18,2)")]
         public decimal Amount { get; set; }
 
-        public DateTime DueDate { get; set; }
+        [Required]
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal MinimumAmountToPay { get; set; }
 
-        public bool IsPaid { get; set; } = false;
 
         [Required]
         public Guid ClassLevelId { get; set; }
@@ -47,6 +48,8 @@ namespace DIBA_School_Portal.Server.Entities
 
         public AcademicSection Section { get; set; }
         public ClassStream ClassStream { get; set; }
+        // Navigation property for the many-to-many link to classes
+        public ICollection<ClassFeePrice> ClassFees { get; set; } = new List<ClassFeePrice>();
     }
 }
 

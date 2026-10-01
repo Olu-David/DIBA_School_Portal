@@ -8,12 +8,13 @@ namespace DIBA_School_Portal.Server.Repository.IServices
     {
         Task<ServiceResponse<FeeCreationMetadataDto>> GetFeeCreationMetadataAsync();
         Task<ServiceResponse<bool>> CreateFeeAsync(FeeDto feeDto);
-        Task<ServiceResponse<IEnumerable<SchoolClassDTO>>> GetAllSchoolClassesAsync();
+        Task<ServiceResponse<StudentBillResponseDto>> GetStudentBillBreakdownAsync(Guid studentProfileId, Guid termId);
         Task<ServiceResponse<SchoolClassDTO>> GetSchoolClassByIdAsync(Guid id);
         Task<ServiceResponse<string>> UpdateSchoolClassAsync(SchoolClassDTO model, string currentUserId);
         Task<bool> SoftDeleteSchoolClass(Guid id, string currentUserId);
         Task<bool> RestoreSchoolClass(Guid id, string currentUserId);
         Task<ServiceResponse<IEnumerable<SubjectDto>>> GetSubjectsForClassAsync(Guid classId);
+        Task<ServiceResponse<IEnumerable<SchoolClassDTO>>> GetClassesForSubjectAsync(Guid subjectId);
         Task<ServiceResponse<IEnumerable<SubjectCheckboxDto>>> GetClassSubjectsWithSelectionAsync(Guid classId);
         Task<ServiceResponse<string>> UpdateClassSubjectsAsync(Guid classId, List<Guid> subjectIds, string currentUserId);
     }

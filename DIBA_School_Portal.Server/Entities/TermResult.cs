@@ -55,7 +55,7 @@ namespace DIBA_School_Portal.Server.Entities
 
         public ICollection<TermSubjectResult> SubjectResults { get; set; } = new List<TermSubjectResult>();
         [ForeignKey(nameof(EnrollmentId))]
-        public virtual Enrollment? Enrollment { get;  set; }
+        public virtual StudentEnrollments? Enrollment { get;  set; }
         public Guid EnrollmentId { get;  set; }
         public SchoolClass? Class { get;  set; }
         public int Position { get;  set; }

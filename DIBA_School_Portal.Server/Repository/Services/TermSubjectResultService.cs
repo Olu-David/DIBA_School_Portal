@@ -30,12 +30,24 @@ namespace DIBA_School_Portal.Server.Services
         // ==========================================
         // 1. GET STUDENTS FOR TEACHER SCORE SHEET
         // ==========================================
-        public async Task<ServiceResponse<IEnumerable<StudentScoreEntryDto>>> GetStudentsForScoreEntryAsync(Guid classId, Guid subjectId, Guid termId, Guid academicSessionId)
+        public async Task<ServiceResponse<PaginatedViewModel<StudentScoreEntryDto>>> GetStudentsForScoreEntryAsync(
+            Guid classId, Guid subjectId, Guid termId, Guid academicSessionId, int pageNumber = 1, int pageSize = 20)
         {
             try
             {
+                pageNumber = Math.Max(1, pageNumber);
+                pageSize = Math.Max(1, pageSize);
+                int skip = (pageNumber - 1) * pageSize;
+
+                int totalCount = await _userManager.Users
+                    .Where(u => u.ClassId == classId && _context.StudentSubjects.Any(ss => ss.StudentId.ToString() == u.Id && ss.SubjectId == subjectId && ss.AcademicSessionId == academicSessionId))
+                    .CountAsync();
+
                 var studentsInClass = await _userManager.Users
-                    .Where(u => u.ClassId == classId)
+                    .Where(u => u.ClassId == classId &&
+                                _context.StudentSubjects.Any(ss => ss.StudentId.ToString() == u.Id && ss.SubjectId == subjectId && ss.AcademicSessionId == academicSessionId))
+                    .Skip(skip)
+                    .Take(pageSize)
                     .ToListAsync();
 
                 var scoreEntryList = new List<StudentScoreEntryDto>();
@@ -75,22 +87,35 @@ namespace DIBA_School_Portal.Server.Services
                     });
                 }
 
-                return new ServiceResponse<IEnumerable<StudentScoreEntryDto>>
+                var pagedData = new PaginatedViewModel<StudentScoreEntryDto>
+                {
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    TotalCount = totalCount,
+                    Items = scoreEntryList
+                };
+
+                return new ServiceResponse<PaginatedViewModel<StudentScoreEntryDto>>
                 {
                     Success = true,
-                    Data = scoreEntryList,
+                    Data = pagedData,
                     StatusCode = 200
                 };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching students for score entry.");
-                return new ServiceResponse<IEnumerable<StudentScoreEntryDto>> { Success = false, Message = ex.Message, StatusCode = 500 };
+                return new ServiceResponse<PaginatedViewModel<StudentScoreEntryDto>>
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    StatusCode = 500
+                };
             }
         }
 
         // ==========================================
-        // 2. SAVE SCORES, CALCULATE POSITIONS & NOTIFY PRINCIPAL
+        // 2. SAVE SCORES WITH 48H EDIT CHECK
         // ==========================================
         public async Task<ServiceResponse<string>> SaveAndComputeSubjectScoresAsync(ClassScoreSubmissionDto model, string currentUserId)
         {
@@ -111,7 +136,7 @@ namespace DIBA_School_Portal.Server.Services
                         return new ServiceResponse<string>
                         {
                             Success = false,
-                            Message = "Invalid scores for student. Test scores must be between 0-20 and Exam between 0-60.",
+                            Message = "Invalid scores. Test scores must be between 0-20 and Exam between 0-60.",
                             StatusCode = 400
                         };
                     }
@@ -156,12 +181,24 @@ namespace DIBA_School_Portal.Server.Services
                             ExamScore = item.ExamScore,
                             TotalScore = totalScore,
                             Grade = grade,
-                            Remark = remark
+                            Remark = remark,
+                            CreatedAt = DateTime.UtcNow
                         };
                         await _context.TermSubjectResults.AddAsync(subjectResult);
                     }
                     else
                     {
+                        var timeElapsed = DateTime.UtcNow - subjectResult.CreatedAt;
+                        if (timeElapsed.TotalHours > 48)
+                        {
+                            return new ServiceResponse<string>
+                            {
+                                Success = false,
+                                Message = $"Score modification window (48 hours) has expired for student ID {item.StudentId}. Please use the admin override update endpoint.",
+                                StatusCode = 403
+                            };
+                        }
+
                         subjectResult.Test1Score = item.Test1Score;
                         subjectResult.Test2Score = item.Test2Score;
                         subjectResult.ExamScore = item.ExamScore;
@@ -175,27 +212,7 @@ namespace DIBA_School_Portal.Server.Services
                 }
 
                 await _context.SaveChangesAsync();
-
-                var classSubjectResults = await _context.TermSubjectResults
-                    .Include(tsr => tsr.TermResult)
-                    .Where(tsr => tsr.SubjectId == model.SubjectId
-                                  && tsr.TermResult.ClassId == model.ClassId
-                                  && tsr.TermResult.TermId == model.TermId
-                                  && tsr.TermResult.AcademicSessionId == model.AcademicSessionId)
-                    .OrderByDescending(tsr => tsr.TotalScore)
-                    .ToListAsync();
-
-                int rank = 1;
-                foreach (var result in classSubjectResults)
-                {
-                    result.SubjectPosition = rank;
-                    _context.TermSubjectResults.Update(result);
-                    rank++;
-                }
-
-                await _context.SaveChangesAsync();
-
-                await ComputeOverallTermResultsAsync(model.ClassId, model.TermId, model.AcademicSessionId);
+                await RecalculateRankingsAndAveragesAsync(model.ClassId, model.SubjectId, model.TermId, model.AcademicSessionId);
 
                 if (model.IsFinished)
                 {
@@ -205,9 +222,7 @@ namespace DIBA_School_Portal.Server.Services
                 return new ServiceResponse<string>
                 {
                     Success = true,
-                    Message = model.IsFinished
-                        ? "Scores finalized and submitted to the Principal successfully!"
-                        : "Scores saved as draft successfully!",
+                    Message = model.IsFinished ? "Scores finalized and submitted successfully!" : "Scores saved as draft successfully!",
                     StatusCode = 200
                 };
             }
@@ -219,12 +234,153 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================
-        // 3. GET A STUDENT'S COMPLETE TERM REPORT
+        // 3. UPDATE INDIVIDUAL RESULT (BYPASSES OR HANDLES 48H RULE)
         // ==========================================
-        public async Task<ServiceResponse<StudentTermReportDto>> GetAllSubjectResultsByStudentAsync(string studentId, Guid termId, Guid academicSessionId)
+        public async Task<ServiceResponse<string>> UpdateTermSubjectResultAsync(
+            Guid subjectResultId, decimal test1, decimal test2, decimal exam, string currentUserId, bool isPrincipalOrAdmin = false)
         {
             try
             {
+                if (test1 < 0 || test1 > 20 || test2 < 0 || test2 > 20 || exam < 0 || exam > 60)
+                {
+                    return new ServiceResponse<string>
+                    {
+                        Success = false,
+                        Message = "Invalid score ranges. Tests must be 0-20, Exam must be 0-60.",
+                        StatusCode = 400
+                    };
+                }
+
+                var subjectResult = await _context.TermSubjectResults
+                    .Include(tsr => tsr.TermResult)
+                    .FirstOrDefaultAsync(tsr => tsr.Id == subjectResultId);
+
+                if (subjectResult == null)
+                {
+                    return new ServiceResponse<string> { Success = false, Message = "Subject result record not found.", StatusCode = 404 };
+                }
+
+                // Check 48 hour limit if the user is a standard teacher without admin/principal privileges
+                if (!isPrincipalOrAdmin)
+                {
+                    var timeElapsed = DateTime.UtcNow - subjectResult.CreatedAt;
+                    if (timeElapsed.TotalHours > 48)
+                    {
+                        return new ServiceResponse<string>
+                        {
+                            Success = false,
+                            Message = "The 48-hour editing window has elapsed. Only a Principal or Admin can update these scores now.",
+                            StatusCode = 403
+                        };
+                    }
+                }
+
+                decimal totalScore = test1 + test2 + exam;
+
+                subjectResult.Test1Score = test1;
+                subjectResult.Test2Score = test2;
+                subjectResult.ExamScore = exam;
+                subjectResult.TotalScore = totalScore;
+                subjectResult.Grade = CalculateGrade(totalScore);
+                subjectResult.Remark = CalculateRemark(totalScore);
+
+                _context.TermSubjectResults.Update(subjectResult);
+                await _context.SaveChangesAsync();
+
+                // Recalculate rankings
+                var tr = subjectResult.TermResult;
+                await RecalculateRankingsAndAveragesAsync(tr.ClassId, subjectResult.SubjectId, tr.TermId, tr.AcademicSessionId);
+
+                return new ServiceResponse<string>
+                {
+                    Success = true,
+                    Message = "Subject result updated successfully!",
+                    StatusCode = 200
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating subject result.");
+                return new ServiceResponse<string> { Success = false, Message = ex.Message, StatusCode = 500 };
+            }
+        }
+
+        // ==========================================
+        // 4. GET REPORT CARD (WITH CUMULATIVE SUPPORT)
+        // ==========================================
+        public async Task<ServiceResponse<StudentReportCardDto>> GetStudentReportCardAsync(string studentId, Guid termId, Guid academicSessionId)
+        {
+            try
+            {
+                if (!Guid.TryParse(studentId, out Guid parsedStudentId))
+                {
+                    return new ServiceResponse<StudentReportCardDto> { Success = false, Message = "Invalid student ID format.", StatusCode = 400 };
+                }
+
+                var isEnrolled = await _context.StudentEnrollments
+                    .AnyAsync(e => e.StudentProfileId == parsedStudentId && e.TermId == termId && e.AcademicSessionId == academicSessionId && e.IsActive);
+
+                if (!isEnrolled)
+                {
+                    return new ServiceResponse<StudentReportCardDto> { Success = false, Message = "Student is not officially enrolled for this term/session.", StatusCode = 400 };
+                }
+
+                var term = await _context.SchoolTerms.FindAsync(termId);
+                bool isThirdTerm = term != null && term.Name.Contains("Third", StringComparison.OrdinalIgnoreCase);
+
+                if (isThirdTerm)
+                {
+                    var allTermResultsForSession = await _context.TermResults
+                        .AsNoTracking()
+                        .Include(tr => tr.Student)
+                        .Include(tr => tr.Term)
+                        .Include(tr => tr.AcademicSession)
+                        .Include(tr => tr.Class)
+                        .Include(tr => tr.SubjectResults)
+                            .ThenInclude(sr => sr.Subject)
+                        .Where(tr => tr.StudentId == studentId && tr.AcademicSessionId == academicSessionId)
+                        .ToListAsync();
+
+                    var thirdTermResult = allTermResultsForSession.FirstOrDefault(tr => tr.TermId == termId);
+                    if (thirdTermResult == null)
+                    {
+                        return new ServiceResponse<StudentReportCardDto> { Success = false, Message = "Third term report card not computed yet.", StatusCode = 404 };
+                    }
+
+                    var cumulativeSubjectScores = allTermResultsForSession
+                        .SelectMany(tr => tr.SubjectResults)
+                        .GroupBy(sr => sr.SubjectId)
+                        .Select(group => new SubjectScoreDto
+                        {
+                            SubjectId = group.Key,
+                            SubjectName = group.First().Subject?.Name ?? string.Empty,
+                            TotalScore = Math.Round(group.Average(sr => sr.TotalScore), 2),
+                            Grade = group.Last().Grade,
+                            Remark = group.Last().Remark
+                        }).ToList();
+
+                    var cumulativeAverage = allTermResultsForSession.Any() ? allTermResultsForSession.Average(tr => tr.AverageScore) : 0;
+
+                    var cumulativeReportDto = new StudentReportCardDto
+                    {
+                        TermResultId = thirdTermResult.Id,
+                        StudentId = thirdTermResult.StudentId.ToString(),
+                        StudentName = thirdTermResult.Student != null ? $"{thirdTermResult.Student.FirstName} {thirdTermResult.Student.LastName}" : string.Empty,
+                        ClassId = thirdTermResult.ClassId,
+                        ClassName = thirdTermResult.Class?.Name ?? string.Empty,
+                        TermId = thirdTermResult.TermId,
+                        TermName = thirdTermResult.Term?.Name ?? string.Empty,
+                        AcademicSessionId = thirdTermResult.AcademicSessionId,
+                        SessionName = thirdTermResult.AcademicSession?.Name ?? string.Empty,
+                        AverageScore = Math.Round(cumulativeAverage, 2),
+                        ClassPosition = thirdTermResult.Position,
+                        OverallGrade = thirdTermResult.OverallGrade,
+                        SubjectResults = cumulativeSubjectScores
+                    };
+
+                    return new ServiceResponse<StudentReportCardDto> { Success = true, Data = cumulativeReportDto, StatusCode = 200 };
+                }
+
                 var termResult = await _context.TermResults
                     .AsNoTracking()
                     .Include(tr => tr.Student)
@@ -233,21 +389,14 @@ namespace DIBA_School_Portal.Server.Services
                     .Include(tr => tr.Class)
                     .Include(tr => tr.SubjectResults)
                         .ThenInclude(sr => sr.Subject)
-                    .FirstOrDefaultAsync(tr => tr.StudentId == studentId
-                                               && tr.TermId == termId
-                                               && tr.AcademicSessionId == academicSessionId);
+                    .FirstOrDefaultAsync(tr => tr.StudentId == studentId && tr.TermId == termId && tr.AcademicSessionId == academicSessionId);
 
                 if (termResult == null)
                 {
-                    return new ServiceResponse<StudentTermReportDto>
-                    {
-                        Success = false,
-                        Message = "No report card found for this student in the specified term and session.",
-                        StatusCode = 404
-                    };
+                    return new ServiceResponse<StudentReportCardDto> { Success = false, Message = "Report card not found.", StatusCode = 404 };
                 }
 
-                var subjectDtos = termResult.SubjectResults.Select(sr => new TermSubjectResultDto
+                var subjectDtos = termResult.SubjectResults.Select(sr => new SubjectScoreDto
                 {
                     Id = sr.Id,
                     SubjectId = sr.SubjectId,
@@ -261,10 +410,10 @@ namespace DIBA_School_Portal.Server.Services
                     Remark = sr.Remark
                 }).ToList();
 
-                var reportDto = new StudentTermReportDto
+                var reportDto = new StudentReportCardDto
                 {
                     TermResultId = termResult.Id,
-                    StudentId = termResult.StudentId,
+                    StudentId = termResult.StudentId.ToString(),
                     StudentName = termResult.Student != null ? $"{termResult.Student.FirstName} {termResult.Student.LastName}" : string.Empty,
                     ClassId = termResult.ClassId,
                     ClassName = termResult.Class?.Name ?? string.Empty,
@@ -278,25 +427,40 @@ namespace DIBA_School_Portal.Server.Services
                     SubjectResults = subjectDtos
                 };
 
-                return new ServiceResponse<StudentTermReportDto>
-                {
-                    Success = true,
-                    Data = reportDto,
-                    StatusCode = 200
-                };
+                return new ServiceResponse<StudentReportCardDto> { Success = true, Data = reportDto, StatusCode = 200 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error fetching student term report.");
-                return new ServiceResponse<StudentTermReportDto> { Success = false, Message = ex.Message, StatusCode = 500 };
+                _logger.LogError(ex, "Error fetching report card.");
+                return new ServiceResponse<StudentReportCardDto> { Success = false, Message = ex.Message, StatusCode = 500 };
             }
         }
 
         // ==========================================
-        // 4. PRIVATE COMPUTATION & HELPER METHODS
+        // 5. HELPER COMPUTATION METHODS
         // ==========================================
-        private async Task ComputeOverallTermResultsAsync(Guid classId, Guid termId, Guid academicSessionId)
+        private async Task RecalculateRankingsAndAveragesAsync(Guid classId, Guid subjectId, Guid termId, Guid academicSessionId)
         {
+            // 1. Recalculate Subject Positions
+            var classSubjectResults = await _context.TermSubjectResults
+                .Include(tsr => tsr.TermResult)
+                .Where(tsr => tsr.SubjectId == subjectId
+                              && tsr.TermResult.ClassId == classId
+                              && tsr.TermResult.TermId == termId
+                              && tsr.TermResult.AcademicSessionId == academicSessionId)
+                .OrderByDescending(tsr => tsr.TotalScore)
+                .ToListAsync();
+
+            int rank = 1;
+            foreach (var result in classSubjectResults)
+            {
+                result.SubjectPosition = rank;
+                _context.TermSubjectResults.Update(result);
+                rank++;
+            }
+            await _context.SaveChangesAsync();
+
+            // 2. Recalculate Overall Term Averages & Class Positions
             var termResults = await _context.TermResults
                 .Include(tr => tr.SubjectResults)
                 .Where(tr => tr.ClassId == classId && tr.TermId == termId && tr.AcademicSessionId == academicSessionId)
@@ -304,14 +468,7 @@ namespace DIBA_School_Portal.Server.Services
 
             foreach (var tr in termResults)
             {
-                if (tr.SubjectResults.Any())
-                {
-                    tr.AverageScore = tr.SubjectResults.Average(sr => sr.TotalScore);
-                }
-                else
-                {
-                    tr.AverageScore = 0;
-                }
+                tr.AverageScore = tr.SubjectResults.Any() ? tr.SubjectResults.Average(sr => sr.TotalScore) : 0;
             }
 
             var rankedResults = termResults.OrderByDescending(tr => tr.AverageScore).ToList();
@@ -333,22 +490,14 @@ namespace DIBA_School_Portal.Server.Services
             var termName = await _context.SchoolTerms.Where(t => t.Id == termId).Select(t => t.Name).FirstOrDefaultAsync() ?? "Term";
 
             var principals = await _userManager.GetUsersInRoleAsync("Principal");
-            if (!principals.Any())
-            {
-                principals = await _userManager.GetUsersInRoleAsync("Admin");
-            }
-
+            if (!principals.Any()) principals = await _userManager.GetUsersInRoleAsync("Admin");
             var principalEmail = principals.FirstOrDefault()?.Email;
 
             if (!string.IsNullOrEmpty(principalEmail))
             {
                 string subject = $"Score Submission Alert: {subjectName} for {className}";
-
                 string message = $"Dear Principal,<br><br>" +
-                                 $"Teacher <b>{teacher.FirstName} {teacher.LastName}</b> has successfully completed and submitted the scores for <b>{subjectName}</b> in <b>{className}</b> ({termName}).<br>" +
-                                 $"You can now review the results on the administrative portal.<br><br>" +
-                                 $"Best regards,<br>DIBA School Portal System";
-
+                                 $"Teacher <b>{teacher.FirstName} {teacher.LastName}</b> has submitted scores for <b>{subjectName}</b> in <b>{className}</b> ({termName}).";
                 await _emailService.EmailSendAsync(principalEmail, subject, message);
             }
         }

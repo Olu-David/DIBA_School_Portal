@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace DIBA_School_Portal.Server.Configurations
 {
-    public class EnrollmentConfiguration : IEntityTypeConfiguration<Enrollment>
+    public class EnrollmentConfiguration : IEntityTypeConfiguration<StudentEnrollments>
     {
-        public void Configure(EntityTypeBuilder<Enrollment> builder)
+        public void Configure(EntityTypeBuilder<StudentEnrollments> builder)
         {
             builder.HasKey(e => e.Id);
 
@@ -35,15 +35,15 @@ namespace DIBA_School_Portal.Server.Configurations
                    .HasForeignKey(e => e.TermId)
                    .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasMany(e => e.PaymentTransactions)
-                   .WithOne(pt => pt.Enrollment)
-                   .HasForeignKey(pt => pt.EnrollmentId)
+            builder.HasMany(e => e.StudentPayment)
+                   .WithOne(pt => pt.StudentEnrollment)
+                   .HasForeignKey(pt => pt.Id)
                    .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasMany(e => e.TermResults)
-                   .WithOne(tr => tr.Enrollment)
-                   .HasForeignKey(tr => tr.EnrollmentId)
-                   .OnDelete(DeleteBehavior.Cascade);
+            //builder.HasMany(e => e.TermResults)
+            //       .WithOne(tr => tr.StudentEnrollment)
+            //       .HasForeignKey(tr => tr.EnrollmentId)
+            //       .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

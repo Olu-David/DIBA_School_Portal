@@ -96,6 +96,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         #region CreateFeeAsync
+
         public async Task<ServiceResponse<bool>> CreateFeeAsync(FeeDto feeDto)
         {
             var response = new ServiceResponse<bool>();
@@ -145,6 +146,24 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 };
 
                 await _context.Fees.AddAsync(fee);
+
+                // Handle Class-Specific Prices if provided in the DTO
+                if (feeDto.ClassPrices != null && feeDto.ClassPrices.Any())
+                {
+                    foreach (var cp in feeDto.ClassPrices)
+                    {
+                        var classFeePrice = new ClassFeePrice
+                        {
+                            Id = Guid.NewGuid(),
+                            FeeId = fee.Id,
+                            SchoolClassId = cp.SchoolClassId,
+                            Amount = cp.MinimumAmountToPay // or cp.Amount depending on your DTO property name
+                        };
+
+                        await _context.ClassFeePrices.AddAsync(classFeePrice);
+                    }
+                }
+
                 await _context.SaveChangesAsync();
 
                 response.Success = true;
@@ -163,20 +182,22 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
-        #region GetAllSchoolClassesAsync
-        public async Task<ServiceResponse<IEnumerable<SchoolClassDTO>>> GetAllSchoolClassesAsync()
+        #region GetClassesForSubjectAsync
+        public async Task<ServiceResponse<IEnumerable<SchoolClassDTO>>> GetClassesForSubjectAsync(Guid subjectId)
         {
             var response = new ServiceResponse<IEnumerable<SchoolClassDTO>>();
             try
             {
-                var classes = await _context.SchoolClasses
+                var classes = await _context.ClassSubjects
                     .AsNoTracking()
-                    .Where(c => !c.IsDeleted)
-                    .Select(c => new SchoolClassDTO
+                    .Where(cs => cs.SubjectId == subjectId)
+                    .Include(cs => cs.SchoolClass)
+                    .Where(cs => cs.SchoolClass != null && !cs.SchoolClass.IsDeleted) // Ensure class exists and isn't deleted
+                    .Select(cs => new SchoolClassDTO
                     {
-                        Id = c.Id,
-                        Name = c.Name,
-                        AcademicSection = c.AcademicSection
+                        Id = cs.SchoolClass.Id,
+                        Name = cs.SchoolClass.Name,
+                        AcademicSection = cs.SchoolClass.AcademicSection
                     })
                     .ToListAsync();
 
@@ -186,7 +207,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error fetching all school classes.");
+                _logger.LogError(ex, "Error fetching school classes for subject: {SubjectId}", subjectId);
                 response.Success = false;
                 response.Message = ex.Message;
                 response.StatusCode = 500;
@@ -319,21 +340,24 @@ namespace DIBA_School_Portal.Server.Repository.Services
             var response = new ServiceResponse<IEnumerable<SubjectDto>>();
             try
             {
-                var subjects = await _context.Subjects
-                    .AsNoTracking()
-                    .Select(s => new SubjectDto
+                // Query through the junction table to get the subjects assigned to this class
+                var subjects = await _context.ClassSubjects
+                    .Where(cs => cs.SchoolClassId == classId) 
+                    .Include(cs => cs.Subject)              
+                    .Select(cs => new SubjectDto
                     {
-                        Id = s.Id,
-                        Name = s.Name
+                        Id = cs.Subject.Id,
+                        Name = cs.Subject.Name
                     })
+                    .AsNoTracking()
                     .ToListAsync();
 
                 response.Success = true;
                 response.Data = subjects;
                 response.StatusCode = 200;
             }
-            catch (Exception ex)
-            {
+             catch (Exception ex) // Keep your catch block as it was (catch (Exception ex))
+    {
                 _logger.LogError(ex, "Error fetching subjects for class: {ClassId}", classId);
                 response.Success = false;
                 response.Message = ex.Message;
@@ -341,6 +365,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
             return response;
         }
+        
         #endregion
 
         #region GetClassSubjectsWithSelectionAsync
@@ -349,13 +374,11 @@ namespace DIBA_School_Portal.Server.Repository.Services
             var response = new ServiceResponse<IEnumerable<SubjectCheckboxDto>>();
             try
             {
-                // 1. Get IDs of subjects already assigned to this class
                 var assignedSubjectIds = await _context.ClassSubjects
                     .Where(cs => cs.SchoolClassId == classId)
                     .Select(cs => cs.SubjectId)
                     .ToListAsync();
 
-                // 2. Get all available subjects and map them, checking if they are in the assigned list
                 var allSubjects = await _context.Subjects
                     .AsNoTracking()
                     .ToListAsync();
@@ -388,6 +411,26 @@ namespace DIBA_School_Portal.Server.Repository.Services
             var response = new ServiceResponse<string>();
             try
             {
+                var existingClassSubjects = await _context.ClassSubjects
+                    .Where(cs => cs.SchoolClassId == classId)
+                    .ToListAsync();
+
+                _context.ClassSubjects.RemoveRange(existingClassSubjects);
+
+                if (subjectIds != null && subjectIds.Any())
+                {
+                    var newClassSubjects = subjectIds.Select(subjectId => new ClassSubject
+                    {
+                        Id = Guid.NewGuid(),
+                        SchoolClassId = classId,
+                        SubjectId = subjectId
+                    });
+
+                    await _context.ClassSubjects.AddRangeAsync(newClassSubjects);
+                }
+
+                await _context.SaveChangesAsync();
+
                 response.Success = true;
                 response.Message = "Class subjects updated successfully.";
                 response.StatusCode = 200;
@@ -401,6 +444,184 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 response.StatusCode = 500;
             }
             return response;
+        }
+        #endregion
+
+        #region GetStudentBillBreakdownAsync
+      
+        public async Task<ServiceResponse<StudentBillResponseDto>> GetStudentBillBreakdownAsync(Guid studentProfileId, Guid termId)
+        {
+            var response = new ServiceResponse<StudentBillResponseDto>();
+            try
+            {
+                var enrollment = await _context.StudentEnrollments
+                    .Include(e => e.StudentProfile)
+                    .Include(e => e.SchoolClass)
+                    .Include(e => e.Term)
+                    .FirstOrDefaultAsync(e => e.StudentProfileId == studentProfileId && e.TermId == termId);
+
+                if (enrollment == null)
+                {
+                    response.Success = false;
+                    response.Message = "Student enrollment record not found for this term.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                var student = enrollment.StudentProfile;
+                var schoolClass = enrollment.SchoolClass;
+
+                // 1. Calculate Previous Term(s) Outstanding Debt (Arrears)
+                decimal previousDebt = await CalculatePreviousOutstandingDebtAsync(studentProfileId, enrollment.Term.StartDate);
+
+                // 2. Fetch standard fee prices mapped to this student's class and term
+                var classFeePrices = await _context.ClassFeePrices
+                    .Include(cfp => cfp.Fee)
+                    .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId && cfp.Fee.TermId == termId)
+                    .AsNoTracking()
+                    .ToListAsync();
+
+                // 3. Fetch all books available for this class and term
+                var classBooks = await _context.ClassBooks
+                    .Where(cb => cb.SchoolClassId == enrollment.SchoolClassId && cb.TermId == termId)
+                    .AsNoTracking()
+                    .ToListAsync();
+
+                // 4. Fetch successful payments and their receipt items for this term
+                var successfulPayments = await _context.StudentPayments
+                    .Include(p => p.PaymentItems)
+                    .Where(p => p.StudentProfileId == studentProfileId && p.TermId == termId && p.Status == PaymentStatus.Successful)
+                    .AsNoTracking()
+                    .ToListAsync();
+
+                var feeBreakdowns = new List<FeeItemBreakdownDto>();
+                decimal currentTermBilled = 0;
+
+                // Loop through class fees and calculate what is owed vs. what was paid
+                foreach (var cfp in classFeePrices)
+                {
+                    decimal itemAmount = cfp.Amount;
+                    currentTermBilled += itemAmount;
+
+                    decimal paidTowardThis = successfulPayments
+                        .SelectMany(p => p.PaymentItems)
+                        .Where(pi => pi.FeeId == cfp.FeeId)
+                        .Sum(pi => pi.AmountAllocated);
+
+                    feeBreakdowns.Add(new FeeItemBreakdownDto
+                    {
+                        FeeId = cfp.FeeId,
+                        FeeName = cfp.Fee.FeeName,
+                        Description = cfp.Fee.Description,
+                        Amount = itemAmount,
+                        MinimumAmountToPay = cfp.MinimumAmountToPay,
+                        AmountPaidTowardThis = paidTowardThis,
+                        IsFullyPaid = paidTowardThis >= itemAmount
+                    });
+                }
+
+                // Loop through books and check if they've been paid for
+                var bookBreakdowns = new List<BookItemBreakdownDto>();
+                foreach (var book in classBooks)
+                {
+                    currentTermBilled += book.Price;
+
+                    bool isBookPaid = successfulPayments
+                        .SelectMany(p => p.PaymentItems)
+                        .Any(pi => pi.ClassBookId == book.Id);
+
+                    bookBreakdowns.Add(new BookItemBreakdownDto
+                    {
+                        ClassBookId = book.Id,
+                        Title = book.Title,
+                        Description = book.Description,
+                        Price = book.Price,
+                        IsPurchased = isBookPaid
+                    });
+                }
+
+                decimal totalBilled = currentTermBilled + previousDebt;
+                decimal totalPaidSoFar = successfulPayments.Sum(p => p.AmountPaid);
+
+                // Fixed syntax error here (added the minus sign)
+                decimal balanceRemaining = Math.Max(0, totalBilled - totalPaidSoFar);
+
+                // Calculate minimum required amount for unpaid or partially paid items
+                decimal totalMinimumRequired = feeBreakdowns
+                    .Where(f => !f.IsFullyPaid)
+                    .Sum(f => Math.Max(0, f.MinimumAmountToPay - f.AmountPaidTowardThis));
+
+                var paymentHistory = successfulPayments.Select(p => new PaymentHistoryDto
+                {
+                    PaymentId = p.Id,
+                    ReferenceNumber = p.ReferenceNumber,
+                    AmountPaid = p.AmountPaid,
+                    Status = p.Status,
+                    PaymentDate = p.PaymentDate
+                }).ToList();
+
+                response.Data = new StudentBillResponseDto
+                {
+                    StudentProfileId = student.Id,
+                    StudentName = $"{student.FirstName} {student.LastName}",
+                    ClassName = schoolClass.Name,
+                    TermId = termId,
+                    AcademicSessionId = enrollment.AcademicSessionId,
+                    TotalBilledAmount = totalBilled,
+                    TotalPaidSoFar = totalPaidSoFar,
+                    TotalBalanceRemaining = balanceRemaining,
+                    MinimumAmountRequired = totalMinimumRequired,
+                    FeeItems = feeBreakdowns,
+                    AvailableBooks = bookBreakdowns,
+                    PaymentHistory = paymentHistory
+                };
+
+                response.Success = true;
+                response.StatusCode = 200;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving student bill breakdown");
+                response.Success = false;
+                response.Message = $"Error retrieving student bill: {ex.Message}";
+                response.StatusCode = 500;
+            }
+            return response;
+        }
+        #endregion
+
+        #region Helper: CalculatePreviousOutstandingDebtAsync
+        private async Task<decimal> CalculatePreviousOutstandingDebtAsync(Guid studentProfileId, DateTime? currentTermStartDate)
+        {
+            var pastEnrollments = await _context.StudentEnrollments
+                .Include(e => e.Term)
+                .Where(e => e.StudentProfileId == studentProfileId && e.Term.StartDate < currentTermStartDate)
+                .AsNoTracking()
+                .ToListAsync();
+
+            decimal totalPastBilled = 0;
+            decimal totalPastPaid = 0;
+
+            foreach (var pastEnrollment in pastEnrollments)
+            {
+                var pastFees = await _context.ClassFeePrices
+                    .Where(cfp => cfp.SchoolClassId == pastEnrollment.SchoolClassId && cfp.Fee.TermId == pastEnrollment.TermId)
+                    .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0;
+
+                var pastBooks = await _context.ClassBooks
+                    .Where(cb => cb.SchoolClassId == pastEnrollment.SchoolClassId && cb.TermId == pastEnrollment.TermId)
+                    .SumAsync(cb => (decimal?)cb.Price) ?? 0;
+
+                totalPastBilled += (pastFees + pastBooks);
+
+                var pastPayments = await _context.StudentPayments
+                    .Where(p => p.StudentProfileId == studentProfileId && p.TermId == pastEnrollment.TermId && p.Status == PaymentStatus.Successful)
+                    .SumAsync(p => (decimal?)p.AmountPaid) ?? 0;
+
+                totalPastPaid += pastPayments;
+            }
+
+            return Math.Max(0, totalPastBilled - totalPastPaid);
         }
         #endregion
     }

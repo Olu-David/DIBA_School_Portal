@@ -19,6 +19,7 @@ namespace DIBA_School_Portal.Server.Configurations
         }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<NotificationLog> NotificationLogs { get; set; }
+        public DbSet<StudentSubject> StudentSubjects { get; set; }
         public DbSet<PaymentLog> PaymentLogs { get;  set; }
         public DbSet<AcademicSession> AcademicSessions { get; set; }
         public DbSet<StudentPayment> StudentPayments { get; set; }
@@ -30,11 +31,14 @@ namespace DIBA_School_Portal.Server.Configurations
         public DbSet<TermResult> TermResults { get; set; }   
         public DbSet<TermSubjectResult> TermSubjectResults {get; set; }
         public DbSet<Fee> Fees { get; set; }
+        public DbSet<ClassFeePrice> ClassFeePrices { get; set; }
+        public DbSet<ClassBook> ClassBooks { get; set; }
 
         // Profiles & Enrollments
         public DbSet<StudentProfile> StudentProfiles { get; set; }
         public DbSet<TeacherProfile> TeacherProfiles { get; set; }
-        public DbSet<Enrollment> Enrollments { get; set; }
+        public DbSet<StudentEnrollments> StudentEnrollments { get; set; }
+        public DbSet<ClassFeePrice> ClassFees { get; set; }
     }
    
     

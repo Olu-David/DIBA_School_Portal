@@ -48,5 +48,6 @@ namespace DIBA_School_Portal.Server.Entities
 
         [MaxLength(100)]
         public string Remark { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; internal set; }
     }
 }
