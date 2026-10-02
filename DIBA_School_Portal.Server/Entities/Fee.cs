@@ -26,26 +26,27 @@ namespace DIBA_School_Portal.Server.Entities
 
 
         [Required]
-        public Guid ClassLevelId { get; set; }
+        public Guid? ClassLevelId { get; set; }
 
         [ForeignKey(nameof(ClassLevelId))]
         public SchoolClass ClassLevel { get; set; } = null!;
 
         [Required]
-        public Guid AcademicSessionId { get; set; }
+        public Guid? AcademicSessionId { get; set; }
 
         [ForeignKey(nameof(AcademicSessionId))]
         public AcademicSession AcademicSession { get; set; } = null!;
 
         [Required]
-        public Guid TermId { get; set; }
+        public Guid? TermId { get; set; }
 
         [ForeignKey(nameof(TermId))]
         public SchoolTerm Term { get; set; } = null!;
+        public Guid? SchoolClassId { get; set; }
+
         [ForeignKey(nameof(SchoolClassId))]
         public virtual SchoolClass SchoolClass { get; set; } = null!;
-        public Guid SchoolClassId { get;  set; }
-
+       
         public AcademicSection Section { get; set; }
         public ClassStream ClassStream { get; set; }
         // Navigation property for the many-to-many link to classes

@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DIBA_School_Portal.Server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261002203718_InitialCreate")]
+    [Migration("20261002222326_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -306,7 +306,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Property<decimal>("MinimumAmountToPay")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<Guid>("SchoolClassId")
+                    b.Property<Guid?>("SchoolClassId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Section")
@@ -676,10 +676,10 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Property<Guid>("AcademicSessionId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("StudentId")
+                    b.Property<Guid?>("StudentId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("SubjectId")
+                    b.Property<Guid?>("SubjectId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
@@ -687,7 +687,8 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasIndex("SubjectId");
 
                     b.HasIndex("StudentId", "SubjectId", "AcademicSessionId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[StudentId] IS NOT NULL AND [SubjectId] IS NOT NULL");
 
                     b.ToTable("StudentSubjects");
                 });
@@ -770,9 +771,6 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Property<Guid>("ClassId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("ClassId1")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<Guid>("EnrollmentId")
                         .HasColumnType("uniqueidentifier");
 
@@ -814,8 +812,6 @@ namespace DIBA_School_Portal.Server.Migrations
 
                     b.HasIndex("ClassId");
 
-                    b.HasIndex("ClassId1");
-
                     b.HasIndex("EnrollmentId");
 
                     b.HasIndex("TermId");
@@ -856,6 +852,7 @@ namespace DIBA_School_Portal.Server.Migrations
 
                     b.Property<string>("TeacherId")
                         .IsRequired()
+                        .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<Guid>("TermResultId")
@@ -876,7 +873,8 @@ namespace DIBA_School_Portal.Server.Migrations
 
                     b.HasIndex("TeacherId");
 
-                    b.HasIndex("TermResultId");
+                    b.HasIndex("TermResultId", "SubjectId")
+                        .IsUnique();
 
                     b.ToTable("TermSubjectResults");
                 });
@@ -1007,8 +1005,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasOne("DIBA_School_Portal.Server.Entities.SchoolClass", "SchoolClass")
                         .WithMany("Fees")
                         .HasForeignKey("SchoolClassId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("DIBA_School_Portal.Server.Entities.SchoolTerm", "Term")
                         .WithMany("Fees")
@@ -1037,13 +1034,13 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasOne("DIBA_School_Portal.Server.Configurations.ApplicationUser", "Parent")
                         .WithMany("Children")
                         .HasForeignKey("ParentUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("DIBA_School_Portal.Server.Entities.Student", "StudentProfile")
                         .WithMany()
                         .HasForeignKey("StudentProfileId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("Parent");
@@ -1127,10 +1124,10 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasOne("DIBA_School_Portal.Server.Entities.StudentEnrollments", "StudentEnrollment")
                         .WithMany("StudentPayment")
                         .HasForeignKey("EnrollmentID")
-                        .OnDelete(DeleteBehavior.SetNull)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("DIBA_School_Portal.Server.Entities.Fee", "Fees")
+                    b.HasOne("DIBA_School_Portal.Server.Entities.Fee", "Fee")
                         .WithMany()
                         .HasForeignKey("FeeId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -1149,7 +1146,7 @@ namespace DIBA_School_Portal.Server.Migrations
 
                     b.Navigation("AcademicSession");
 
-                    b.Navigation("Fees");
+                    b.Navigation("Fee");
 
                     b.Navigation("StudentEnrollment");
 
@@ -1163,14 +1160,12 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasOne("DIBA_School_Portal.Server.Entities.Student", "StudentProfile")
                         .WithMany()
                         .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("DIBA_School_Portal.Server.Entities.Subject", "Subject")
                         .WithMany()
                         .HasForeignKey("SubjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("StudentProfile");
 
@@ -1191,14 +1186,10 @@ namespace DIBA_School_Portal.Server.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("DIBA_School_Portal.Server.Entities.SchoolClass", "Class")
-                        .WithMany()
-                        .HasForeignKey("ClassId1");
-
                     b.HasOne("DIBA_School_Portal.Server.Entities.StudentEnrollments", "Enrollment")
                         .WithMany("TermResults")
                         .HasForeignKey("EnrollmentId")
-                        .OnDelete(DeleteBehavior.SetNull)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("DIBA_School_Portal.Server.Configurations.ApplicationUser", "Student")
@@ -1215,8 +1206,6 @@ namespace DIBA_School_Portal.Server.Migrations
 
                     b.Navigation("AcademicSession");
 
-                    b.Navigation("Class");
-
                     b.Navigation("Enrollment");
 
                     b.Navigation("SchoolClass");
@@ -1231,13 +1220,13 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasOne("DIBA_School_Portal.Server.Entities.Subject", "Subject")
                         .WithMany()
                         .HasForeignKey("SubjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("DIBA_School_Portal.Server.Configurations.ApplicationUser", "Teacher")
                         .WithMany()
                         .HasForeignKey("TeacherId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("DIBA_School_Portal.Server.Entities.TermResult", "TermResult")

@@ -8,7 +8,7 @@ public class StudentPaymentItem
     public Guid Id { get; set; } = Guid.NewGuid();
 
     [Required]
-    public Guid StudentPaymentId { get; set; }
+    public Guid? StudentPaymentId { get; set; }
     [ForeignKey(nameof(StudentPaymentId))]
     public StudentPayment StudentPayment { get; set; } = null!;
 

@@ -11,12 +11,12 @@ public class ParentStudentConfiguration : IEntityTypeConfiguration<ParentStudent
         builder.HasOne(x => x.Parent)
                .WithMany(u => u.Children)
                .HasForeignKey(x => x.ParentUserId)
-               .OnDelete(DeleteBehavior.Cascade);
+               .OnDelete(DeleteBehavior.NoAction);
 
         builder.HasOne(x => x.StudentProfile)
                .WithMany()
                .HasForeignKey(x => x.StudentProfileId)
-               .OnDelete(DeleteBehavior.Cascade);
+               .OnDelete(DeleteBehavior.NoAction);
 
         // One parent can be linked to the same student only once
         builder.HasIndex(x => new { x.ParentUserId, x.StudentProfileId })

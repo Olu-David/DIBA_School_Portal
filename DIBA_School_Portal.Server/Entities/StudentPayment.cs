@@ -1,4 +1,6 @@
 ﻿using DIBA_School_Portal.Server.Enums;
+using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -21,7 +23,7 @@ namespace DIBA_School_Portal.Server.Entities
 
         [Required]
         [MaxLength(100)]
-        public string ReferenceNumber { get; set; } = string.Empty; // Transaction reference or teller number
+        public string ReferenceNumber { get; set; } = string.Empty;
 
         [Required]
         public PaymentGateway Gateway { get; set; }
@@ -41,17 +43,23 @@ namespace DIBA_School_Portal.Server.Entities
         [ForeignKey(nameof(TermId))]
         public SchoolTerm Term { get; set; } = null!;
 
-        public Guid? FeeId { get; set; }     
+        public Guid? FeeId { get; set; }
+
         [ForeignKey(nameof(FeeId))]
-        public virtual Fee Fees { get; set; } = null!;    
+        public virtual Fee? Fee { get; set; }
 
         public DateTime PaymentDate { get; set; } = DateTime.UtcNow;
 
         [MaxLength(255)]
-        public string? ProofOfPaymentUrl { get; set; } // Supabase link for manual bank teller uploads
+        public string? ProofOfPaymentUrl { get; set; }
+
+       
+        [Required]
         public Guid EnrollmentID { get; set; }
+
         [ForeignKey(nameof(EnrollmentID))]
-        public virtual StudentEnrollments? StudentEnrollment {   get;  set; }
-        public ICollection<StudentPaymentItem> PaymentItems = new List<StudentPaymentItem>();
+        public virtual StudentEnrollments StudentEnrollment { get; set; } = null!;
+
+        public ICollection<StudentPaymentItem> PaymentItems { get; set; } = new List<StudentPaymentItem>();
     }
 }

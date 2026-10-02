@@ -249,7 +249,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     ClassLevelId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     AcademicSessionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     TermId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SchoolClassId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SchoolClassId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     Section = table.Column<int>(type: "int", nullable: false),
                     ClassStream = table.Column<int>(type: "int", nullable: false)
                 },
@@ -382,14 +382,12 @@ namespace DIBA_School_Portal.Server.Migrations
                         name: "FK_ParentStudents_ApplicationUser_ParentUserId",
                         column: x => x.ParentUserId,
                         principalTable: "ApplicationUser",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_ParentStudents_Students_StudentProfileId",
                         column: x => x.StudentProfileId,
                         principalTable: "Students",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
@@ -442,8 +440,8 @@ namespace DIBA_School_Portal.Server.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    StudentId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SubjectId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    StudentId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    SubjectId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     AcademicSessionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
                 constraints: table =>
@@ -506,7 +504,7 @@ namespace DIBA_School_Portal.Server.Migrations
                         column: x => x.EnrollmentID,
                         principalTable: "StudentEnrollments",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_StudentPayments_Students_StudentProfileId",
                         column: x => x.StudentProfileId,
@@ -531,7 +529,6 @@ namespace DIBA_School_Portal.Server.Migrations
                     PrincipalRemark = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     IsPublished = table.Column<bool>(type: "bit", nullable: false),
                     EnrollmentId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ClassId1 = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     Position = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
@@ -556,11 +553,6 @@ namespace DIBA_School_Portal.Server.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_TermResults_SchoolClass_ClassId1",
-                        column: x => x.ClassId1,
-                        principalTable: "SchoolClass",
-                        principalColumn: "Id");
-                    table.ForeignKey(
                         name: "FK_TermResults_SchoolTerms_TermId",
                         column: x => x.TermId,
                         principalTable: "SchoolTerms",
@@ -571,7 +563,7 @@ namespace DIBA_School_Portal.Server.Migrations
                         column: x => x.EnrollmentId,
                         principalTable: "StudentEnrollments",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -612,7 +604,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     TermResultId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     SubjectId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TeacherId = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    TeacherId = table.Column<string>(type: "nvarchar(450)", maxLength: 450, nullable: false),
                     Test1Score = table.Column<decimal>(type: "decimal(5,2)", nullable: false),
                     Test2Score = table.Column<decimal>(type: "decimal(5,2)", nullable: false),
                     ExamScore = table.Column<decimal>(type: "decimal(5,2)", nullable: false),
@@ -630,13 +622,13 @@ namespace DIBA_School_Portal.Server.Migrations
                         column: x => x.TeacherId,
                         principalTable: "ApplicationUser",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_TermSubjectResults_Subjects_SubjectId",
                         column: x => x.SubjectId,
                         principalTable: "Subjects",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_TermSubjectResults_TermResults_TermResultId",
                         column: x => x.TermResultId,
@@ -827,7 +819,8 @@ namespace DIBA_School_Portal.Server.Migrations
                 name: "IX_StudentSubjects_StudentId_SubjectId_AcademicSessionId",
                 table: "StudentSubjects",
                 columns: new[] { "StudentId", "SubjectId", "AcademicSessionId" },
-                unique: true);
+                unique: true,
+                filter: "[StudentId] IS NOT NULL AND [SubjectId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_StudentSubjects_SubjectId",
@@ -849,11 +842,6 @@ namespace DIBA_School_Portal.Server.Migrations
                 name: "IX_TermResults_ClassId",
                 table: "TermResults",
                 column: "ClassId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_TermResults_ClassId1",
-                table: "TermResults",
-                column: "ClassId1");
 
             migrationBuilder.CreateIndex(
                 name: "IX_TermResults_EnrollmentId",
@@ -882,9 +870,10 @@ namespace DIBA_School_Portal.Server.Migrations
                 column: "TeacherId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_TermSubjectResults_TermResultId",
+                name: "IX_TermSubjectResults_TermResultId_SubjectId",
                 table: "TermSubjectResults",
-                column: "TermResultId");
+                columns: new[] { "TermResultId", "SubjectId" },
+                unique: true);
         }
 
         /// <inheritdoc />
