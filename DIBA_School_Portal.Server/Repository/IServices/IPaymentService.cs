@@ -10,11 +10,12 @@ namespace DIBA_School_Portal.Server.Repository.IServices
             Task<ServiceResponse<IEnumerable<StudentPaymentDto>>> GetPaymentsByStudentAsync(Guid studentProfileId);
             Task<ServiceResponse<StudentPaymentDto>> GetPaymentByIdAsync(Guid paymentId);
             Task<ServiceResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, PaymentStatus status);
+        Task<ServiceResponse<StudentBillResponseDto>> GetStudentBillBreakdownAsync(Guid studentProfileId, Guid termId);
 
             // Add these for Flutterwave/Gateway handling:
             Task<ServiceResponse<StudentPaymentDto>> GetPaymentByReferenceAsync(string referenceNumber);
             Task<ServiceResponse<bool>> VerifyAndCompleteFlutterwavePaymentAsync(string transactionId, string referenceNumber);
-            Task<ServiceResponse<bool>> HasStudentMetMinimumFeeRequirementAsync(Guid studentProfileId, Guid termId, decimal minimumPercentage = 0.50m);
+          
     }
  }
 

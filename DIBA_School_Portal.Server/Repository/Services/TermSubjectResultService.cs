@@ -237,7 +237,7 @@ namespace DIBA_School_Portal.Server.Services
         // 3. UPDATE INDIVIDUAL RESULT (BYPASSES OR HANDLES 48H RULE)
         // ==========================================
         public async Task<ServiceResponse<string>> UpdateTermSubjectResultAsync(
-            Guid subjectResultId, decimal test1, decimal test2, decimal exam, string currentUserId, bool isPrincipalOrAdmin = false)
+             Guid subjectResultId, decimal test1, decimal test2, decimal exam, string currentUserId)
         {
             try
             {
@@ -251,16 +251,37 @@ namespace DIBA_School_Portal.Server.Services
                     };
                 }
 
+                // 1. Fetch current user to verify roles directly on the backend
+                var currentUser = await _userManager.FindByIdAsync(currentUserId);
+                if (currentUser == null)
+                {
+                    return new ServiceResponse<string>
+                    {
+                        Success = false,
+                        Message = "Current user not found.",
+                        StatusCode = 401
+                    };
+                }
+
+                bool isPrincipalOrAdmin = await _userManager.IsInRoleAsync(currentUser, "Principal") ||
+                                          await _userManager.IsInRoleAsync(currentUser, "SuperAdmin") ||
+                                          await _userManager.IsInRoleAsync(currentUser, "Admin");
+
                 var subjectResult = await _context.TermSubjectResults
                     .Include(tsr => tsr.TermResult)
                     .FirstOrDefaultAsync(tsr => tsr.Id == subjectResultId);
 
                 if (subjectResult == null)
                 {
-                    return new ServiceResponse<string> { Success = false, Message = "Subject result record not found.", StatusCode = 404 };
+                    return new ServiceResponse<string>
+                    {
+                        Success = false,
+                        Message = "Subject result record not found.",
+                        StatusCode = 404
+                    };
                 }
 
-                // Check 48 hour limit if the user is a standard teacher without admin/principal privileges
+                // 2. Enforce 48-hour restriction for non-Principal/SuperAdmin users
                 if (!isPrincipalOrAdmin)
                 {
                     var timeElapsed = DateTime.UtcNow - subjectResult.CreatedAt;
@@ -269,7 +290,7 @@ namespace DIBA_School_Portal.Server.Services
                         return new ServiceResponse<string>
                         {
                             Success = false,
-                            Message = "The 48-hour editing window has elapsed. Only a Principal or Admin can update these scores now.",
+                            Message = "The 48-hour editing window has elapsed. Only a Principal or SuperAdmin can update these scores now.",
                             StatusCode = 403
                         };
                     }
@@ -287,7 +308,7 @@ namespace DIBA_School_Portal.Server.Services
                 _context.TermSubjectResults.Update(subjectResult);
                 await _context.SaveChangesAsync();
 
-                // Recalculate rankings
+                // 3. Recalculate rankings and term averages automatically
                 var tr = subjectResult.TermResult;
                 await RecalculateRankingsAndAveragesAsync(tr.ClassId, subjectResult.SubjectId, tr.TermId, tr.AcademicSessionId);
 
@@ -301,7 +322,12 @@ namespace DIBA_School_Portal.Server.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating subject result.");
-                return new ServiceResponse<string> { Success = false, Message = ex.Message, StatusCode = 500 };
+                return new ServiceResponse<string>
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    StatusCode = 500
+                };
             }
         }
 

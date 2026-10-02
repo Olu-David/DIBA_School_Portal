@@ -8,20 +8,24 @@ namespace DIBA_School_Portal.Server.Configurations
     {
         public void Configure(EntityTypeBuilder<Subject> builder)
         {
-            builder.HasKey(s => s.Id);
-            builder.Property(s => s.Name).IsRequired().HasMaxLength(100);
-            builder.Property(s => s.Code).IsRequired().HasMaxLength(20);
-            builder.HasIndex(s => s.Code).IsUnique();
+            builder.HasKey(x => x.Id);
 
-            builder.HasMany(s => s.ClassSubjects)
+            builder.Property(x => x.Name)
+                   .IsRequired()
+                   .HasMaxLength(100);
+
+            builder.Property(x => x.Code)
+                   .IsRequired()
+                   .HasMaxLength(20);
+
+            builder.HasIndex(x => x.Code)
+                   .IsUnique();
+
+            builder.HasMany(x => x.ClassSubjects)
                    .WithOne(cs => cs.Subject)
                    .HasForeignKey(cs => cs.SubjectId)
                    .OnDelete(DeleteBehavior.Cascade);
 
-            builder.HasMany(s => s.ScoreEntries)
-                   .WithOne(se => se.Subject)
-                   .HasForeignKey(se => se.SubjectId)
-                   .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

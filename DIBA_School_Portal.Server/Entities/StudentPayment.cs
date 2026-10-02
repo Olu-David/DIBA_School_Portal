@@ -49,6 +49,8 @@ namespace DIBA_School_Portal.Server.Entities
 
         [MaxLength(255)]
         public string? ProofOfPaymentUrl { get; set; } // Supabase link for manual bank teller uploads
+        public Guid EnrollmentID { get; set; }
+        [ForeignKey(nameof(EnrollmentID))]
         public virtual StudentEnrollments? StudentEnrollment {   get;  set; }
         public ICollection<StudentPaymentItem> PaymentItems = new List<StudentPaymentItem>();
     }

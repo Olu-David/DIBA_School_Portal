@@ -31,8 +31,185 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+        #region GetStudentBillBreakdownAsync
+
+        public async Task<ServiceResponse<StudentBillResponseDto>> GetStudentBillBreakdownAsync(Guid studentProfileId, Guid termId)
+        {
+            var response = new ServiceResponse<StudentBillResponseDto>();
+            try
+            {
+                var enrollment = await _context.StudentEnrollments
+                    .Include(e => e.StudentProfile)
+                    .Include(e => e.SchoolClass)
+                    .Include(e => e.Term)
+                    .FirstOrDefaultAsync(e => e.StudentProfileId == studentProfileId && e.TermId == termId);
+
+                if (enrollment == null)
+                {
+                    response.Success = false;
+                    response.Message = "Student enrollment record not found for this term.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                var student = enrollment.StudentProfile;
+                var schoolClass = enrollment.SchoolClass;
+
+                // 1. Calculate Previous Term(s) Outstanding Debt (Arrears)
+                decimal previousDebt = await CalculatePreviousOutstandingDebtAsync(studentProfileId, enrollment.Term.StartDate);
+
+                // 2. Fetch standard fee prices mapped to this student's class and term
+                var classFeePrices = await _context.ClassFeePrices
+                    .Include(cfp => cfp.Fee)
+                    .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId && cfp.Fee.TermId == termId)
+                    .AsNoTracking()
+                    .ToListAsync();
+
+                // 3. Fetch all books available for this class and term
+                var classBooks = await _context.ClassBooks
+                    .Where(cb => cb.SchoolClassId == enrollment.SchoolClassId && cb.TermId == termId)
+                    .AsNoTracking()
+                    .ToListAsync();
+
+                // 4. Fetch successful payments and their receipt items for this term
+                var successfulPayments = await _context.StudentPayments
+                    .Include(p => p.PaymentItems)
+                    .Where(p => p.StudentProfileId == studentProfileId && p.TermId == termId && p.Status == PaymentStatus.Successful)
+                    .AsNoTracking()
+                    .ToListAsync();
+
+                var feeBreakdowns = new List<FeeItemBreakdownDto>();
+                decimal currentTermBilled = 0;
+
+                // Loop through class fees and calculate what is owed vs. what was paid
+                foreach (var cfp in classFeePrices)
+                {
+                    decimal itemAmount = cfp.Amount;
+                    currentTermBilled += itemAmount;
+
+                    decimal paidTowardThis = successfulPayments
+                        .SelectMany(p => p.PaymentItems)
+                        .Where(pi => pi.FeeId == cfp.FeeId)
+                        .Sum(pi => pi.AmountAllocated);
+
+                    feeBreakdowns.Add(new FeeItemBreakdownDto
+                    {
+                        FeeId = cfp.FeeId,
+                        FeeName = cfp.Fee.FeeName,
+                        Description = cfp.Fee.Description,
+                        Amount = itemAmount,
+                        MinimumAmountToPay = cfp.MinimumAmountToPay,
+                        AmountPaidTowardThis = paidTowardThis,
+                        IsFullyPaid = paidTowardThis >= itemAmount
+                    });
+                }
+
+                // Loop through books and check if they've been paid for
+                var bookBreakdowns = new List<BookItemBreakdownDto>();
+                foreach (var book in classBooks)
+                {
+                    currentTermBilled += book.Price;
+
+                    bool isBookPaid = successfulPayments
+                        .SelectMany(p => p.PaymentItems)
+                        .Any(pi => pi.ClassBookId == book.Id);
+
+                    bookBreakdowns.Add(new BookItemBreakdownDto
+                    {
+                        ClassBookId = book.Id,
+                        Title = book.Title,
+                        Description = book.Description,
+                        Price = book.Price,
+                        IsPurchased = isBookPaid
+                    });
+                }
+
+                decimal totalBilled = currentTermBilled + previousDebt;
+                decimal totalPaidSoFar = successfulPayments.Sum(p => p.AmountPaid);
+
+                // Fixed syntax error here (added the minus sign)
+                decimal balanceRemaining = Math.Max(0, totalBilled - totalPaidSoFar);
+
+                // Calculate minimum required amount for unpaid or partially paid items
+                decimal totalMinimumRequired = feeBreakdowns
+                    .Where(f => !f.IsFullyPaid)
+                    .Sum(f => Math.Max(0, f.MinimumAmountToPay - f.AmountPaidTowardThis));
+
+                var paymentHistory = successfulPayments.Select(p => new PaymentHistoryDto
+                {
+                    PaymentId = p.Id,
+                    ReferenceNumber = p.ReferenceNumber,
+                    AmountPaid = p.AmountPaid,
+                    Status = p.Status,
+                    PaymentDate = p.PaymentDate
+                }).ToList();
+
+                response.Data = new StudentBillResponseDto
+                {
+                    StudentProfileId = student.Id,
+                    StudentName = $"{student.FirstName} {student.LastName}",
+                    ClassName = schoolClass.Name,
+                    TermId = termId,
+                    AcademicSessionId = enrollment.AcademicSessionId,
+                    TotalBilledAmount = totalBilled,
+                    TotalPaidSoFar = totalPaidSoFar,
+                    TotalBalanceRemaining = balanceRemaining,
+                    MinimumAmountRequired = totalMinimumRequired,
+                    FeeItems = feeBreakdowns,
+                    AvailableBooks = bookBreakdowns,
+                    PaymentHistory = paymentHistory
+                };
+
+                response.Success = true;
+                response.StatusCode = 200;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving student bill breakdown");
+                response.Success = false;
+                response.Message = $"Error retrieving student bill: {ex.Message}";
+                response.StatusCode = 500;
+            }
+            return response;
+        }
+        #endregion
+
+        #region Helper: CalculatePreviousOutstandingDebtAsync
+        private async Task<decimal> CalculatePreviousOutstandingDebtAsync(Guid studentProfileId, DateTime? currentTermStartDate)
+        {
+            var pastEnrollments = await _context.StudentEnrollments
+                .Include(e => e.Term)
+                .Where(e => e.StudentProfileId == studentProfileId && e.Term.StartDate < currentTermStartDate)
+                .AsNoTracking()
+                .ToListAsync();
+
+            decimal totalPastBilled = 0;
+            decimal totalPastPaid = 0;
+
+            foreach (var pastEnrollment in pastEnrollments)
+            {
+                var pastFees = await _context.ClassFeePrices
+                    .Where(cfp => cfp.SchoolClassId == pastEnrollment.SchoolClassId && cfp.Fee.TermId == pastEnrollment.TermId)
+                    .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0;
+
+                var pastBooks = await _context.ClassBooks
+                    .Where(cb => cb.SchoolClassId == pastEnrollment.SchoolClassId && cb.TermId == pastEnrollment.TermId)
+                    .SumAsync(cb => (decimal?)cb.Price) ?? 0;
+
+                totalPastBilled += (pastFees + pastBooks);
+
+                var pastPayments = await _context.StudentPayments
+                    .Where(p => p.StudentProfileId == studentProfileId && p.TermId == pastEnrollment.TermId && p.Status == PaymentStatus.Successful)
+                    .SumAsync(p => (decimal?)p.AmountPaid) ?? 0;
+
+                totalPastPaid += pastPayments;
+            }
+
+            return Math.Max(0, totalPastBilled - totalPastPaid);
+        }
+        #endregion
         #region RecordPaymentAsync
-      
+
         public async Task<ServiceResponse<string>> RecordPaymentAsync(CreatePaymentDto paymentDto)
         {
             var response = new ServiceResponse<string>();
@@ -129,7 +306,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
             return response;
         }
-        
+
         #endregion
 
         #region GetPaymentsByStudentAsync
@@ -418,7 +595,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         else
                         {
                             enrollment.Status = StudentEnrollmentStatus.Active;
-                            enrollment.IsActive=true;   
+                            enrollment.IsActive = true;
                         }
                     }
 
@@ -453,136 +630,138 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
-        #region HasStudentMetMinimumFeeRequirementAsync
-        public async Task<ServiceResponse<bool>> HasStudentMetMinimumFeeRequirementAsync(Guid studentProfileId, Guid termId, decimal minimumPercentage = 0.50m)
-        {
-            var response = new ServiceResponse<bool>();
-            try
-            {
-                var studentProfile = await _context.StudentProfiles
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(s => s.Id == studentProfileId);
+        //#region HasStudentMetMinimumFeeRequirementAsync
+        //public async Task<ServiceResponse<bool>> HasStudentMetMinimumFeeRequirementAsync(Guid studentProfileId, Guid termId, decimal minimumPercentage = 0.50m)
+        //{
+        //    var response = new ServiceResponse<bool>();
+        //    try
+        //    {
+        //        var studentProfile = await _context.StudentProfiles
+        //            .AsNoTracking()
+        //            .FirstOrDefaultAsync(s => s.Id == studentProfileId);
 
-                if (studentProfile == null)
-                {
-                    response.Success = false;
-                    response.Message = "Student profile not found.";
-                    response.StatusCode = 404;
-                    return response;
-                }
+        //        if (studentProfile == null)
+        //        {
+        //            response.Success = false;
+        //            response.Message = "Student profile not found.";
+        //            response.StatusCode = 404;
+        //            return response;
+        //        }
 
-                var expectedFee = await _context.Fees
-                    .Where(f => f.SchoolClassId == studentProfile.SchoolClassId && f.TermId == termId)
-                    .SumAsync(f => (decimal?)f.Amount) ?? 0m;
+        //        var expectedFee = await _context.Fees
+        //            .Where(f => f.SchoolClassId == studentProfile.SchoolClassId && f.TermId == termId)
+        //            .SumAsync(f => (decimal?)f.Amount) ?? 0m;
 
-                if (expectedFee <= 0)
-                {
-                    response.Data = true;
-                    response.Success = true;
-                    return response;
-                }
+        //        if (expectedFee <= 0)
+        //        {
+        //            response.Data = true;
+        //            response.Success = true;
+        //            return response;
+        //        }
 
-                var totalPaid = await _context.StudentPayments
-                    .Where(p => p.StudentProfileId == studentProfileId &&
-                                p.TermId == termId &&
-                                p.Status == PaymentStatus.Successful)
-                    .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
+        //        var totalPaid = await _context.StudentPayments
+        //            .Where(p => p.StudentProfileId == studentProfileId &&
+        //                        p.TermId == termId &&
+        //                        p.Status == PaymentStatus.Successful)
+        //            .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
 
-                decimal requiredMinimum = expectedFee * minimumPercentage;
-                bool hasMetRequirement = totalPaid >= requiredMinimum;
+        //        decimal requiredMinimum = expectedFee * minimumPercentage;
+        //        bool hasMetRequirement = totalPaid >= requiredMinimum;
 
-                response.Data = hasMetRequirement;
-                response.Success = true;
-                response.StatusCode = 200;
-                response.Message = hasMetRequirement
-                    ? "Minimum payment requirement met."
-                    : $"Access restricted. You must pay at least {(minimumPercentage * 100)}% of your school fees to view results.";
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error checking fee requirement for student {StudentId}", studentProfileId);
-                response.Success = false;
-                response.Message = ex.Message;
-                response.StatusCode = 500;
-            }
-            return response;
-        }
-        #endregion
+        //        response.Data = hasMetRequirement;
+        //        response.Success = true;
+        //        response.StatusCode = 200;
+        //        response.Message = hasMetRequirement
+        //            ? "Minimum payment requirement met."
+        //            : $"Access restricted. You must pay at least {(minimumPercentage * 100)}% of your school fees to view results.";
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Error checking fee requirement for student {StudentId}", studentProfileId);
+        //        response.Success = false;
+        //        response.Message = ex.Message;
+        //        response.StatusCode = 500;
+        //    }
+        //    return response;
+        //}
+        //#endregion
 
-        #region GetStudentComprehensiveBalanceAsync (Arrears + Current Term)
-        public async Task<ServiceResponse<StudentComprehensiveBalanceDto>> GetStudentComprehensiveBalanceAsync(Guid studentProfileId, Guid currentTermId)
-        {
-            var response = new ServiceResponse<StudentComprehensiveBalanceDto>();
-            try
-            {
-                var studentProfile = await _context.StudentProfiles
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(s => s.Id == studentProfileId);
+        //#region GetStudentComprehensiveBalanceAsync (Arrears + Current Term)
+        //public async Task<ServiceResponse<StudentComprehensiveBalanceDto>> GetStudentComprehensiveBalanceAsync(Guid studentProfileId, Guid currentTermId)
+        //{
+        //    var response = new ServiceResponse<StudentComprehensiveBalanceDto>();
+        //    try
+        //    {
+        //        var studentProfile = await _context.StudentProfiles
+        //            .AsNoTracking()
+        //            .FirstOrDefaultAsync(s => s.Id == studentProfileId);
 
-                if (studentProfile == null)
-                {
-                    response.Success = false;
-                    response.Message = "Student profile not found.";
-                    response.StatusCode = 404;
-                    return response;
-                }
+        //        if (studentProfile == null)
+        //        {
+        //            response.Success = false;
+        //            response.Message = "Student profile not found.";
+        //            response.StatusCode = 404;
+        //            return response;
+        //        }
 
-                // 1. Total expected fees across all terms for this student's class history
-                var allExpectedFees = await _context.Fees
-                    .Where(f => f.SchoolClassId == studentProfile.SchoolClassId)
-                    .SumAsync(f => (decimal?)f.Amount) ?? 0m;
+        //        // 1. Total expected fees across all terms for this student's class history
+        //        var allExpectedFees = await _context.Fees
+        //            .Where(f => f.SchoolClassId == studentProfile.SchoolClassId)
+        //            .SumAsync(f => (decimal?)f.Amount) ?? 0m;
 
-                // 2. Total successful payments made by this student across all time
-                var totalAllTimePaid = await _context.StudentPayments
-                    .Where(p => p.StudentProfileId == studentProfileId &&
-                                p.Status == PaymentStatus.Successful)
-                    .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
+        //        // 2. Total successful payments made by this student across all time
+        //        var totalAllTimePaid = await _context.StudentPayments
+        //            .Where(p => p.StudentProfileId == studentProfileId &&
+        //                        p.Status == PaymentStatus.Successful)
+        //            .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
 
-                // 3. Cumulative overall balance (Previous Arrears + Current Term Balance)
-                decimal totalBalanceRemaining = Math.Max(0m, allExpectedFees - totalAllTimePaid);
+        //        // 3. Cumulative overall balance (Previous Arrears + Current Term Balance)
+        //        decimal totalBalanceRemaining = Math.Max(0m, allExpectedFees - totalAllTimePaid);
 
-                // 4. Specific current term calculation (for breakdown)
-                var currentTermExpectedFee = await _context.Fees
-                    .Where(f => f.SchoolClassId == studentProfile.SchoolClassId && f.TermId == currentTermId)
-                    .SumAsync(f => (decimal?)f.Amount) ?? 0m;
+        //        // 4. Specific current term calculation (for breakdown)
+        //        var currentTermExpectedFee = await _context.Fees
+        //            .Where(f => f.SchoolClassId == studentProfile.SchoolClassId && f.TermId == currentTermId)
+        //            .SumAsync(f => (decimal?)f.Amount) ?? 0m;
 
-                var currentTermPaid = await _context.StudentPayments
-                    .Where(p => p.StudentProfileId == studentProfileId &&
-                                p.TermId == currentTermId &&
-                                p.Status == PaymentStatus.Successful)
-                    .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
+        //        var currentTermPaid = await _context.StudentPayments
+        //            .Where(p => p.StudentProfileId == studentProfileId &&
+        //                        p.TermId == currentTermId &&
+        //                        p.Status == PaymentStatus.Successful)
+        //            .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
 
-                decimal currentTermBalance = Math.Max(0m, currentTermExpectedFee - currentTermPaid);
+        //        decimal currentTermBalance = Math.Max(0m, currentTermExpectedFee - currentTermPaid);
 
-                // 5. Arrears is everything owed minus what belongs to the current term
-                decimal previousArrears = Math.Max(0m, totalBalanceRemaining - currentTermBalance);
+        //        // 5. Arrears is everything owed minus what belongs to the current term
+        //        decimal previousArrears = Math.Max(0m, totalBalanceRemaining - currentTermBalance);
 
-                response.Data = new StudentComprehensiveBalanceDto
-                {
-                    StudentProfileId = studentProfileId,
-                    CurrentTermId = currentTermId,
-                    PreviousArrears = previousArrears,
-                    CurrentTermFee = currentTermExpectedFee,
-                    CurrentTermPaid = currentTermPaid,
-                    CurrentTermBalance = currentTermBalance,
-                    TotalBalanceDue = totalBalanceRemaining
-                };
+        //        response.Data = new StudentComprehensiveBalanceDto
+        //        {
+        //            StudentProfileId = studentProfileId,
+        //            CurrentTermId = currentTermId,
+        //            PreviousArrears = previousArrears,
+        //            CurrentTermFee = currentTermExpectedFee,
+        //            CurrentTermPaid = currentTermPaid,
+        //            CurrentTermBalance = currentTermBalance,
+        //            TotalBalanceDue = totalBalanceRemaining
+        //        };
 
-                response.Success = true;
-                response.StatusCode = 200;
-                response.Message = "Comprehensive student balance retrieved successfully.";
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error fetching comprehensive balance for student {StudentId}", studentProfileId);
-                response.Success = false;
-                response.Message = ex.Message;
-                response.StatusCode = 500;
-            }
-            return response;
-        }
-        #endregion
-    
+        //        response.Success = true;
+        //        response.StatusCode = 200;
+        //        response.Message = "Comprehensive student balance retrieved successfully.";
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Error fetching comprehensive balance for student {StudentId}", studentProfileId);
+        //        response.Success = false;
+        //        response.Message = ex.Message;
+        //        response.StatusCode = 500;
+        //    }
+        //    return response;
+        //}
+        //#endregion
+
+
     }
-
 }
+
+

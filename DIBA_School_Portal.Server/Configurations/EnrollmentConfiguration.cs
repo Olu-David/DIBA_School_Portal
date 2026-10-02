@@ -8,42 +8,46 @@ namespace DIBA_School_Portal.Server.Configurations
     {
         public void Configure(EntityTypeBuilder<StudentEnrollments> builder)
         {
-            builder.HasKey(e => e.Id);
+            uilder.HasKey(x => x.Id);
 
-            builder.Property(e => e.TotalAmountPaid).HasColumnType("decimal(18,2)");
-            builder.Property(e => e.OutstandingBalance).HasColumnType("decimal(18,2)");
-            builder.Property(e => e.IsFullyPaid).IsRequired();
-            builder.Property(e => e.IsActive).IsRequired();
+            builder.Property(x => x.TotalAmountPaid)
+                   .HasColumnType("decimal(18,2)");
 
-            builder.HasOne(e => e.StudentProfile)
+            builder.Property(x => x.OutstandingBalance)
+                   .HasColumnType("decimal(18,2)");
+
+            builder.HasOne(x => x.StudentProfile)
                    .WithMany(sp => sp.Enrollments)
-                   .HasForeignKey(e => e.StudentProfileId)
+                   .HasForeignKey(x => x.StudentProfileId)
                    .OnDelete(DeleteBehavior.Cascade);
 
-            //builder.HasOne(e => e.ClassRoom)
-            //       .WithMany(cr => cr.Enrollments)
-            //       .HasForeignKey(e => e.ClassRoomId)
-            //       .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(e => e.AcademicSession)
+            builder.HasOne(x => x.AcademicSession)
                    .WithMany()
-                   .HasForeignKey(e => e.AcademicSessionId)
+                   .HasForeignKey(x => x.AcademicSessionId)
                    .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasOne(e => e.Term)
+            builder.HasOne(x => x.Term)
                    .WithMany()
-                   .HasForeignKey(e => e.TermId)
+                   .HasForeignKey(x => x.TermId)
                    .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasMany(e => e.StudentPayment)
-                   .WithOne(pt => pt.StudentEnrollment)
-                   .HasForeignKey(pt => pt.Id)
+            builder.HasOne(x => x.SchoolClass)
+                   .WithMany()
+                   .HasForeignKey(x => x.SchoolClassId)
                    .OnDelete(DeleteBehavior.Restrict);
 
-            //builder.HasMany(e => e.TermResults)
-            //       .WithOne(tr => tr.StudentEnrollment)
-            //       .HasForeignKey(tr => tr.EnrollmentId)
-            //       .OnDelete(DeleteBehavior.Cascade);
+            builder.HasMany(x => x.StudentPayment)
+                   .WithOne(sp => sp.StudentEnrollment)
+                   .HasForeignKey(sp => sp.StudentEnrollment.Id)
+                   .OnDelete(DeleteBehavior.SetNull);
+
+            builder.HasMany(x => x.TermResults)
+                   .WithOne(tr => tr.Enrollment)
+                   .HasForeignKey(tr => tr.EnrollmentId)
+                   .OnDelete(DeleteBehavior.SetNull);
+
+            builder.HasIndex(x => new { x.StudentProfileId, x.AcademicSessionId, x.TermId })
+                   .IsUnique();
         }
     }
 }

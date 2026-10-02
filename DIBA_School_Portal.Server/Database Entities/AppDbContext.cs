@@ -19,7 +19,7 @@ namespace DIBA_School_Portal.Server.Configurations
         }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<NotificationLog> NotificationLogs { get; set; }
-        public DbSet<StudentSubject> StudentSubjects { get; set; }
+        public DbSet<Entities.StudentSubject> StudentSubjects { get; set; }
         public DbSet<PaymentLog> PaymentLogs { get;  set; }
         public DbSet<AcademicSession> AcademicSessions { get; set; }
         public DbSet<StudentPayment> StudentPayments { get; set; }

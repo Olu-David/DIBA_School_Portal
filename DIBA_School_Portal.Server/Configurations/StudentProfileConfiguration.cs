@@ -8,28 +8,43 @@ namespace DIBA_School_Portal.Server.Configurations
     {
         public void Configure(EntityTypeBuilder<StudentProfile> builder)
         {
-            builder.HasKey(sp => sp.Id);
-            builder.Property(sp => sp.UserId).IsRequired().HasMaxLength(450);
-            builder.Property(sp => sp.AdmissionNumber).IsRequired().HasMaxLength(50);
-            builder.HasIndex(sp => sp.AdmissionNumber).IsUnique();
+            builder.HasKey(x => x.Id);
 
-            builder.Property(sp => sp.FirstName).IsRequired().HasMaxLength(100);
-            builder.Property(sp => sp.LastName).IsRequired().HasMaxLength(100);
+            builder.Property(x => x.UserId)
+                   .IsRequired()
+                   .HasMaxLength(450);
 
-            builder.HasMany(sp => sp.Enrollments)
+            builder.Property(x => x.AdmissionNumber)
+                   .IsRequired()
+                   .HasMaxLength(50);
+
+            builder.Property(x => x.FirstName)
+                   .IsRequired()
+                   .HasMaxLength(100);
+
+            builder.Property(x => x.LastName)
+                   .IsRequired()
+                   .HasMaxLength(100);
+
+            builder.HasIndex(x => x.AdmissionNumber)
+                   .IsUnique();
+
+            builder.HasOne(x => x.SchoolClass)
+                   .WithMany()
+                   .HasForeignKey(x => x.SchoolClassId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasMany(x => x.Enrollments)
                    .WithOne(e => e.StudentProfile)
                    .HasForeignKey(e => e.StudentProfileId)
                    .OnDelete(DeleteBehavior.Cascade);
 
-            builder.HasMany(sp => sp.PaymentTransactions)
-                   .WithOne(pt => pt.StudentProfile)
-                   .HasForeignKey(pt => pt.StudentProfileId)
-                   .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasMany(sp => sp.ScoreEntries)
-                   .WithOne(se => se.StudentProfile)
-                   .HasForeignKey(se => se.StudentProfileId)
+            builder.HasMany(x => x.StudentPayments)
+                   .WithOne(p => p.StudentProfile)
+                   .HasForeignKey(p => p.StudentProfileId)
                    .OnDelete(DeleteBehavior.Cascade);
+
+
         }
     }
 }

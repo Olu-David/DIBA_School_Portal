@@ -66,9 +66,9 @@ public class EmailService : IEmailService
                 var message = new EmailMessage
                 {
                     From = "noreply@DibaSchool.com.ng",
-                    To = { emailDto.To },
-                    Subject = emailDto.Subject,
-                    HtmlBody = emailDto.HtmlBody
+                    To = { emailDto?.To??"" },
+                    Subject = emailDto?.Subject,
+                    HtmlBody = emailDto?.HtmlBody
                 };
 
                 // Send individually using the native Resend client implementation

@@ -8,24 +8,48 @@ namespace DIBA_School_Portal.Server.Configurations
     {
         public void Configure(EntityTypeBuilder<Fee> builder)
         {
-            builder.HasKey(f => f.Id);
-            builder.Property(f => f.FeeName).IsRequired().HasMaxLength(100);
-            builder.Property(f => f.Amount).HasColumnType("decimal(18,2)").IsRequired();
+            builder.HasKey(x => x.Id);
 
-            builder.HasOne(f => f.ClassLevel)
-                   .WithMany(cl => cl.Fees)
-                   .HasForeignKey(f => f.ClassLevelId)
+            builder.Property(x => x.FeeName)
+                   .IsRequired()
+                   .HasMaxLength(100);
+
+            builder.Property(x => x.Description)
+                   .HasMaxLength(500);
+
+            builder.Property(x => x.Amount)
+                   .HasColumnType("decimal(18,2)");
+
+            builder.Property(x => x.MinimumAmountToPay)
+                   .HasColumnType("decimal(18,2)");
+
+            // Relationship to ClassLevel (SchoolClass) - first FK
+            builder.HasOne(x => x.ClassLevel)
+                   .WithMany()
+                   .HasForeignKey(x => x.ClassLevelId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            // Relationship to SchoolClass (second FK)
+            builder.HasOne(x => x.SchoolClass)
+                   .WithMany(sc => sc.Fees)
+                   .HasForeignKey(x => x.SchoolClassId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne(x => x.AcademicSession)
+                   .WithMany(a => a.Fees)
+                   .HasForeignKey(x => x.AcademicSessionId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne(x => x.Term)
+                   .WithMany(t => t.Fees)
+                   .HasForeignKey(x => x.TermId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasMany(x => x.ClassFees)
+                   .WithOne(cf => cf.Fee)
+                   .HasForeignKey(cf => cf.FeeId)
                    .OnDelete(DeleteBehavior.Cascade);
 
-            builder.HasOne(f => f.AcademicSession)
-                   .WithMany(s => s.Fees)
-                   .HasForeignKey(f => f.AcademicSessionId)
-                   .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(f => f.Term)
-                   .WithMany(t => t.Fees)
-                   .HasForeignKey(f => f.TermId)
-                   .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }
