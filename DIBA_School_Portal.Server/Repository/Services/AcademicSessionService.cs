@@ -14,14 +14,27 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<AcademicSessionService> _logger;
         private readonly IDistributedCache _Cache;
+        private readonly IAuditLog _auditLog;              // INJECTED
+        private readonly IHttpContextAccessor _http;       // INJECTED
 
-        public AcademicSessionService(AppDbContext context, UserManager<ApplicationUser> userManager, ILogger<AcademicSessionService> logger, IDistributedCache cache)
+        public AcademicSessionService(
+            AppDbContext context,
+            UserManager<ApplicationUser> userManager,
+            ILogger<AcademicSessionService> logger,
+            IDistributedCache cache,
+            IAuditLog auditLog,                            // INJECTED
+            IHttpContextAccessor http)                     // INJECTED
         {
             _Context = context ?? throw new ArgumentNullException(nameof(context));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _Cache = cache ?? throw new ArgumentNullException(nameof(cache));
+            _auditLog = auditLog ?? throw new ArgumentNullException(nameof(auditLog));
+            _http = http ?? throw new ArgumentNullException(nameof(http));
         }
+
+        private string Ip =>
+            _http.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
 
         #region CreateSession
         public async Task<ServiceResponse<bool>> CreateAcademicSessionAsync(AcademicSessionDto Session)
@@ -72,7 +85,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 await using var transaction = await _Context.Database.BeginTransactionAsync();
                 try
                 {
-                    // Handle nullable DateTime safely
                     var startDate = Session.StartDate ?? DateTime.UtcNow;
                     var endDate = Session.EndDate ?? startDate.AddYears(1);
 
@@ -89,7 +101,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     await _Context.AcademicSessions.AddAsync(newSession);
                     await _Context.SaveChangesAsync();
 
-                    // Automatically generate the 3 mandatory terms for the session
                     var terms = new List<SchoolTerm>
                     {
                         new SchoolTerm { Id = Guid.NewGuid(), Name = "First Term", AcademicSessionId = newSession.Id, StartDate = startDate, EndDate = startDate.AddMonths(4) },
@@ -102,6 +113,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                     await transaction.CommitAsync();
 
+                    // AUDIT LOG
+                    await _auditLog.LogActivityAsync(
+                        Session.UserId ?? "System",
+                        "AcademicSession Created",
+                        $"Session '{newSession.Name}' created with 3 default terms.",
+                        Ip);
+
                     response.Success = true;
                     response.Message = "Academic session and its 3 standard terms created successfully.";
                     response.StatusCode = 200;
@@ -112,6 +130,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 {
                     await transaction.RollbackAsync();
                     _logger.LogError(ex, "Error occurred while creating academic session.");
+
+                    await _auditLog.LogActivityAsync(
+                        Session.UserId ?? "System",
+                        "AcademicSession Create FAILED",
+                        ex.Message,
+                        Ip);
 
                     response.Success = false;
                     response.Message = $"An error occurred while creating the session: {ex.Message}";
@@ -277,6 +301,14 @@ namespace DIBA_School_Portal.Server.Repository.Services
             termToSetCurrent.IsCurrentTerm = true;
 
             await _Context.SaveChangesAsync();
+
+            // AUDIT LOG
+            await _auditLog.LogActivityAsync(
+                _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "System",
+                "AcademicSession SetCurrent",
+                $"Session '{session.Name}' → Current Term: '{termToSetCurrent.Name}'.",
+                Ip);
+
             return true;
         }
         #endregion
@@ -334,6 +366,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 await using var transaction = await _Context.Database.BeginTransactionAsync();
                 try
                 {
+                    var oldName = existingSession.Name;
+
                     existingSession.Name = sessionDto.Name.Trim();
                     existingSession.StartDate = sessionDto.StartDate;
                     existingSession.EndDate = sessionDto.EndDate;
@@ -355,6 +389,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     await _Context.SaveChangesAsync();
                     await transaction.CommitAsync();
 
+                    // AUDIT LOG
+                    await _auditLog.LogActivityAsync(
+                        sessionDto.UserId ?? "System",
+                        "AcademicSession Updated",
+                        $"Session '{oldName}' updated." + (termDto != null ? $" Term '{termDto.Name}' also updated." : ""),
+                        Ip);
+
                     response.Success = true;
                     response.Message = "Academic session updated successfully.";
                     response.StatusCode = 200;
@@ -365,6 +406,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 {
                     await transaction.RollbackAsync();
                     _logger.LogError(ex, "Error updating academic session.");
+
+                    await _auditLog.LogActivityAsync(
+                        sessionDto.UserId ?? "System",
+                        "AcademicSession Update FAILED",
+                        ex.Message,
+                        Ip);
 
                     response.Success = false;
                     response.Message = $"An error occurred while updating the session: {ex.Message}";

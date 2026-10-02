@@ -8,7 +8,7 @@ namespace DIBA_School_Portal.Server.Configurations
     {
         public void Configure(EntityTypeBuilder<StudentEnrollments> builder)
         {
-            uilder.HasKey(x => x.Id);
+            builder.HasKey(x => x.Id);
 
             builder.Property(x => x.TotalAmountPaid)
                    .HasColumnType("decimal(18,2)");
@@ -38,7 +38,7 @@ namespace DIBA_School_Portal.Server.Configurations
 
             builder.HasMany(x => x.StudentPayment)
                    .WithOne(sp => sp.StudentEnrollment)
-                   .HasForeignKey(sp => sp.StudentEnrollment.Id)
+                   .HasForeignKey(sp => sp.EnrollmentID)
                    .OnDelete(DeleteBehavior.SetNull);
 
             builder.HasMany(x => x.TermResults)

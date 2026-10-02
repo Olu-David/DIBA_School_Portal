@@ -14,18 +14,30 @@ namespace DIBA_School_Portal.Server.Services
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IEmailService _emailService;
         private readonly ILogger<TermSubjectResultService> _logger;
+        private readonly IAuditLog _auditLog;              
+        private readonly INotificationLog _notification;  
+        private readonly IHttpContextAccessor _http;       
 
         public TermSubjectResultService(
             AppDbContext context,
             UserManager<ApplicationUser> userManager,
             IEmailService emailService,
-            ILogger<TermSubjectResultService> logger)
+            ILogger<TermSubjectResultService> logger,
+            IAuditLog auditLog,                            // INJECTED
+            INotificationLog notification,                 // INJECTED
+            IHttpContextAccessor http)                     // INJECTED
         {
             _context = context;
             _userManager = userManager;
             _emailService = emailService;
             _logger = logger;
+            _auditLog = auditLog;
+            _notification = notification;
+            _http = http;
         }
+
+        private string Ip =>
+            _http.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
 
         // ==========================================
         // 1. GET STUDENTS FOR TEACHER SCORE SHEET
@@ -214,9 +226,27 @@ namespace DIBA_School_Portal.Server.Services
                 await _context.SaveChangesAsync();
                 await RecalculateRankingsAndAveragesAsync(model.ClassId, model.SubjectId, model.TermId, model.AcademicSessionId);
 
+                // AUDIT LOG
+                await _auditLog.LogActivityAsync(
+                    currentUserId,
+                    model.IsFinished ? "Scores Submitted (Final)" : "Scores Saved (Draft)",
+                    $"Teacher {teacher.FirstName} {teacher.LastName} submitted {model.StudentScores.Count} score(s) for class {model.ClassId}, subject {model.SubjectId}.",
+                    Ip);
+
                 if (model.IsFinished)
                 {
                     await NotifyPrincipalOfSubmissionAsync(teacher, model.ClassId, model.SubjectId, model.TermId, model.AcademicSessionId);
+
+                    // NOTIFY PRINCIPALS in-app
+                    var principals = await _userManager.GetUsersInRoleAsync("Principal");
+                    foreach (var p in principals)
+                    {
+                        await _notification.SendNotificationAsync(
+                            p.Id,
+                            "Scores Submitted",
+                            $"{teacher.FirstName} {teacher.LastName} submitted scores for class {model.ClassId}.",
+                            category: "Academic");
+                    }
                 }
 
                 return new ServiceResponse<string>
@@ -229,6 +259,9 @@ namespace DIBA_School_Portal.Server.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error saving scores.");
+
+                await _auditLog.LogActivityAsync(currentUserId, "Scores Save FAILED", ex.Message, Ip);
+
                 return new ServiceResponse<string> { Success = false, Message = ex.Message, StatusCode = 500 };
             }
         }
@@ -251,7 +284,6 @@ namespace DIBA_School_Portal.Server.Services
                     };
                 }
 
-                // 1. Fetch current user to verify roles directly on the backend
                 var currentUser = await _userManager.FindByIdAsync(currentUserId);
                 if (currentUser == null)
                 {
@@ -281,7 +313,6 @@ namespace DIBA_School_Portal.Server.Services
                     };
                 }
 
-                // 2. Enforce 48-hour restriction for non-Principal/SuperAdmin users
                 if (!isPrincipalOrAdmin)
                 {
                     var timeElapsed = DateTime.UtcNow - subjectResult.CreatedAt;
@@ -296,6 +327,8 @@ namespace DIBA_School_Portal.Server.Services
                     }
                 }
 
+                var oldTotal = subjectResult.TotalScore;
+
                 decimal totalScore = test1 + test2 + exam;
 
                 subjectResult.Test1Score = test1;
@@ -308,9 +341,15 @@ namespace DIBA_School_Portal.Server.Services
                 _context.TermSubjectResults.Update(subjectResult);
                 await _context.SaveChangesAsync();
 
-                // 3. Recalculate rankings and term averages automatically
                 var tr = subjectResult.TermResult;
                 await RecalculateRankingsAndAveragesAsync(tr.ClassId, subjectResult.SubjectId, tr.TermId, tr.AcademicSessionId);
+
+                // AUDIT LOG
+                await _auditLog.LogActivityAsync(
+                    currentUserId,
+                    isPrincipalOrAdmin ? "Result Override (Admin)" : "Result Updated",
+                    $"SubjectResult {subjectResultId}: Total {oldTotal} → {totalScore} (T1={test1}, T2={test2}, Exam={exam}).",
+                    Ip);
 
                 return new ServiceResponse<string>
                 {
@@ -322,6 +361,9 @@ namespace DIBA_School_Portal.Server.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating subject result.");
+
+                await _auditLog.LogActivityAsync(currentUserId, "Result Update FAILED", ex.Message, Ip);
+
                 return new ServiceResponse<string>
                 {
                     Success = false,
@@ -467,7 +509,6 @@ namespace DIBA_School_Portal.Server.Services
         // ==========================================
         private async Task RecalculateRankingsAndAveragesAsync(Guid classId, Guid subjectId, Guid termId, Guid academicSessionId)
         {
-            // 1. Recalculate Subject Positions
             var classSubjectResults = await _context.TermSubjectResults
                 .Include(tsr => tsr.TermResult)
                 .Where(tsr => tsr.SubjectId == subjectId
@@ -486,7 +527,6 @@ namespace DIBA_School_Portal.Server.Services
             }
             await _context.SaveChangesAsync();
 
-            // 2. Recalculate Overall Term Averages & Class Positions
             var termResults = await _context.TermResults
                 .Include(tr => tr.SubjectResults)
                 .Where(tr => tr.ClassId == classId && tr.TermId == termId && tr.AcademicSessionId == academicSessionId)

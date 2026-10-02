@@ -11,12 +11,23 @@ namespace DIBA_School_Portal.Server.Services
     {
         private readonly AppDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IAuditLog _auditLog;             
+        private readonly IHttpContextAccessor _http;       
 
-        public SchoolClassService(AppDbContext context, UserManager<ApplicationUser> userManager)
+        public SchoolClassService(
+            AppDbContext context,
+            UserManager<ApplicationUser> userManager,
+            IAuditLog auditLog,                           
+            IHttpContextAccessor http)                    
         {
             _context = context;
             _userManager = userManager;
+            _auditLog = auditLog;
+            _http = http;
         }
+
+        private string Ip =>
+            _http.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
 
         public async Task<ServiceResponse<string>> CreateSchoolClassAsync(SchoolClassDTO model, string currentUserId)
         {
@@ -42,6 +53,13 @@ namespace DIBA_School_Portal.Server.Services
             _context.SchoolClasses.Add(schoolClass);
             await _context.SaveChangesAsync();
 
+            // AUDIT LOG
+            await _auditLog.LogActivityAsync(
+                currentUserId,
+                "SchoolClass Created",
+                $"Class '{schoolClass.Name}' ({schoolClass.AcademicSection}) created.",
+                Ip);
+
             return new ServiceResponse<string>
             {
                 Success = true,
@@ -63,11 +81,20 @@ namespace DIBA_School_Portal.Server.Services
             if (schoolClass == null)
                 return new ServiceResponse<string> { Success = false, Message = "School class not found." };
 
+            var oldName = schoolClass.Name;
+
             schoolClass.Name = model.Name.Trim();
             schoolClass.AcademicSection = model.AcademicSection;
 
             _context.SchoolClasses.Update(schoolClass);
             await _context.SaveChangesAsync();
+
+            // AUDIT LOG
+            await _auditLog.LogActivityAsync(
+                currentUserId,
+                "SchoolClass Updated",
+                $"Class '{oldName}' → '{schoolClass.Name}'.",
+                Ip);
 
             return new ServiceResponse<string> { Success = true, Message = "School class updated successfully." };
         }
@@ -83,11 +110,14 @@ namespace DIBA_School_Portal.Server.Services
             var schoolClass = await _context.SchoolClasses.FindAsync(id);
             if (schoolClass == null) return false;
 
-            // Assuming you have an IsDeleted property on your entity. If not, remove this or implement your flag.
-            // schoolClass.IsDeleted = true; 
+            // schoolClass.IsDeleted = true;
             // _context.SchoolClasses.Update(schoolClass);
 
             await _context.SaveChangesAsync();
+
+            // AUDIT LOG
+            await _auditLog.LogActivityAsync(currentUserId, "SchoolClass SoftDeleted", $"Class ID {id}.", Ip);
+
             return true;
         }
 
@@ -109,6 +139,10 @@ namespace DIBA_School_Portal.Server.Services
             // _context.SchoolClasses.Update(schoolClass);
 
             await _context.SaveChangesAsync();
+
+            // AUDIT LOG
+            await _auditLog.LogActivityAsync(currentUserId, "SchoolClass Restored", $"Class ID {id}.", Ip);
+
             return true;
         }
 
@@ -144,6 +178,13 @@ namespace DIBA_School_Portal.Server.Services
 
             await _context.SaveChangesAsync();
 
+            // AUDIT LOG
+            await _auditLog.LogActivityAsync(
+                currentUserId,
+                "ClassSubjects Updated",
+                $"Class ID {classId} → {subjectIds?.Count ?? 0} subject(s).",
+                Ip);
+
             return new ServiceResponse<string>
             {
                 Success = true,
@@ -159,7 +200,6 @@ namespace DIBA_School_Portal.Server.Services
                 return new ServiceResponse<SchoolClassDTO> { Success = false, Message = "School class not found." };
             }
 
-            // Fixed: Added AcademicSection mapping here too!
             var dto = new SchoolClassDTO
             {
                 Id = schoolClass.Id,

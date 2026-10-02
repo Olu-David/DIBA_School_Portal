@@ -1,5 +1,10 @@
+using DIBA_School_Portal.Server.Configurations;
 using DIBA_School_Portal.Server.Contracts;
+using DIBA_School_Portal.Server.Repository.IServices;
+using DIBA_School_Portal.Server.Repository.Services;
+using DIBA_School_Portal.Server.Services;
 using Microsoft.AspNetCore.RateLimiting;
+using Scalar.AspNetCore;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -69,11 +74,22 @@ builder.Services.AddRateLimiter(options =>
         await context.HttpContext.Response.WriteAsync("{\"error\": \"Rate limit exceeded. Please slow down and try again later.\"}");
     };
 });
+//services
+builder.Services.AddScoped<IAuditLog, AuditLogService>();
+builder.Services.AddScoped<INotificationLog, NotificationLogService>();
+builder.Services.AddScoped<IPaymentLog, PaymentLogService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IAcademicSession, AcademicSessionService>();
+builder.Services.AddScoped<ISchoolClassService, SchoolClassService>();
+builder.Services.AddScoped<ISchoolFeeService, SchoolFeeService>();
+builder.Services.AddScoped<ISubjectService, SubjectService>();
+builder.Services.AddScoped<ITermSubjectResultService, TermSubjectResultService>();
+
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 var app = builder.Build();
-;
-app.MapHub<DashboardHub>("/hubs/dashboard");
+app.MapHub<DashboardHub>("/dashboardHub").RequireAuthorization();
 app.MapDefaultEndpoints();
 
 app.UseDefaultFiles();
@@ -82,8 +98,12 @@ app.MapStaticAssets();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
+  
     app.MapOpenApi();
+
    
+    app.MapScalarApiReference();
+
 }
 app.UseCors("Frontend");
 app.UseRateLimiter();

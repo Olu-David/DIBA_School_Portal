@@ -11,12 +11,23 @@ namespace DIBA_School_Portal.Server.Services
     {
         private readonly AppDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IAuditLog _auditLog;              
+        private readonly IHttpContextAccessor _http;       
 
-        public SubjectService(AppDbContext context, UserManager<ApplicationUser> userManager)
+        public SubjectService(
+            AppDbContext context,
+            UserManager<ApplicationUser> userManager,
+            IAuditLog auditLog,                            
+            IHttpContextAccessor http)                   
         {
             _context = context;
             _userManager = userManager;
+            _auditLog = auditLog;
+            _http = http;
         }
+
+        private string Ip =>
+            _http.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
 
         public async Task<ServiceResponse<string>> CreateSubjectAsync(SubjectDto model, string currentUserId)
         {
@@ -42,6 +53,13 @@ namespace DIBA_School_Portal.Server.Services
             _context.Subjects.Add(subject);
             await _context.SaveChangesAsync();
 
+            // AUDIT LOG
+            await _auditLog.LogActivityAsync(
+                currentUserId,
+                "Subject Created",
+                $"Subject '{subject.Name}' ({subject.Code}) created.",
+                Ip);
+
             return new ServiceResponse<string>
             {
                 Success = true,
@@ -63,11 +81,21 @@ namespace DIBA_School_Portal.Server.Services
             if (subject == null)
                 return new ServiceResponse<string> { Success = false, Message = "Subject not found." };
 
+            var oldName = subject.Name;
+            var oldCode = subject.Code;
+
             subject.Name = model.Name.Trim();
             subject.Code = model.Code.ToUpper().Trim();
 
             _context.Subjects.Update(subject);
             await _context.SaveChangesAsync();
+
+            // AUDIT LOG
+            await _auditLog.LogActivityAsync(
+                currentUserId,
+                "Subject Updated",
+                $"Subject '{oldName}' ({oldCode}) → '{subject.Name}' ({subject.Code}).",
+                Ip);
 
             return new ServiceResponse<string> { Success = true, Message = "Subject updated successfully." };
         }
@@ -84,6 +112,10 @@ namespace DIBA_School_Portal.Server.Services
             if (subject == null) return false;
 
             await _context.SaveChangesAsync();
+
+            // AUDIT LOG
+            await _auditLog.LogActivityAsync(currentUserId, "Subject SoftDeleted", $"Subject ID {id}.", Ip);
+
             return true;
         }
 
@@ -102,8 +134,13 @@ namespace DIBA_School_Portal.Server.Services
             if (subject == null) return false;
 
             await _context.SaveChangesAsync();
+
+            // AUDIT LOG
+            await _auditLog.LogActivityAsync(currentUserId, "Subject Restored", $"Subject ID {id}.", Ip);
+
             return true;
         }
+
         public async Task<ServiceResponse<SubjectDto>> GetSubjectByIdAsync(Guid id)
         {
             var subject = await _context.Subjects.FindAsync(id);

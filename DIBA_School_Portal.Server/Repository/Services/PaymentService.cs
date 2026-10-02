@@ -16,23 +16,34 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private readonly ILogger<PaymentService> _logger;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
+        private readonly IAuditLog _auditLog;              // INJECTED
+        private readonly INotificationLog _notification;   // INJECTED
+        private readonly IHttpContextAccessor _http;       // INJECTED
 
         #region Constructor
         public PaymentService(
             AppDbContext context,
             ILogger<PaymentService> logger,
             HttpClient httpClient,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IAuditLog auditLog,                            // INJECTED
+            INotificationLog notification,                 // INJECTED
+            IHttpContextAccessor http)                     // INJECTED
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            _auditLog = auditLog ?? throw new ArgumentNullException(nameof(auditLog));
+            _notification = notification ?? throw new ArgumentNullException(nameof(notification));
+            _http = http ?? throw new ArgumentNullException(nameof(http));
         }
+
+        private string Ip =>
+            _http.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
         #endregion
 
         #region GetStudentBillBreakdownAsync
-
         public async Task<ServiceResponse<StudentBillResponseDto>> GetStudentBillBreakdownAsync(Guid studentProfileId, Guid termId)
         {
             var response = new ServiceResponse<StudentBillResponseDto>();
@@ -55,23 +66,19 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 var student = enrollment.StudentProfile;
                 var schoolClass = enrollment.SchoolClass;
 
-                // 1. Calculate Previous Term(s) Outstanding Debt (Arrears)
                 decimal previousDebt = await CalculatePreviousOutstandingDebtAsync(studentProfileId, enrollment.Term.StartDate);
 
-                // 2. Fetch standard fee prices mapped to this student's class and term
                 var classFeePrices = await _context.ClassFeePrices
                     .Include(cfp => cfp.Fee)
                     .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId && cfp.Fee.TermId == termId)
                     .AsNoTracking()
                     .ToListAsync();
 
-                // 3. Fetch all books available for this class and term
                 var classBooks = await _context.ClassBooks
                     .Where(cb => cb.SchoolClassId == enrollment.SchoolClassId && cb.TermId == termId)
                     .AsNoTracking()
                     .ToListAsync();
 
-                // 4. Fetch successful payments and their receipt items for this term
                 var successfulPayments = await _context.StudentPayments
                     .Include(p => p.PaymentItems)
                     .Where(p => p.StudentProfileId == studentProfileId && p.TermId == termId && p.Status == PaymentStatus.Successful)
@@ -81,7 +88,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 var feeBreakdowns = new List<FeeItemBreakdownDto>();
                 decimal currentTermBilled = 0;
 
-                // Loop through class fees and calculate what is owed vs. what was paid
                 foreach (var cfp in classFeePrices)
                 {
                     decimal itemAmount = cfp.Amount;
@@ -104,7 +110,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     });
                 }
 
-                // Loop through books and check if they've been paid for
                 var bookBreakdowns = new List<BookItemBreakdownDto>();
                 foreach (var book in classBooks)
                 {
@@ -126,11 +131,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 decimal totalBilled = currentTermBilled + previousDebt;
                 decimal totalPaidSoFar = successfulPayments.Sum(p => p.AmountPaid);
-
-                // Fixed syntax error here (added the minus sign)
                 decimal balanceRemaining = Math.Max(0, totalBilled - totalPaidSoFar);
 
-                // Calculate minimum required amount for unpaid or partially paid items
                 decimal totalMinimumRequired = feeBreakdowns
                     .Where(f => !f.IsFullyPaid)
                     .Sum(f => Math.Max(0, f.MinimumAmountToPay - f.AmountPaidTowardThis));
@@ -208,8 +210,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
             return Math.Max(0, totalPastBilled - totalPastPaid);
         }
         #endregion
-        #region RecordPaymentAsync
 
+        #region RecordPaymentAsync
         public async Task<ServiceResponse<string>> RecordPaymentAsync(CreatePaymentDto paymentDto)
         {
             var response = new ServiceResponse<string>();
@@ -223,7 +225,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // Verify student profile exists and get their SchoolClassId
                 var studentProfile = await _context.StudentProfiles
                     .AsNoTracking()
                     .FirstOrDefaultAsync(s => s.Id == paymentDto.StudentProfileId);
@@ -236,7 +237,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // Verify session and term validity
                 var termExists = await _context.SchoolTerms
                     .AnyAsync(t => t.Id == paymentDto.TermId && t.AcademicSessionId == paymentDto.AcademicSessionId);
                 if (!termExists)
@@ -247,14 +247,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // Fetch the ClassFeePrice for the student's class and term (looking for tuition/school fee first)
                 var classFeePrice = await _context.ClassFeePrices
                     .Include(cfp => cfp.Fee)
                     .FirstOrDefaultAsync(cfp => cfp.SchoolClassId == studentProfile.SchoolClassId &&
                                                 cfp.Fee.TermId == paymentDto.TermId &&
                                                 (cfp.Fee.FeeName.ToLower().Contains("tuition") || cfp.Fee.FeeName.ToLower().Contains("school fee")));
 
-                // Fallback to any fee price for that class and term if no explicit tuition label is found
                 if (classFeePrice == null)
                 {
                     classFeePrice = await _context.ClassFeePrices
@@ -263,7 +261,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                                                     cfp.Fee.TermId == paymentDto.TermId);
                 }
 
-                // Validate that the payment amount meets the minimum required amount from ClassFeePrice
                 if (classFeePrice != null && paymentDto.AmountPaid < classFeePrice.MinimumAmountToPay)
                 {
                     response.Success = false;
@@ -272,7 +269,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // SECURELY GENERATE REFERENCE ON THE BACKEND
                 string secureReference = $"DIBA-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}";
 
                 var payment = new StudentPayment
@@ -292,6 +288,23 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 await _context.StudentPayments.AddAsync(payment);
                 await _context.SaveChangesAsync();
 
+                // AUDIT LOG
+                await _auditLog.LogActivityAsync(
+                    _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "System",
+                    "Payment Initialized",
+                    $"Ref {secureReference}: ₦{paymentDto.AmountPaid:N2} by student {paymentDto.StudentProfileId} via {paymentDto.Gateway}.",
+                    Ip);
+
+                // NOTIFY STUDENT
+                if (!string.IsNullOrEmpty(studentProfile.UserId))
+                {
+                    await _notification.SendNotificationAsync(
+                        studentProfile.UserId,
+                        "Payment Initialized",
+                        $"Your payment of ₦{paymentDto.AmountPaid:N2} (Ref {secureReference}) is pending confirmation.",
+                        category: "Payment");
+                }
+
                 response.Success = true;
                 response.Message = "Payment initialized successfully.";
                 response.StatusCode = 200;
@@ -300,13 +313,19 @@ namespace DIBA_School_Portal.Server.Repository.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error recording student payment.");
+
+                await _auditLog.LogActivityAsync(
+                    _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "System",
+                    "Payment Init FAILED",
+                    ex.Message,
+                    Ip);
+
                 response.Success = false;
                 response.Message = $"An error occurred: {ex.Message}";
                 response.StatusCode = 500;
             }
             return response;
         }
-
         #endregion
 
         #region GetPaymentsByStudentAsync
@@ -417,9 +436,33 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
+                var oldStatus = payment.Status;
+
                 payment.Status = status;
                 _context.StudentPayments.Update(payment);
                 await _context.SaveChangesAsync();
+
+                // AUDIT LOG
+                await _auditLog.LogActivityAsync(
+                    _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "System",
+                    "Payment Status Updated",
+                    $"Ref {payment.ReferenceNumber}: {oldStatus} → {status}.",
+                    Ip);
+
+                // NOTIFY STUDENT
+                var studentUserId = await _context.StudentProfiles
+                    .Where(s => s.Id == payment.StudentProfileId)
+                    .Select(s => s.UserId)
+                    .FirstOrDefaultAsync();
+
+                if (!string.IsNullOrEmpty(studentUserId))
+                {
+                    await _notification.SendNotificationAsync(
+                        studentUserId,
+                        $"Payment {status}",
+                        $"Your payment (Ref {payment.ReferenceNumber}) status is now: {status}.",
+                        category: "Payment");
+                }
 
                 response.Success = true;
                 response.Message = "Payment status updated successfully.";
@@ -429,6 +472,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating payment status for ID: {PaymentId}", paymentId);
+
+                await _auditLog.LogActivityAsync(
+                    _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "System",
+                    "Payment Update FAILED",
+                    ex.Message,
+                    Ip);
+
                 response.Success = false;
                 response.Message = ex.Message;
                 response.StatusCode = 500;
@@ -531,7 +581,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // Ensure currency matches your expected currency (e.g., NGN)
                 if (jsonResult.Data.Currency != "NGN")
                 {
                     response.Success = false;
@@ -548,43 +597,43 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // 1. Mark payment as successful and save to DB first
                 paymentRecord.Status = PaymentStatus.Successful;
                 _context.StudentPayments.Update(paymentRecord);
                 await _context.SaveChangesAsync();
 
-                // 2. Fetch the student's enrollment for this term
+                // AUDIT LOG
+                await _auditLog.LogActivityAsync(
+                    "System/Flutterwave",
+                    "Payment Verified",
+                    $"Ref {referenceNumber}: ₦{paymentRecord.AmountPaid:N2} verified (TxId {transactionId}).",
+                    Ip);
+
                 var enrollment = await _context.StudentEnrollments
                     .FirstOrDefaultAsync(e => e.StudentProfileId == paymentRecord.StudentProfileId && e.TermId == paymentRecord.TermId);
 
                 if (enrollment != null)
                 {
-                    // 3. Calculate total successful payments made by this student for this term across all transactions
                     var totalPaidSoFar = await _context.StudentPayments
                         .Where(p => p.StudentProfileId == paymentRecord.StudentProfileId &&
                                     p.TermId == paymentRecord.TermId &&
                                     p.Status == PaymentStatus.Successful)
                         .SumAsync(p => p.AmountPaid);
 
-                    // 4. Fetch the core tuition/school fee item to check its minimum required threshold
                     var tuitionFee = await _context.Fees
                         .FirstOrDefaultAsync(f => f.SchoolClassId == enrollment.SchoolClassId &&
                                                    f.TermId == paymentRecord.TermId &&
                                                    (f.FeeName.ToLower().Contains("tuition") || f.FeeName.ToLower().Contains("school fee")));
 
-                    // Fallback to the first available fee item if no explicit "tuition" label is found
                     if (tuitionFee == null)
                     {
                         tuitionFee = await _context.Fees
                             .FirstOrDefaultAsync(f => f.ClassLevelId == enrollment.SchoolClassId && f.TermId == paymentRecord.TermId);
                     }
 
-                    // 5. Calculate total required fee across ALL fee items combined (for full clearance / isfu check)
                     var totalRequiredFee = await _context.Fees
                         .Where(f => f.ClassLevelId == enrollment.SchoolClassId && f.TermId == paymentRecord.TermId)
                         .SumAsync(f => (decimal?)f.Amount) ?? 0m;
 
-                    // 6. Evaluate Activation Status based on core fee minimum
                     if (tuitionFee != null)
                     {
                         if (totalPaidSoFar < tuitionFee.MinimumAmountToPay)
@@ -599,19 +648,33 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         }
                     }
 
-                    // 7. Evaluate Full Payment Status (isfu) for results access
                     if (totalRequiredFee > 0 && totalPaidSoFar >= totalRequiredFee)
                     {
-                        enrollment.IsFullyPaid = true; // Fully paid -> Unlocks results portal
+                        enrollment.IsFullyPaid = true;
                         enrollment.EnrolledAt = DateTime.UtcNow;
                     }
                     else
                     {
-                        enrollment.IsFullyPaid = false; // Balance still pending
+                        enrollment.IsFullyPaid = false;
                     }
 
                     _context.StudentEnrollments.Update(enrollment);
                     await _context.SaveChangesAsync();
+                }
+
+                // NOTIFY STUDENT
+                var studentUserId = await _context.StudentProfiles
+                    .Where(s => s.Id == paymentRecord.StudentProfileId)
+                    .Select(s => s.UserId)
+                    .FirstOrDefaultAsync();
+
+                if (!string.IsNullOrEmpty(studentUserId))
+                {
+                    await _notification.SendNotificationAsync(
+                        studentUserId,
+                        "Payment Successful",
+                        $"Your payment of ₦{paymentRecord.AmountPaid:N2} (Ref {referenceNumber}) was confirmed.",
+                        category: "Payment");
                 }
 
                 response.Success = true;
@@ -622,6 +685,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error verifying Flutterwave transaction {TxId}", transactionId);
+
+                await _auditLog.LogActivityAsync(
+                    "System/Flutterwave",
+                    "Payment Verify FAILED",
+                    ex.Message,
+                    Ip);
+
                 response.Success = false;
                 response.Message = $"An error occurred during verification: {ex.Message}";
                 response.StatusCode = 500;
@@ -629,6 +699,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
             return response;
         }
         #endregion
+    }
+}
 
         //#region HasStudentMetMinimumFeeRequirementAsync
         //public async Task<ServiceResponse<bool>> HasStudentMetMinimumFeeRequirementAsync(Guid studentProfileId, Guid termId, decimal minimumPercentage = 0.50m)
@@ -761,7 +833,5 @@ namespace DIBA_School_Portal.Server.Repository.Services
         //#endregion
 
 
-    }
-}
-
+   
 

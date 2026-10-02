@@ -4,6 +4,8 @@ using DIBA_School_Portal.Server.Entities;
 using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Resend;
+using System.Net;
 
 namespace DIBA_School_Portal.Server.Repository.Services
 {
@@ -18,12 +20,21 @@ namespace DIBA_School_Portal.Server.Repository.Services
             _hubContext = hubContext ?? throw new ArgumentNullException(nameof(hubContext));
         }
 
-        public Task<IEnumerable<AuditLog>> GetLogsAsync(int pageNumber = 1, int pageSize = 50)
+
+        public async Task<IEnumerable<AuditLog>> GetLogsAsync(int pageNumber = 1, int pageSize = 50)
         {
-            throw new NotImplementedException();
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Max(1, pageSize);
+
+            return await _context.AuditLogs
+                .AsNoTracking()
+                .OrderByDescending(l => l.Timestamp)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
         }
 
-        public async Task  LogActivityAsync(string userId, string action, string details, string ipAddress)
+        public async Task LogActivityAsync(string userId, string action, string details, string ipAddress)
         {
             var log = new AuditLog
             {
@@ -37,16 +48,18 @@ namespace DIBA_School_Portal.Server.Repository.Services
             _context.AuditLogs.Add(log);
             await _context.SaveChangesAsync();
 
-            // <--- 2. Broadcast the new log live via WebSockets!
-            await _hubContext.Clients.All.SendAsync("ReceiveAuditLog", new
-            {
-                timestamp = log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss"),
-                userId = log.UserId ?? "System/Guest",
-                action = log.Action,
-                details = log.Details,
-                ipAddress = log.IpAddress,
-                tenantId = log.TenantId.HasValue ? log.TenantId.ToString() : "Global"
-            });
+            // ✅ Only SuperAdmin + Principal receive the live audit stream
+            await _hubContext.Clients
+                .Groups(new[] { SignalRGroups.SuperAdmins, SignalRGroups.Principals })
+                .SendAsync("ReceiveAuditLog", new
+                {
+                    timestamp = log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss"),
+                    userId = log.UserId ?? "System/Guest",
+                    action = log.Action,
+                    details = log.Details,
+                    ipAddress = log.IpAddress,
+                    tenantId = log.TenantId.HasValue ? log.TenantId.ToString() : "Global"
+                });
         }
     }
 }

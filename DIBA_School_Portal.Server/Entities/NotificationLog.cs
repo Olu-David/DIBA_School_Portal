@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using DIBA_School_Portal.Server.Enums;
+using System.ComponentModel.DataAnnotations;
 
 namespace DIBA_School_Portal.Server.Entities
 {
@@ -20,7 +21,7 @@ namespace DIBA_School_Portal.Server.Entities
 
             [Required]
             [MaxLength(50)]
-            public string Channel { get; set; } = "InApp"; // e.g., "InApp", "Email", "SMS", "Push"
+            public NotificationChannel Channel { get; set; }  // e.g., "InApp", "Email", "SMS", "Push"
 
             [Required]
             [MaxLength(50)]

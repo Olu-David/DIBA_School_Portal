@@ -13,13 +13,24 @@ namespace DIBA_School_Portal.Server.Repository.Services
     {
         private readonly AppDbContext _context;
         private readonly ILogger<SchoolFeeService> _logger;
+        private readonly IAuditLog _auditLog;            
+        private readonly IHttpContextAccessor _http;       
 
         #region Constructor
-        public SchoolFeeService(AppDbContext context, ILogger<SchoolFeeService> logger)
+        public SchoolFeeService(
+            AppDbContext context,
+            ILogger<SchoolFeeService> logger,
+            IAuditLog auditLog,                           
+            IHttpContextAccessor http)                  
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _auditLog = auditLog ?? throw new ArgumentNullException(nameof(auditLog));
+            _http = http ?? throw new ArgumentNullException(nameof(http));
         }
+
+        private string Ip =>
+            _http.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
         #endregion
 
         #region GetFeeCreationMetadataAsync
@@ -96,7 +107,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         #region CreateFeeAsync
-
         public async Task<ServiceResponse<bool>> CreateFeeAsync(FeeDto feeDto)
         {
             var response = new ServiceResponse<bool>();
@@ -147,7 +157,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 await _context.Fees.AddAsync(fee);
 
-                // Handle Class-Specific Prices if provided in the DTO
                 if (feeDto.ClassPrices != null && feeDto.ClassPrices.Any())
                 {
                     foreach (var cp in feeDto.ClassPrices)
@@ -157,7 +166,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                             Id = Guid.NewGuid(),
                             FeeId = fee.Id,
                             SchoolClassId = cp.SchoolClassId,
-                            Amount = cp.MinimumAmountToPay // or cp.Amount depending on your DTO property name
+                            Amount = cp.MinimumAmountToPay
                         };
 
                         await _context.ClassFeePrices.AddAsync(classFeePrice);
@@ -165,6 +174,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
 
                 await _context.SaveChangesAsync();
+
+                // AUDIT LOG
+                await _auditLog.LogActivityAsync(
+                    _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "System",
+                    "Fee Created",
+                    $"Fee '{fee.FeeName}' (₦{fee.Amount:N2}) created for class {fee.SchoolClassId}, term {fee.TermId}. {feeDto.ClassPrices?.Count ?? 0} class-price override(s).",
+                    Ip);
 
                 response.Success = true;
                 response.Message = "Fee structure created successfully.";
@@ -192,7 +208,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     .AsNoTracking()
                     .Where(cs => cs.SubjectId == subjectId)
                     .Include(cs => cs.SchoolClass)
-                    .Where(cs => cs.SchoolClass != null && !cs.SchoolClass.IsDeleted) // Ensure class exists and isn't deleted
+                    .Where(cs => cs.SchoolClass != null && !cs.SchoolClass.IsDeleted)
                     .Select(cs => new SchoolClassDTO
                     {
                         Id = cs.SchoolClass.Id,
@@ -275,6 +291,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 _context.SchoolClasses.Update(schoolClass);
                 await _context.SaveChangesAsync();
 
+                // AUDIT LOG
+                await _auditLog.LogActivityAsync(
+                    currentUserId,
+                    "SchoolClass Updated (FeeSvc)",
+                    $"Class ID {schoolClass.Id} updated.",
+                    Ip);
+
                 response.Success = true;
                 response.Message = "School class updated successfully.";
                 response.StatusCode = 200;
@@ -303,6 +326,10 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 _context.SchoolClasses.Update(schoolClass);
                 await _context.SaveChangesAsync();
+
+                // AUDIT LOG
+                await _auditLog.LogActivityAsync(currentUserId, "SchoolClass SoftDeleted", $"Class ID {id}.", Ip);
+
                 return true;
             }
             catch (Exception ex)
@@ -324,6 +351,10 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 schoolClass.IsDeleted = false;
                 _context.SchoolClasses.Update(schoolClass);
                 await _context.SaveChangesAsync();
+
+                // AUDIT LOG
+                await _auditLog.LogActivityAsync(currentUserId, "SchoolClass Restored", $"Class ID {id}.", Ip);
+
                 return true;
             }
             catch (Exception ex)
@@ -340,10 +371,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
             var response = new ServiceResponse<IEnumerable<SubjectDto>>();
             try
             {
-                // Query through the junction table to get the subjects assigned to this class
                 var subjects = await _context.ClassSubjects
-                    .Where(cs => cs.SchoolClassId == classId) 
-                    .Include(cs => cs.Subject)              
+                    .Where(cs => cs.SchoolClassId == classId)
+                    .Include(cs => cs.Subject)
                     .Select(cs => new SubjectDto
                     {
                         Id = cs.Subject.Id,
@@ -356,8 +386,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 response.Data = subjects;
                 response.StatusCode = 200;
             }
-             catch (Exception ex) // Keep your catch block as it was (catch (Exception ex))
-    {
+            catch (Exception ex)
+            {
                 _logger.LogError(ex, "Error fetching subjects for class: {ClassId}", classId);
                 response.Success = false;
                 response.Message = ex.Message;
@@ -365,7 +395,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
             return response;
         }
-        
         #endregion
 
         #region GetClassSubjectsWithSelectionAsync
@@ -431,6 +460,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 await _context.SaveChangesAsync();
 
+                // AUDIT LOG
+                await _auditLog.LogActivityAsync(
+                    currentUserId,
+                    "ClassSubjects Updated",
+                    $"Class ID {classId} → {subjectIds?.Count ?? 0} subject(s).",
+                    Ip);
+
                 response.Success = true;
                 response.Message = "Class subjects updated successfully.";
                 response.StatusCode = 200;
@@ -446,7 +482,5 @@ namespace DIBA_School_Portal.Server.Repository.Services
             return response;
         }
         #endregion
-
-    
     }
 }
