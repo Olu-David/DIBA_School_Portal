@@ -1,8 +1,8 @@
 ﻿using Amazon.S3;
 using Amazon.S3.Model;
+using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using OnlineVotingApplication.SupaBase;
 using System;
 using System.IO;
 using System.Linq;
@@ -76,6 +76,84 @@ namespace OnlineVotingApplication.Services
                 _logger.LogError(ex, "Failed to delete file from Supabase S3 storage: {Path}", fileUrlOrPath);
                 return false;
             }
+        }
+        public async Task<byte[]?> DownloadFileAsync(string fileUrlOrPath, string bucketName)
+        {
+            if (string.IsNullOrWhiteSpace(fileUrlOrPath))
+                return null;
+
+            try
+            {
+                var key = ExtractObjectKey(fileUrlOrPath, bucketName);
+
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    _logger.LogWarning("Could not extract object key from: {Path}", fileUrlOrPath);
+                    return null;
+                }
+
+                using var response = await _s3Client.GetObjectAsync(new GetObjectRequest
+                {
+                    BucketName = bucketName,
+                    Key = key,
+                });
+
+                using var ms = new MemoryStream();
+                await response.ResponseStream.CopyToAsync(ms);
+                return ms.ToArray();
+            }
+            catch (AmazonS3Exception s3Ex) when (s3Ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _logger.LogWarning("File not found in Supabase bucket '{Bucket}': {Path}",
+                    bucketName, fileUrlOrPath);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to download file from Supabase: {Path}", fileUrlOrPath);
+                return null;
+            }
+        }
+
+        // Helper — extracts "folder/file.jpg" from any Supabase URL shape
+        private static string ExtractObjectKey(string urlOrPath, string bucketName)
+        {
+            var input = urlOrPath.Trim();
+
+            // Absolute URL
+            if (Uri.TryCreate(input, UriKind.Absolute, out var uri))
+            {
+                var path = uri.AbsolutePath.TrimStart('/');
+
+                var prefixes = new[]
+                {
+            $"storage/v1/object/public/{bucketName}/",
+            $"storage/v1/object/sign/{bucketName}/",
+            $"storage/v1/object/{bucketName}/",
+        };
+
+                foreach (var prefix in prefixes)
+                {
+                    var idx = path.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+                    if (idx >= 0)
+                        return path[(idx + prefix.Length)..].TrimStart('/');
+                }
+
+                // Fallback — find "bucket/" anywhere
+                var bucketSegment = $"{bucketName}/";
+                var bucketIdx = path.IndexOf(bucketSegment, StringComparison.OrdinalIgnoreCase);
+                if (bucketIdx >= 0)
+                    return path[(bucketIdx + bucketSegment.Length)..].TrimStart('/');
+
+                return path.TrimStart('/');
+            }
+
+            // Relative path
+            var relative = input.TrimStart('/');
+            if (relative.StartsWith($"{bucketName}/", StringComparison.OrdinalIgnoreCase))
+                relative = relative[(bucketName.Length + 1)..];
+
+            return relative;
         }
     }
 }

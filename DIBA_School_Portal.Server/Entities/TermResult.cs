@@ -9,7 +9,6 @@ namespace DIBA_School_Portal.Server.Entities
         [Key]
         public Guid Id { get; set; } = Guid.NewGuid();
 
-        // Changed from EnrollmentId to StudentId so teachers can record scores freely
         [Required]
         public string StudentId { get; set; } = string.Empty;
 
@@ -17,7 +16,7 @@ namespace DIBA_School_Portal.Server.Entities
         public ApplicationUser Student { get; set; } = null!;
 
         [Required]
-        public Guid ClassId { get; set; } // Keeps track of which class/arm this result belongs to
+        public Guid ClassId { get; set; }
 
         [ForeignKey(nameof(ClassId))]
         public SchoolClass SchoolClass { get; set; } = null!;
@@ -40,7 +39,8 @@ namespace DIBA_School_Portal.Server.Entities
         [Column(TypeName = "decimal(5,2)")]
         public decimal AverageScore { get; set; }
 
-        int ClassPosition { get; set; }
+        // ⚠️ private field — EF can't map this. Make it public if you want it persisted.
+        // public int ClassPosition { get; set; }
 
         [MaxLength(10)]
         public string OverallGrade { get; set; } = string.Empty;
@@ -54,10 +54,13 @@ namespace DIBA_School_Portal.Server.Entities
         public bool IsPublished { get; set; } = false;
 
         public ICollection<TermSubjectResult> SubjectResults { get; set; } = new List<TermSubjectResult>();
+
         [ForeignKey(nameof(EnrollmentId))]
-        public virtual StudentEnrollments? Enrollment { get;  set; }
-        public Guid EnrollmentId { get;  set; }
-        public SchoolClass? Class { get;  set; }
-        public int Position { get;  set; }
+        public virtual StudentEnrollments? Enrollment { get; set; }
+
+        public Guid EnrollmentId { get; set; }
+
+       
+        public int Position { get; set; }
     }
 }

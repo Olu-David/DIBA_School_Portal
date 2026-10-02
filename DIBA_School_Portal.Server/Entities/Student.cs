@@ -1,4 +1,5 @@
 ﻿using DIBA_School_Portal.Server.Configurations;
+using DIBA_School_Portal.Server.Enums;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -34,6 +35,8 @@ namespace DIBA_School_Portal.Server.Entities
         public SchoolClass SchoolClass { get; set; } = null!;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        public ClassStream? Stream { get; set; } 
 
         // --- Updated Collections to match your actual entities ---
         public ICollection<StudentEnrollments> Enrollments { get; set; } = new List<StudentEnrollments>();

@@ -8,5 +8,6 @@
         public string? PhoneNumber { get; set; }
         public string Role { get; set; } = string.Empty;
         public Guid? SchoolClassId { get; set; }  // required for students
+        public IFormFile? ProfilePicture { get; set; } 
     }
 }

@@ -1,6 +1,7 @@
 ﻿using DIBA_School_Portal.Server.Configurations;
 using DIBA_School_Portal.Server.Contracts;
 using DIBA_School_Portal.Server.Entities;
+using DIBA_School_Portal.Server.Enums;
 using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -14,18 +15,18 @@ namespace DIBA_School_Portal.Server.Services
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IEmailService _emailService;
         private readonly ILogger<TermSubjectResultService> _logger;
-        private readonly IAuditLog _auditLog;              
-        private readonly INotificationLog _notification;  
-        private readonly IHttpContextAccessor _http;       
+        private readonly IAuditLog _auditLog;
+        private readonly INotificationLog _notification;
+        private readonly IHttpContextAccessor _http;
 
         public TermSubjectResultService(
             AppDbContext context,
             UserManager<ApplicationUser> userManager,
             IEmailService emailService,
             ILogger<TermSubjectResultService> logger,
-            IAuditLog auditLog,                            // INJECTED
-            INotificationLog notification,                 // INJECTED
-            IHttpContextAccessor http)                     // INJECTED
+            IAuditLog auditLog,
+            INotificationLog notification,
+            IHttpContextAccessor http)
         {
             _context = context;
             _userManager = userManager;
@@ -237,7 +238,6 @@ namespace DIBA_School_Portal.Server.Services
                 {
                     await NotifyPrincipalOfSubmissionAsync(teacher, model.ClassId, model.SubjectId, model.TermId, model.AcademicSessionId);
 
-                    // NOTIFY PRINCIPALS in-app
                     var principals = await _userManager.GetUsersInRoleAsync("Principal");
                     foreach (var p in principals)
                     {
@@ -344,7 +344,6 @@ namespace DIBA_School_Portal.Server.Services
                 var tr = subjectResult.TermResult;
                 await RecalculateRankingsAndAveragesAsync(tr.ClassId, subjectResult.SubjectId, tr.TermId, tr.AcademicSessionId);
 
-                // AUDIT LOG
                 await _auditLog.LogActivityAsync(
                     currentUserId,
                     isPrincipalOrAdmin ? "Result Override (Admin)" : "Result Updated",
@@ -403,7 +402,7 @@ namespace DIBA_School_Portal.Server.Services
                         .Include(tr => tr.Student)
                         .Include(tr => tr.Term)
                         .Include(tr => tr.AcademicSession)
-                        .Include(tr => tr.Class)
+                        .Include(tr => tr.SchoolClass)
                         .Include(tr => tr.SubjectResults)
                             .ThenInclude(sr => sr.Subject)
                         .Where(tr => tr.StudentId == studentId && tr.AcademicSessionId == academicSessionId)
@@ -435,7 +434,7 @@ namespace DIBA_School_Portal.Server.Services
                         StudentId = thirdTermResult.StudentId.ToString(),
                         StudentName = thirdTermResult.Student != null ? $"{thirdTermResult.Student.FirstName} {thirdTermResult.Student.LastName}" : string.Empty,
                         ClassId = thirdTermResult.ClassId,
-                        ClassName = thirdTermResult.Class?.Name ?? string.Empty,
+                        ClassName = thirdTermResult.SchoolClass?.Name ?? string.Empty,
                         TermId = thirdTermResult.TermId,
                         TermName = thirdTermResult.Term?.Name ?? string.Empty,
                         AcademicSessionId = thirdTermResult.AcademicSessionId,
@@ -454,7 +453,7 @@ namespace DIBA_School_Portal.Server.Services
                     .Include(tr => tr.Student)
                     .Include(tr => tr.Term)
                     .Include(tr => tr.AcademicSession)
-                    .Include(tr => tr.Class)
+                    .Include(tr => tr.SchoolClass)
                     .Include(tr => tr.SubjectResults)
                         .ThenInclude(sr => sr.Subject)
                     .FirstOrDefaultAsync(tr => tr.StudentId == studentId && tr.TermId == termId && tr.AcademicSessionId == academicSessionId);
@@ -484,7 +483,7 @@ namespace DIBA_School_Portal.Server.Services
                     StudentId = termResult.StudentId.ToString(),
                     StudentName = termResult.Student != null ? $"{termResult.Student.FirstName} {termResult.Student.LastName}" : string.Empty,
                     ClassId = termResult.ClassId,
-                    ClassName = termResult.Class?.Name ?? string.Empty,
+                    ClassName = termResult.SchoolClass?.Name ?? string.Empty,
                     TermId = termResult.TermId,
                     TermName = termResult.Term?.Name ?? string.Empty,
                     AcademicSessionId = termResult.AcademicSessionId,
@@ -505,7 +504,185 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================
-        // 5. HELPER COMPUTATION METHODS
+        // 5. GET ALL SCHOOL RESULTS — SuperAdmin / Principal
+        // ==========================================
+        public async Task<ServiceResponse<SchoolResultResponseDto>> GetAllSchoolResultsAsync(
+            Guid academicSessionId, Guid termId, AcademicSection? sectionFilter = null)
+        {
+            var response = new ServiceResponse<SchoolResultResponseDto>();
+            try
+            {
+                // Verify session + term
+                var session = await _context.AcademicSessions.FindAsync(academicSessionId);
+                var term = await _context.SchoolTerms.FirstOrDefaultAsync(t =>
+                    t.Id == termId && t.AcademicSessionId == academicSessionId);
+
+                if (session == null || term == null)
+                {
+                    response.Success = false;
+                    response.Message = "Session or term not found, or term doesn't belong to session.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                // Build query
+                var query = _context.TermResults
+                    .AsNoTracking()
+                    .Include(tr => tr.Student)
+                    .Include(tr => tr.SchoolClass)
+                    .Include(tr => tr.SubjectResults)
+                    .Where(tr => tr.TermId == termId && tr.AcademicSessionId == academicSessionId);
+
+                var termResults = await query.ToListAsync();
+
+                if (!termResults.Any())
+                {
+                    response.Success = true;
+                    response.Data = new SchoolResultResponseDto
+                    {
+                        AcademicSessionId = academicSessionId,
+                        AcademicSessionName = session.Name,
+                        TermId = termId,
+                        TermName = term.Name,
+                        GeneratedAt = DateTime.UtcNow,
+                        Classes = new List<ClassResultGroupDto>()
+                    };
+                    response.StatusCode = 200;
+                    return response;
+                }
+
+                // Collect class IDs and student user IDs
+                var classIds = termResults.Select(tr => tr.ClassId).Distinct().ToList();
+                var userIds = termResults.Select(tr => tr.StudentId).Distinct().ToList();
+
+                // Load classes
+                var classes = await _context.SchoolClasses
+                    .AsNoTracking()
+                    .Where(c => classIds.Contains(c.Id))
+                    .OrderBy(c => c.DisplayOrder)
+                    .ThenBy(c => c.Name)
+                    .ToListAsync();
+
+                // Load student profiles (with Stream + User for avatar)
+                var studentProfiles = await _context.Students
+                    .AsNoTracking()
+                    .Include(sp => sp.User)
+                    .Where(sp => userIds.Contains(sp.UserId))
+                    .ToDictionaryAsync(sp => sp.UserId, sp => sp);
+
+                // Filter by section if requested
+                if (sectionFilter.HasValue)
+                {
+                    classes = classes.Where(c => c.AcademicSection == sectionFilter.Value).ToList();
+                }
+
+                var classGroups = new List<ClassResultGroupDto>();
+
+                foreach (var schoolClass in classes)
+                {
+                    var classResults = termResults.Where(tr => tr.ClassId == schoolClass.Id).ToList();
+                    if (!classResults.Any()) continue;
+
+                    // Build student summaries
+                    var students = classResults.Select(tr =>
+                    {
+                        studentProfiles.TryGetValue(tr.StudentId, out var profile);
+
+                        return new StudentResultSummaryDto
+                        {
+                            TermResultId = tr.Id,
+                            StudentId = tr.StudentId,
+                            StudentName = tr.Student != null
+                                ? $"{tr.Student.FirstName} {tr.Student.LastName}".Trim()
+                                : "Unknown",
+                            AdmissionNumber = profile?.AdmissionNumber ?? "N/A",
+                            ProfilePictureUrl = profile?.User?.ProfilePictureUrl,
+                            Stream = profile!.Stream,
+                            AverageScore = Math.Round(tr.AverageScore, 2),
+                            TotalMarksObtained = tr.TotalMarksObtained,
+                            Position = tr.Position,
+                            OverallGrade = tr.OverallGrade,
+                            SubjectCount = tr.SubjectResults?.Count ?? 0,
+                            IsPublished = tr.IsPublished
+                        };
+                    }).ToList();
+
+                    // Group by the student's actual stream (from StudentProfile.Stream)
+                    var streamGroups = students
+                        .GroupBy(s => s.Stream)
+                        .OrderBy(g => g.Key.HasValue ? (int)g.Key.Value : int.MaxValue)
+                        .Select(g => new StreamResultGroupDto
+                        {
+                            Stream = g.Key,
+                            StreamName = g.Key?.ToString() ?? "No Stream",
+                            StudentCount = g.Count(),
+                            StreamAverage = g.Any()
+                                ? Math.Round(g.Average(s => s.AverageScore), 2)
+                                : 0m,
+                            Students = g
+                                .OrderBy(s => s.Position)
+                                .ThenBy(s => s.StudentName)
+                                .ToList()
+                        })
+                        .ToList();
+
+                    var classAvg = students.Any()
+                        ? Math.Round(students.Average(s => s.AverageScore), 2)
+                        : 0m;
+
+                    classGroups.Add(new ClassResultGroupDto
+                    {
+                        ClassId = schoolClass.Id,
+                        ClassName = schoolClass.Name,
+                        Section = schoolClass.AcademicSection,
+                        DisplayOrder = schoolClass.DisplayOrder,
+                        StudentCount = students.Count,
+                        ClassAverage = classAvg,
+                        HighestAverage = students.Any() ? students.Max(s => s.AverageScore) : 0m,
+                        LowestAverage = students.Any() ? students.Min(s => s.AverageScore) : 0m,
+                        PublishedCount = students.Count(s => s.IsPublished),
+                        PendingCount = students.Count(s => !s.IsPublished),
+                        Streams = streamGroups
+                    });
+                }
+
+                var allStudents = classGroups
+                    .SelectMany(c => c.Streams)
+                    .SelectMany(s => s.Students)
+                    .ToList();
+
+                response.Success = true;
+                response.StatusCode = 200;
+                response.Data = new SchoolResultResponseDto
+                {
+                    AcademicSessionId = academicSessionId,
+                    AcademicSessionName = session.Name,
+                    TermId = termId,
+                    TermName = term.Name,
+                    GeneratedAt = DateTime.UtcNow,
+                    TotalStudents = allStudents.Count,
+                    TotalClasses = classGroups.Count,
+                    TotalPublished = allStudents.Count(s => s.IsPublished),
+                    TotalPending = allStudents.Count(s => !s.IsPublished),
+                    OverallAverage = allStudents.Any()
+                        ? Math.Round(allStudents.Average(s => s.AverageScore), 2)
+                        : 0m,
+                    Classes = classGroups
+                };
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching all school results");
+                response.Success = false;
+                response.Message = $"An error occurred: {ex.Message}";
+                response.StatusCode = 500;
+                return response;
+            }
+        }
+
+        // ==========================================
+        // 6. HELPER COMPUTATION METHODS
         // ==========================================
         private async Task RecalculateRankingsAndAveragesAsync(Guid classId, Guid subjectId, Guid termId, Guid academicSessionId)
         {

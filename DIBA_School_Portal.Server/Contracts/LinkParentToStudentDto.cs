@@ -9,5 +9,6 @@
         public string? ParentEmail { get; set; }
         public string Relationship { get; set; } = "Guardian";
         public bool IsPrimaryContact { get; set; } = false;
+        public IFormFile? ParentProfilePicture { get;  set; }
     }
 }

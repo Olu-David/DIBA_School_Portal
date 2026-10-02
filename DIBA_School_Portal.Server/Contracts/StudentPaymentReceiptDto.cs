@@ -12,5 +12,6 @@ namespace DIBA_School_Portal.Server.Contracts
         public DateTime PaymentDate { get; set; }
         public decimal TotalAmountPaid { get; set; }
         public List<FeeItemDto> FeeItems { get; set; } = new();
+        public string? ProfilePictureUrl { get;  set; }
     }
 }

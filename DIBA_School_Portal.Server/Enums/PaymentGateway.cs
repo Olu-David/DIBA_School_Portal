@@ -12,6 +12,7 @@ namespace DIBA_School_Portal.Server.Enums
         Paystack,
         Flutterwave,
         BankTransfer,
-        Cash
+        Cash,
+        Manual
     }
 }

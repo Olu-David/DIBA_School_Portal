@@ -4,36 +4,97 @@ using DIBA_School_Portal.Server.Data;
 using DIBA_School_Portal.Server.Repository.IServices;
 using DIBA_School_Portal.Server.Repository.Services;
 using DIBA_School_Portal.Server.Services;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using OnlineVotingApplication.Services;
 using Scalar.AspNetCore;
 using System.Threading.RateLimiting;
+using Amazon.S3;
+using Amazon.Runtime;
+using Resend;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
-// Add services to the container.
+// ==========================================================
+// 1. DATABASE — SQL Server LocalDB
+// ==========================================================
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        sql => sql.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorNumbersToAdd: null)
+    ));
 
-builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// ==========================================================
+// 2. IDENTITY
+// ==========================================================
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+{
+    // Password policy
+    options.Password.RequireDigit = true;
+    options.Password.RequireLowercase = true;
+    options.Password.RequireUppercase = true;
+    options.Password.RequireNonAlphanumeric = true;
+    options.Password.RequiredLength = 8;
+
+    // Lockout
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.AllowedForNewUsers = true;
+
+    // User
+    options.User.RequireUniqueEmail = false; // students have no email
+})
+.AddEntityFrameworkStores<AppDbContext>()
+.AddDefaultTokenProviders();
+
+// ==========================================================
+// 3. HTTP CONTEXT ACCESSOR + SIGNALR
+// ==========================================================
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSignalR();
+
+// ==========================================================
+// 4. OPENAPI + CONTROLLERS
+// ==========================================================
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(
+            new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
+builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
-//Add Cors policy to allow requests from the frontend application
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+// ==========================================================
+// 5. CORS
+// ==========================================================
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? Array.Empty<string>();
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("Frontend", builder =>
+    options.AddPolicy("Frontend", policy =>
     {
-        builder.WithOrigins(allowedOrigins)
-               .AllowAnyMethod()
-               .AllowAnyHeader();
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();   // needed for SignalR + cookies
     });
 });
-// Configure Rate Limiter Policies
+
+// ==========================================================
+// 6. RATE LIMITER
+// ==========================================================
 builder.Services.AddRateLimiter(options =>
 {
-    // 1. Fixed Window Policy (General API protection)
+    // Fixed window — general API protection
     options.AddFixedWindowLimiter("FixedPolicy", opt =>
     {
         opt.PermitLimit = 100;
@@ -41,87 +102,184 @@ builder.Services.AddRateLimiter(options =>
         opt.QueueLimit = 2;
     });
 
-    // 2. Sliding Window Policy (Secure / Public endpoints)
+    // Sliding window — secure / public endpoints
     options.AddSlidingWindowLimiter("SlidingPolicy", opt =>
     {
         opt.PermitLimit = 30;
         opt.Window = TimeSpan.FromMinutes(1);
-        opt.SegmentsPerWindow = 3; // Breaks the window into 3 chunks for smooth rolling
+        opt.SegmentsPerWindow = 3;
         opt.QueueLimit = 1;
     });
 
-    // 3. Token Bucket Policy (Teacher rapid data entry bursts)
+    // Token bucket — teacher rapid data entry bursts
     options.AddTokenBucketLimiter("TokenBucketPolicy", opt =>
     {
-        opt.TokenLimit = 20;           // Max bucket capacity
+        opt.TokenLimit = 20;
         opt.QueueLimit = 5;
         opt.ReplenishmentPeriod = TimeSpan.FromSeconds(10);
-        opt.TokensPerPeriod = 5;       // Adds 5 tokens back every 10 seconds
+        opt.TokensPerPeriod = 5;
         opt.AutoReplenishment = true;
     });
 
-    // 4. Concurrency Policy (Heavy PDF / Report generation)
+    // Concurrency — heavy PDF / report generation
     options.AddConcurrencyLimiter("ConcurrencyPolicy", opt =>
     {
-        opt.PermitLimit = 5;           // Max 5 simultaneous heavy requests
-        opt.QueueLimit = 10;           // Max 10 requests allowed to wait in line
+        opt.PermitLimit = 5;
+        opt.QueueLimit = 10;
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
     });
 
-    // Custom Response when a user gets rate limited (HTTP 429)
+    // Custom 429 response
     options.OnRejected = async (context, cancellationToken) =>
     {
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         context.HttpContext.Response.ContentType = "application/json";
-        await context.HttpContext.Response.WriteAsync("{\"error\": \"Rate limit exceeded. Please slow down and try again later.\"}");
+        await context.HttpContext.Response.WriteAsync(
+            "{\"error\": \"Rate limit exceeded. Please slow down and try again later.\"}",
+            cancellationToken);
     };
 });
-//services
+
+// ==========================================================
+// 7. EXTERNAL DEPENDENCIES (required by imported services)
+// ==========================================================
+
+// --- Distributed Cache (needed by AcademicSessionService) ---
+builder.Services.AddDistributedMemoryCache();
+
+// --- Resend email client (needed by EmailService) ---
+builder.Services.AddOptions();
+builder.Services.AddHttpClient<IResend, ResendClient>();
+builder.Services.Configure<ResendClientOptions>(o =>
+{
+    o.ApiToken = builder.Configuration["Resend:ApiKey"]
+               ?? builder.Configuration["ResendApiKey"]
+               ?? string.Empty;
+});
+
+// --- AWS S3 (needed by SupabaseFileService) ---
+builder.Services.AddSingleton<IAmazonS3>(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var serviceUrl = config["AWS:ServiceUrl"];
+    var accessKey = config["AWS:AccessKey"];
+    var secretKey = config["AWS:SecretKey"];
+
+    if (string.IsNullOrWhiteSpace(serviceUrl)
+        || string.IsNullOrWhiteSpace(accessKey)
+        || string.IsNullOrWhiteSpace(secretKey))
+    {
+        throw new InvalidOperationException(
+            "AWS S3 settings (ServiceUrl, AccessKey, SecretKey) are missing. " +
+            "Set them in appsettings.json or environment variables.");
+    }
+
+    var s3Config = new AmazonS3Config
+    {
+        ServiceURL = serviceUrl,
+        ForcePathStyle = true   // Required for Supabase S3 compatibility
+    };
+
+    return new AmazonS3Client(
+        new BasicAWSCredentials(accessKey, secretKey),
+        s3Config);
+});
+
+// ==========================================================
+// 8. APPLICATION SERVICES
+// ==========================================================
+
+// --- Auth ---
+builder.Services.AddScoped<IAuthService, AuthService>();
+
+// --- Logs ---
 builder.Services.AddScoped<IAuditLog, AuditLogService>();
 builder.Services.AddScoped<INotificationLog, NotificationLogService>();
 builder.Services.AddScoped<IPaymentLog, PaymentLogService>();
+
+// --- Payments ---
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+
+// --- Academics ---
 builder.Services.AddScoped<IAcademicSession, AcademicSessionService>();
 builder.Services.AddScoped<ISchoolClassService, SchoolClassService>();
 builder.Services.AddScoped<ISchoolFeeService, SchoolFeeService>();
 builder.Services.AddScoped<ISubjectService, SubjectService>();
 builder.Services.AddScoped<ITermSubjectResultService, TermSubjectResultService>();
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddOpenApi();
-builder.Services.AddControllers();
+
+// --- Parents ---
+builder.Services.AddScoped<IParentService, ParentService>();
+
+// --- External ---
+builder.Services.AddScoped<ISupaBaseFileService, SupabaseFileService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IPdfReportService, PdfReportService>();
+
+// ==========================================================
+// 9. BUILD
+// ==========================================================
 var app = builder.Build();
-//SeederRoles
+
+// ==========================================================
+// 10. DATABASE MIGRATION + SEEDING
+// ==========================================================
 using (var scope = app.Services.CreateScope())
 {
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await context.Database.MigrateAsync();
-    await DbSeeder.SeedAsync(app.Services);   // ← pass root services
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<AppDbContext>();
+        await context.Database.MigrateAsync();
+        await DbSeeder.SeedAsync(app.Services);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred during migration/seeding.");
+    }
 }
-app.MapHub<DashboardHub>("/dashboardHub").RequireAuthorization();
-app.MapDefaultEndpoints();
 
+// ==========================================================
+// 11. MIDDLEWARE PIPELINE (order matters!)
+// ==========================================================
+
+// Static files + default files (must be early)
 app.UseDefaultFiles();
 app.MapStaticAssets();
 
-// Configure the HTTP request pipeline.
+// Development only — OpenAPI + Scalar
 if (app.Environment.IsDevelopment())
 {
-  
     app.MapOpenApi();
-
-   
     app.MapScalarApiReference();
-
 }
+
+// CORS before auth
 app.UseCors("Frontend");
+
+// Rate limiting before auth (protect login endpoints too)
 app.UseRateLimiter();
+
+// Redirect HTTP → HTTPS
 app.UseHttpsRedirection();
 
+// WHO you are
+app.UseAuthentication();
+
+// WHAT you can do
 app.UseAuthorization();
 
+// Controllers
 app.MapControllers();
 
+// SignalR hub (after auth so [Authorize] on Hub works)
+app.MapHub<DashboardHub>("/dashboardHub")
+   .RequireAuthorization();
+
+// Service defaults (Aspire)
+app.MapDefaultEndpoints();
+
+// SPA fallback (must be last)
 app.MapFallbackToFile("/index.html");
 
 app.Run();

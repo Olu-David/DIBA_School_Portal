@@ -2,6 +2,7 @@
 using DIBA_School_Portal.Server.Contracts;
 using DIBA_School_Portal.Server.Entities;
 using DIBA_School_Portal.Server.Repository.IServices;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -20,9 +21,18 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private readonly AppDbContext _context;
         private readonly IConfiguration _config;
         private readonly IAuditLog _auditLog;
+        private readonly ISupaBaseFileService _files;
         private readonly ILogger<AuthService> _logger;
 
-        // Who can create accounts
+        // ---------- Profile picture config ----------
+        private const string ProfilePictureBucket = "profile-pictures";
+        private const long MaxProfilePictureBytes = 200 * 1024;   // 200 KB
+        private static readonly string[] AllowedImageMime =
+        {
+            "image/jpeg", "image/png", "image/webp"
+        };
+
+        // Who can create accounts and link parents
         private static readonly string[] AccountCreators =
             { "SuperAdmin", "Principal", "Registrar" };
 
@@ -53,6 +63,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             AppDbContext context,
             IConfiguration config,
             IAuditLog auditLog,
+            ISupaBaseFileService files,
             ILogger<AuthService> logger)
         {
             _userManager = userManager;
@@ -60,6 +71,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             _context = context;
             _config = config;
             _auditLog = auditLog;
+            _files = files;
             _logger = logger;
         }
         #endregion
@@ -205,7 +217,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             var roles = await _userManager.GetRolesAsync(user);
 
-            // Block students and parents from staff portal
             if (roles.All(r => StudentPortalRoles.Contains(r) || ParentPortalRoles.Contains(r)))
             {
                 response.Success = false;
@@ -345,7 +356,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             user.LastLoginAt = DateTime.UtcNow;
             await _userManager.UpdateAsync(user);
 
-            // Load children
             var children = await _context.ParentStudents
                 .Where(ps => ps.ParentUserId == user.Id)
                 .Include(ps => ps.StudentProfile)
@@ -397,6 +407,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         {
             var response = new ServiceResponse<CreateAccountResponseDto>();
 
+            // ---------- 1. Authorization ----------
             var caller = await _userManager.FindByIdAsync(currentUserId);
             if (caller == null)
             {
@@ -426,7 +437,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            // Registrar can't create Principal or Registrar
             if (callerRoles.Contains("Registrar") &&
                 (request.Role == "Principal" || request.Role == "Registrar"))
             {
@@ -436,12 +446,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
+            // ---------- 2. Role-based validation ----------
             var isStudent = request.Role == "Student";
             var isParent = request.Role == "Parent";
             var email = request.Email?.Trim();
             var phone = request.PhoneNumber?.Trim();
 
-            // Validation per role
             if (!isStudent && !isParent && string.IsNullOrWhiteSpace(email))
             {
                 response.Success = false;
@@ -466,7 +476,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            // Uniqueness
+            // ---------- 3. Uniqueness ----------
             if (!string.IsNullOrWhiteSpace(email) &&
                 await _userManager.FindByEmailAsync(email) != null)
             {
@@ -485,7 +495,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            // Username + admission number
+            // ---------- 4. Username + admission number ----------
             string? admissionNumber = null;
             string username;
 
@@ -496,7 +506,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
             else if (isParent)
             {
-                username = phone!;  // parent logs in with phone
+                username = phone!;
             }
             else
             {
@@ -505,6 +515,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             var tempPassword = GenerateTemporaryPassword();
 
+            // ---------- 5. Create user ----------
             var newUser = new ApplicationUser
             {
                 UserName = username,
@@ -532,7 +543,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             await _userManager.AddToRoleAsync(newUser, request.Role);
 
-            // Role-specific records
+            // ---------- 6. Role-specific records ----------
             if (isStudent)
             {
                 _context.Students.Add(new Student
@@ -560,13 +571,48 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             await _context.SaveChangesAsync();
 
+            // ---------- 7. Profile picture upload ----------
+            string? pictureWarning = null;
+
+            if (request.ProfilePicture != null && request.ProfilePicture.Length > 0)
+            {
+                try
+                {
+                    var url = await UploadProfilePictureAsync(
+                        newUser.Id, request.Role, request.ProfilePicture);
+
+                    if (!string.IsNullOrEmpty(url))
+                    {
+                        newUser.ProfilePictureUrl = url;
+                        await _userManager.UpdateAsync(newUser);
+                    }
+                }
+                catch (InvalidOperationException ex)
+                {
+                    pictureWarning = ex.Message;
+                    _logger.LogWarning(ex,
+                        "Profile picture rejected for new user {UserId}", newUser.Id);
+                }
+                catch (Exception ex)
+                {
+                    pictureWarning = "Profile picture could not be uploaded.";
+                    _logger.LogError(ex,
+                        "Failed to upload profile picture for user {UserId}", newUser.Id);
+                }
+            }
+
+            // ---------- 8. Audit ----------
             await _auditLog.LogActivityAsync(
                 currentUserId, "Account Created",
-                $"Created {request.Role} '{newUser.FirstName} {newUser.LastName}' (username: {username}).",
+                $"Created {request.Role} '{newUser.FirstName} {newUser.LastName}' (username: {username})." +
+                (pictureWarning != null ? $" Warning: {pictureWarning}" : ""),
                 ipAddress);
 
+            // ---------- 9. Response ----------
             response.Success = true;
-            response.Message = "Account created successfully.";
+            response.Message = pictureWarning == null
+                ? "Account created successfully."
+                : $"Account created, but profile picture was not saved: {pictureWarning}";
             response.StatusCode = 201;
             response.Data = new CreateAccountResponseDto
             {
@@ -576,17 +622,19 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 AdmissionNumber = admissionNumber,
                 TemporaryPassword = tempPassword,
                 Role = request.Role,
+                ProfilePictureUrl = newUser.ProfilePictureUrl,
             };
             return response;
         }
         #endregion
 
-        #region Create Student With Parent (Combined Admission)
-        public async Task<ServiceResponse<CreateStudentWithParentResponseDto>> CreateStudentWithParentAsync(
-            CreateStudentWithParentDto request, string currentUserId, string ipAddress)
+        #region Link Parent To Student
+        public async Task<ServiceResponse<CreateAccountResponseDto>> LinkParentToStudentAsync(
+            LinkParentToStudentDto request, string currentUserId, string ipAddress)
         {
-            var response = new ServiceResponse<CreateStudentWithParentResponseDto>();
+            var response = new ServiceResponse<CreateAccountResponseDto>();
 
+            // ---- Caller authorization ----
             var caller = await _userManager.FindByIdAsync(currentUserId);
             if (caller == null)
             {
@@ -600,193 +648,16 @@ namespace DIBA_School_Portal.Server.Repository.Services
             if (!callerRoles.Any(r => AccountCreators.Contains(r)))
             {
                 response.Success = false;
-                response.Message = "You do not have permission to admit students.";
+                response.Message = "Not authorized to link parents.";
                 response.StatusCode = 403;
                 return response;
             }
 
-            if (string.IsNullOrWhiteSpace(request.ParentPhone))
-            {
-                response.Success = false;
-                response.Message = "Parent phone number is required.";
-                response.StatusCode = 400;
-                return response;
-            }
-
-            var parentPhone = request.ParentPhone.Trim();
-
-            // Start a transaction — student + parent must both succeed
-            var strategy = _context.Database.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
-            {
-                await using var transaction = await _context.Database.BeginTransactionAsync();
-                try
-                {
-                    // ---------- 1. Student ----------
-                    var admissionNumber = await GenerateAdmissionNumberAsync();
-                    var studentTempPassword = GenerateTemporaryPassword();
-
-                    var studentUser = new ApplicationUser
-                    {
-                        UserName = admissionNumber,
-                        Email = null,
-                        EmailConfirmed = false,
-                        FirstName = request.StudentFirstName.Trim(),
-                        LastName = request.StudentLastName.Trim(),
-                        PrimaryRole = "Student",
-                        ClassId = request.SchoolClassId,
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow,
-                    };
-
-                    var studentResult = await _userManager.CreateAsync(studentUser, studentTempPassword);
-                    if (!studentResult.Succeeded)
-                    {
-                        response.Success = false;
-                        response.Message = "Failed to create student: " +
-                            string.Join(", ", studentResult.Errors.Select(e => e.Description));
-                        response.StatusCode = 400;
-                        await transaction.RollbackAsync();
-                        return response;
-                    }
-
-                    await _userManager.AddToRoleAsync(studentUser, "Student");
-
-                    var studentProfile = new Student
-                    {
-                        UserId = studentUser.Id,
-                        AdmissionNumber = admissionNumber,
-                        FirstName = studentUser.FirstName!,
-                        LastName = studentUser.LastName!,
-                        SchoolClassId = request.SchoolClassId,
-                        CreatedAt = DateTime.UtcNow,
-                    };
-                    _context.Students.Add(studentProfile);
-                    await _context.SaveChangesAsync();
-
-                    // ---------- 2. Parent (reuse if exists) ----------
-                    var parent = await _userManager.Users
-                        .FirstOrDefaultAsync(u => u.PhoneNumber == parentPhone);
-
-                    bool parentWasCreated = false;
-                    string? parentTempPassword = null;
-                    string parentUserId;
-
-                    if (parent != null)
-                    {
-                        parentUserId = parent.Id;
-
-                        // Ensure parent role is assigned
-                        if (!await _userManager.IsInRoleAsync(parent, "Parent"))
-                            await _userManager.AddToRoleAsync(parent, "Parent");
-                    }
-                    else
-                    {
-                        parentTempPassword = GenerateTemporaryPassword();
-
-                        parent = new ApplicationUser
-                        {
-                            UserName = parentPhone,
-                            Email = string.IsNullOrWhiteSpace(request.ParentEmail) ? null : request.ParentEmail.Trim(),
-                            EmailConfirmed = !string.IsNullOrWhiteSpace(request.ParentEmail),
-                            PhoneNumber = parentPhone,
-                            FirstName = request.ParentFirstName.Trim(),
-                            LastName = request.ParentLastName.Trim(),
-                            PrimaryRole = "Parent",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow,
-                        };
-
-                        var parentResult = await _userManager.CreateAsync(parent, parentTempPassword);
-                        if (!parentResult.Succeeded)
-                        {
-                            response.Success = false;
-                            response.Message = "Failed to create parent: " +
-                                string.Join(", ", parentResult.Errors.Select(e => e.Description));
-                            response.StatusCode = 400;
-                            await transaction.RollbackAsync();
-                            return response;
-                        }
-
-                        await _userManager.AddToRoleAsync(parent, "Parent");
-                        parentWasCreated = true;
-                        parentUserId = parent.Id;
-                    }
-
-                    // ---------- 3. Link parent ↔ student ----------
-                    var alreadyLinked = await _context.ParentStudents
-                        .AnyAsync(ps => ps.ParentUserId == parentUserId
-                                     && ps.StudentProfileId == studentProfile.Id);
-
-                    if (!alreadyLinked)
-                    {
-                        _context.ParentStudents.Add(new ParentStudent
-                        {
-                            ParentUserId = parentUserId,
-                            StudentProfileId = studentProfile.Id,
-                            Relationship = request.ParentRelationship,
-                            IsPrimaryContact = request.ParentIsPrimaryContact,
-                            CreatedAt = DateTime.UtcNow,
-                        });
-                        await _context.SaveChangesAsync();
-                    }
-
-                    await transaction.CommitAsync();
-
-                    await _auditLog.LogActivityAsync(
-                        currentUserId, "Student Admitted",
-                        $"Admitted {studentUser.FirstName} {studentUser.LastName} ({admissionNumber}) " +
-                        $"and linked parent {parent.FirstName} {parent.LastName}.",
-                        ipAddress);
-
-                    response.Success = true;
-                    response.Message = "Student and parent created successfully.";
-                    response.StatusCode = 201;
-                    response.Data = new CreateStudentWithParentResponseDto
-                    {
-                        StudentUserId = studentUser.Id,
-                        AdmissionNumber = admissionNumber,
-                        StudentTempPassword = studentTempPassword,
-                        ParentUserId = parentUserId,
-                        ParentLogin = parentPhone,
-                        ParentTempPassword = parentTempPassword,
-                        ParentWasCreated = parentWasCreated,
-                    };
-                    return response;
-                }
-                catch (Exception ex)
-                {
-                    await transaction.RollbackAsync();
-                    _logger.LogError(ex, "Error admitting student with parent.");
-                    response.Success = false;
-                    response.Message = $"An error occurred: {ex.Message}";
-                    response.StatusCode = 500;
-                    return response;
-                }
-            });
-        }
-        #endregion
-
-        #region Link Parent To Existing Student
-        public async Task<ServiceResponse<CreateAccountResponseDto>> LinkParentToStudentAsync(
-            LinkParentToStudentDto request, string currentUserId, string ipAddress)
-        {
-            var response = new ServiceResponse<CreateAccountResponseDto>();
-
-            var caller = await _userManager.FindByIdAsync(currentUserId);
-            if (caller == null) { response.Success = false; response.StatusCode = 401; return response; }
-
-            var callerRoles = await _userManager.GetRolesAsync(caller);
-            if (!callerRoles.Any(r => AccountCreators.Contains(r)))
-            {
-                response.Success = false;
-                response.Message = "Not authorized.";
-                response.StatusCode = 403;
-                return response;
-            }
-
+            // ---- Validate student ----
             var student = await _context.Students
+                .Include(s => s.SchoolClass)
                 .FirstOrDefaultAsync(p => p.Id == request.StudentProfileId);
+
             if (student == null)
             {
                 response.Success = false;
@@ -795,6 +666,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
+            // ---- Validate parent details ----
             if (string.IsNullOrWhiteSpace(request.ParentPhone))
             {
                 response.Success = false;
@@ -804,7 +676,11 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
 
             var parentPhone = request.ParentPhone.Trim();
+            var parentEmail = string.IsNullOrWhiteSpace(request.ParentEmail)
+                ? null
+                : request.ParentEmail.Trim();
 
+            // ---- Find or create parent ----
             var parent = await _userManager.Users
                 .FirstOrDefaultAsync(u => u.PhoneNumber == parentPhone);
 
@@ -813,12 +689,22 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             if (parent == null)
             {
+                if (!string.IsNullOrWhiteSpace(parentEmail) &&
+                    await _userManager.FindByEmailAsync(parentEmail) != null)
+                {
+                    response.Success = false;
+                    response.Message = "A user with this email already exists.";
+                    response.StatusCode = 409;
+                    return response;
+                }
+
                 tempPassword = GenerateTemporaryPassword();
+
                 parent = new ApplicationUser
                 {
                     UserName = parentPhone,
-                    Email = string.IsNullOrWhiteSpace(request.ParentEmail) ? null : request.ParentEmail.Trim(),
-                    EmailConfirmed = !string.IsNullOrWhiteSpace(request.ParentEmail),
+                    Email = parentEmail,
+                    EmailConfirmed = !string.IsNullOrWhiteSpace(parentEmail),
                     PhoneNumber = parentPhone,
                     FirstName = request.ParentFirstName.Trim(),
                     LastName = request.ParentLastName.Trim(),
@@ -839,12 +725,35 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 await _userManager.AddToRoleAsync(parent, "Parent");
                 parentWasCreated = true;
+
+                // ---- Optional picture upload for new parent ----
+                if (request.ParentProfilePicture != null &&
+                    request.ParentProfilePicture.Length > 0)
+                {
+                    try
+                    {
+                        var url = await UploadProfilePictureAsync(
+                            parent.Id, "Parent", request.ParentProfilePicture);
+
+                        if (!string.IsNullOrEmpty(url))
+                        {
+                            parent.ProfilePictureUrl = url;
+                            await _userManager.UpdateAsync(parent);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Failed to upload parent picture for {ParentId}", parent.Id);
+                    }
+                }
             }
             else if (!await _userManager.IsInRoleAsync(parent, "Parent"))
             {
                 await _userManager.AddToRoleAsync(parent, "Parent");
             }
 
+            // ---- Check for existing link ----
             var alreadyLinked = await _context.ParentStudents
                 .AnyAsync(ps => ps.ParentUserId == parent.Id
                              && ps.StudentProfileId == request.StudentProfileId);
@@ -852,31 +761,36 @@ namespace DIBA_School_Portal.Server.Repository.Services
             if (alreadyLinked)
             {
                 response.Success = false;
-                response.Message = "This parent is already linked to this student.";
+                response.Message = $"'{parent.FirstName} {parent.LastName}' is already linked to {student.FirstName} {student.LastName}.";
                 response.StatusCode = 409;
                 return response;
             }
 
+            // ---- Create the link ----
             _context.ParentStudents.Add(new ParentStudent
             {
                 ParentUserId = parent.Id,
                 StudentProfileId = request.StudentProfileId,
-                Relationship = request.Relationship,
+                Relationship = string.IsNullOrWhiteSpace(request.Relationship)
+                    ? "Guardian"
+                    : request.Relationship.Trim(),
                 IsPrimaryContact = request.IsPrimaryContact,
                 CreatedAt = DateTime.UtcNow,
             });
+
             await _context.SaveChangesAsync();
 
             await _auditLog.LogActivityAsync(
-                currentUserId, "Parent Linked",
-                $"Linked parent '{parent.FirstName} {parent.LastName}' ({parentPhone}) " +
-                $"to student {student.AdmissionNumber}.",
+                currentUserId,
+                parentWasCreated ? "Parent Created & Linked" : "Parent Linked",
+                $"{(parentWasCreated ? "Created and linked" : "Linked")} parent '{parent.FirstName} {parent.LastName}' " +
+                $"({parentPhone}) to {student.FirstName} {student.LastName} ({student.AdmissionNumber}).",
                 ipAddress);
 
             response.Success = true;
             response.Message = parentWasCreated
-                ? "Parent created and linked."
-                : "Parent linked.";
+                ? "Parent created and linked successfully."
+                : "Parent linked successfully.";
             response.StatusCode = 201;
             response.Data = new CreateAccountResponseDto
             {
@@ -885,6 +799,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 PhoneNumber = parent.PhoneNumber ?? "",
                 TemporaryPassword = tempPassword ?? string.Empty,
                 Role = "Parent",
+                ProfilePictureUrl = parent.ProfilePictureUrl,
             };
             return response;
         }
@@ -946,7 +861,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
             var response = new ServiceResponse<bool>();
 
             var caller = await _userManager.FindByIdAsync(currentUserId);
-            if (caller == null) { response.Success = false; response.StatusCode = 401; return response; }
+            if (caller == null)
+            {
+                response.Success = false;
+                response.StatusCode = 401;
+                return response;
+            }
 
             var callerRoles = await _userManager.GetRolesAsync(caller);
             if (!callerRoles.Any(r => AccountCreators.Contains(r)))
@@ -989,6 +909,57 @@ namespace DIBA_School_Portal.Server.Repository.Services
             response.StatusCode = 200;
             response.Data = true;
             return response;
+        }
+        #endregion
+
+        #region Helper - Profile Picture Upload (Supabase)
+        /// <summary>
+        /// Uploads a profile picture to Supabase into a role-based folder:
+        ///   profile-pictures/students/{userId}/{guid}.jpg
+        ///   profile-pictures/teachers/{userId}/{guid}.jpg
+        ///   profile-pictures/parents/{userId}/{guid}.jpg
+        ///   profile-pictures/staff/{userId}/{guid}.jpg
+        /// Returns the public URL.
+        /// </summary>
+        private async Task<string?> UploadProfilePictureAsync(
+            string userId, string role, IFormFile picture)
+        {
+            if (picture == null || picture.Length == 0)
+                return null;
+
+            // ---- Validation ----
+            if (picture.Length > MaxProfilePictureBytes)
+                throw new InvalidOperationException(
+                    $"Profile picture must not exceed {MaxProfilePictureBytes / 1024} KB.");
+
+            if (!AllowedImageMime.Contains(picture.ContentType.ToLowerInvariant()))
+                throw new InvalidOperationException(
+                    "Only JPG, PNG, and WEBP images are allowed.");
+
+            // ---- Role-based folder ----
+            var folder = role switch
+            {
+                "Student" => "students",
+                "Teacher" or "FormTeacher" => "teachers",
+                "Parent" => "parents",
+                _ => "staff",
+            };
+
+            var extension = picture.ContentType.ToLowerInvariant() switch
+            {
+                "image/png" => ".png",
+                "image/webp" => ".webp",
+                _ => ".jpg",
+            };
+
+            var key = $"{folder}/{userId}/{Guid.NewGuid():N}{extension}";
+
+            await using var stream = picture.OpenReadStream();
+
+            var url = await _files.UploadFileAsync(
+                ProfilePictureBucket, key, stream, picture.ContentType);
+
+            return url;
         }
         #endregion
 

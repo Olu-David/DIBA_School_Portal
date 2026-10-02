@@ -15,5 +15,6 @@ namespace DIBA_School_Portal.Server.Contracts
         public string TermName { get; set; } = string.Empty;
         public DateTime PaymentDate { get; set; }
         public string? ProofOfPaymentUrl { get; set; }
+
     }
 }
