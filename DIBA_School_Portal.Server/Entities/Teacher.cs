@@ -2,7 +2,7 @@
 
 namespace DIBA_School_Portal.Server.Entities
 {
-    public class TeacherProfile
+    public class Teacher
     {
         [Key]
         public Guid Id { get; set; } = Guid.NewGuid();

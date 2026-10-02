@@ -30,13 +30,14 @@ namespace DIBA_School_Portal.Server.Configurations
         public DbSet<ClassSubject> ClassSubjects { get; set; }
         public DbSet<TermResult> TermResults { get; set; }   
         public DbSet<TermSubjectResult> TermSubjectResults {get; set; }
+        public DbSet<ParentStudent> ParentStudents { get; set; }
         public DbSet<Fee> Fees { get; set; }
         public DbSet<ClassFeePrice> ClassFeePrices { get; set; }
         public DbSet<ClassBook> ClassBooks { get; set; }
 
         // Profiles & Enrollments
-        public DbSet<StudentProfile> StudentProfiles { get; set; }
-        public DbSet<TeacherProfile> TeacherProfiles { get; set; }
+        public DbSet<Student> Students{ get; set; }
+        public DbSet<Teacher> Teachers { get; set; }
         public DbSet<StudentEnrollments> StudentEnrollments { get; set; }
         public DbSet<ClassFeePrice> ClassFees { get; set; }
     }

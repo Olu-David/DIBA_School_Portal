@@ -13,7 +13,7 @@ namespace DIBA_School_Portal.Server.Entities
         public Guid StudentProfileId { get; set; }
 
         [ForeignKey(nameof(StudentProfileId))]
-        public StudentProfile StudentProfile { get; set; } = null!;
+        public Student StudentProfile { get; set; } = null!;
 
         [Required]
         [Column(TypeName = "decimal(18,2)")]

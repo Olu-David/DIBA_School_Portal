@@ -1,9 +1,10 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using DIBA_School_Portal.Server.Configurations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DIBA_School_Portal.Server.Entities
 {
-    public class StudentProfile
+    public class Student
     {
         [Key]
         public Guid Id { get; set; } = Guid.NewGuid();
@@ -11,7 +12,8 @@ namespace DIBA_School_Portal.Server.Entities
         [Required]
         [MaxLength(450)]
         public string UserId { get; set; } = string.Empty; // ASP.NET Identity User ID
-
+        [ForeignKey(nameof( UserId))]
+        public virtual ApplicationUser User { get; set; } = null!; 
         [Required]
         [MaxLength(50)]
         public string AdmissionNumber { get; set; } = string.Empty; // e.g., "DIBA/2026/001"

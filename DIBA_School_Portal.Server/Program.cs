@@ -1,9 +1,11 @@
 using DIBA_School_Portal.Server.Configurations;
 using DIBA_School_Portal.Server.Contracts;
+using DIBA_School_Portal.Server.Data;
 using DIBA_School_Portal.Server.Repository.IServices;
 using DIBA_School_Portal.Server.Repository.Services;
 using DIBA_School_Portal.Server.Services;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using System.Threading.RateLimiting;
 
@@ -84,11 +86,18 @@ builder.Services.AddScoped<ISchoolClassService, SchoolClassService>();
 builder.Services.AddScoped<ISchoolFeeService, SchoolFeeService>();
 builder.Services.AddScoped<ISubjectService, SubjectService>();
 builder.Services.AddScoped<ITermSubjectResultService, TermSubjectResultService>();
-
+builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 var app = builder.Build();
+//SeederRoles
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await context.Database.MigrateAsync();
+    await DbSeeder.SeedAsync(app.Services);   // ← pass root services
+}
 app.MapHub<DashboardHub>("/dashboardHub").RequireAuthorization();
 app.MapDefaultEndpoints();
 

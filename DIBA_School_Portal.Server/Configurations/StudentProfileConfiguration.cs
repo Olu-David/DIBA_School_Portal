@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace DIBA_School_Portal.Server.Configurations
 {
-    public class StudentProfileConfiguration : IEntityTypeConfiguration<StudentProfile>
+    public class StudentProfileConfiguration : IEntityTypeConfiguration<Student>
     {
-        public void Configure(EntityTypeBuilder<StudentProfile> builder)
+        public void Configure(EntityTypeBuilder<Student> builder)
         {
             builder.HasKey(x => x.Id);
 

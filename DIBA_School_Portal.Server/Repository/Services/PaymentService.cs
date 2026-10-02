@@ -225,7 +225,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                var studentProfile = await _context.StudentProfiles
+                var studentProfile = await _context.Students
                     .AsNoTracking()
                     .FirstOrDefaultAsync(s => s.Id == paymentDto.StudentProfileId);
 
@@ -450,7 +450,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     Ip);
 
                 // NOTIFY STUDENT
-                var studentUserId = await _context.StudentProfiles
+                var studentUserId = await _context.Students
                     .Where(s => s.Id == payment.StudentProfileId)
                     .Select(s => s.UserId)
                     .FirstOrDefaultAsync();
@@ -663,7 +663,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
 
                 // NOTIFY STUDENT
-                var studentUserId = await _context.StudentProfiles
+                var studentUserId = await _context.Students
                     .Where(s => s.Id == paymentRecord.StudentProfileId)
                     .Select(s => s.UserId)
                     .FirstOrDefaultAsync();
