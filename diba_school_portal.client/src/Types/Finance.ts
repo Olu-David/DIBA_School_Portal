@@ -1,4 +1,4 @@
-﻿export interface FinanceDashboard {
+export interface FinanceDashboard {
   academicSessionId: string;
   academicSessionName: string;
   termId: string;

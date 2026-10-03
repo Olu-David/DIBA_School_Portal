@@ -1,4 +1,4 @@
-﻿import type { AcademicSection, ClassStream } from "./academics";
+import type { AcademicSection, ClassStream } from "./academics";
 
 export interface StudentRow {
   id: string;
