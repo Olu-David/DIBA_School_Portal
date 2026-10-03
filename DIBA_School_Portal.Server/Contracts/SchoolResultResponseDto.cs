@@ -1,4 +1,6 @@
-﻿namespace DIBA_School_Portal.Server.Contracts
+﻿using DIBA_School_Portal.Server.Contracts.ClassDto;
+
+namespace DIBA_School_Portal.Server.Contracts
 {
     public class SchoolResultResponseDto
     {

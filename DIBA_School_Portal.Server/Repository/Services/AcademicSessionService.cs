@@ -314,11 +314,11 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         #region UpdateAcademicSessionAsync
-        public async Task<ServiceResponse<string>> UpdateAcademicSessionAsync(AcademicSessionDto sessionDto, SchoolTermDto termDto)
+        public async Task<ServiceResponse<string>> UpdateAcademicSessionAsync(UpdateAcademicSessionRequest request)
         {
             var response = new ServiceResponse<string>();
 
-            if (sessionDto == null)
+            if (request.Session  == null)
             {
                 response.Success = false;
                 response.Message = "Session model cannot be null";
@@ -328,7 +328,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             var existingSession = await _Context.AcademicSessions
                 .Include(s => s.Terms)
-                .FirstOrDefaultAsync(s => s.Id == sessionDto.Id);
+                .FirstOrDefaultAsync(s => s.Id == request.Session.Id);
 
             if (existingSession == null)
             {
@@ -339,7 +339,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
 
             bool nameExists = await _Context.AcademicSessions
-                .AnyAsync(s => s.Name == sessionDto.Name && s.Id != sessionDto.Id);
+                .AnyAsync(s => s.Name == request.Session.Name && s.Id != request.Session    .Id);
             if (nameExists)
             {
                 response.Success = false;
@@ -348,9 +348,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            if (termDto != null)
+            if (request.Term != null)
             {
-                if (termDto.StartDate < sessionDto.StartDate || termDto.EndDate > sessionDto.EndDate)
+                if (request.Term.StartDate < request.Session.StartDate || request.Term.EndDate > request.Session.EndDate)
                 {
                     response.Success = false;
                     response.Message = "Term dates must fall within the academic session start and end dates.";
@@ -368,21 +368,21 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 {
                     var oldName = existingSession.Name;
 
-                    existingSession.Name = sessionDto.Name.Trim();
-                    existingSession.StartDate = sessionDto.StartDate;
-                    existingSession.EndDate = sessionDto.EndDate;
-                    existingSession.IsActive = sessionDto.IsActive;
-                    existingSession.IsCurrentSession = sessionDto.IsCurrentSession;
+                    existingSession.Name = request.Session.Name.Trim();
+                    existingSession.StartDate = request.Session.StartDate;
+                    existingSession.EndDate = request.Session.EndDate;
+                    existingSession.IsActive = request.Session.IsActive;
+                    existingSession.IsCurrentSession = request.Session.IsCurrentSession;
 
-                    if (termDto != null)
+                    if (request.Term != null)
                     {
-                        var existingTerm = existingSession.Terms.FirstOrDefault(t => t.Id == termDto.Id);
+                        var existingTerm = existingSession.Terms.FirstOrDefault(t => t.Id == request.Term.Id);
                         if (existingTerm != null)
                         {
-                            existingTerm.Name = termDto.Name;
-                            existingTerm.StartDate = termDto.StartDate;
-                            existingTerm.EndDate = termDto.EndDate;
-                            existingTerm.IsCurrentTerm = termDto.IsCurrentTerm;
+                            existingTerm.Name = request.Term.Name;
+                            existingTerm.StartDate = request.Term.StartDate;
+                            existingTerm.EndDate = request.Term.EndDate;
+                            existingTerm.IsCurrentTerm = request.Term.IsCurrentTerm;
                         }
                     }
 
@@ -391,9 +391,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                     // AUDIT LOG
                     await _auditLog.LogActivityAsync(
-                        sessionDto.UserId ?? "System",
+                        request.Session.UserId ?? "System",
                         "AcademicSession Updated",
-                        $"Session '{oldName}' updated." + (termDto != null ? $" Term '{termDto.Name}' also updated." : ""),
+                        $"Session '{oldName}' updated." + (request.Term != null ? $" Term '{request.Term.Name}' also updated." : ""),
                         Ip);
 
                     response.Success = true;
@@ -408,7 +408,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     _logger.LogError(ex, "Error updating academic session.");
 
                     await _auditLog.LogActivityAsync(
-                        sessionDto.UserId ?? "System",
+                        request.Session.UserId ?? "System",
                         "AcademicSession Update FAILED",
                         ex.Message,
                         Ip);

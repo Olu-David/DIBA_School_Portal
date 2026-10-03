@@ -1,4 +1,5 @@
 ﻿using DIBA_School_Portal.Server.Contracts;
+using DIBA_School_Portal.Server.Contracts.FinanceDto;
 using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

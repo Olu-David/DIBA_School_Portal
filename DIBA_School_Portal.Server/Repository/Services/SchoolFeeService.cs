@@ -1,5 +1,6 @@
 ﻿using DIBA_School_Portal.Server.Configurations;
 using DIBA_School_Portal.Server.Contracts;
+using DIBA_School_Portal.Server.Contracts.FinanceDto;
 using DIBA_School_Portal.Server.DropDown;
 using DIBA_School_Portal.Server.Entities;
 using DIBA_School_Portal.Server.Enums;

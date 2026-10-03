@@ -1,4 +1,6 @@
 ﻿using DIBA_School_Portal.Server.Contracts;
+using DIBA_School_Portal.Server.Contracts.FinanceDto;
+using DIBA_School_Portal.Server.Contracts.StudentDTO;
 using DIBA_School_Portal.Server.Enums;
 
 namespace DIBA_School_Portal.Server.Repository.IServices

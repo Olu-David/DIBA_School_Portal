@@ -65,10 +65,10 @@ namespace DIBA_School_Portal.Server.Controllers
         // UPDATE — SuperAdmin, Principal
         [HttpPut("update")]
         [Authorize(Roles = "SuperAdmin,Principal")]
-        public async Task<IActionResult> Update([FromBody] AcademicSessionDto request, SchoolTermDto term)
+        public async Task<IActionResult> Update([FromBody] UpdateAcademicSessionRequest request) 
         {
-            request.UserId = CurrentUserId;
-            var result = await _service.UpdateAcademicSessionAsync(request, term);
+            request.Session.UserId = CurrentUserId;
+            var result = await _service.UpdateAcademicSessionAsync(request);
             return StatusCode(result.StatusCode, result);
         }
     }

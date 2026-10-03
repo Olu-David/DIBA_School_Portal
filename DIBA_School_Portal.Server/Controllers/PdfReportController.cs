@@ -1,4 +1,4 @@
-﻿using DIBA_School_Portal.Server.Contracts;
+﻿using DIBA_School_Portal.Server.Contracts.StudentDTO;
 using DIBA_School_Portal.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

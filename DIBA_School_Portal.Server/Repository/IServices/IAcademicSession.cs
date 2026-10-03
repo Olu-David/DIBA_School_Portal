@@ -13,7 +13,7 @@ namespace DIBA_School_Portal.Server.Repository.IServices
 
         Task<bool> SetCurrentSessionAsync(Guid sessionId, Guid termId);
 
-        Task<ServiceResponse<string>> UpdateAcademicSessionAsync(AcademicSessionDto sessionDto, SchoolTermDto termDto);
+        Task<ServiceResponse<string>> UpdateAcademicSessionAsync(UpdateAcademicSessionRequest request);
 
     }
 }

@@ -1,0 +1,8 @@
+﻿namespace DIBA_School_Portal.Server.Contracts.FinanceDto
+{
+    public class FeeItemDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+    }
+}
