@@ -1,15 +1,10 @@
-export type AcademicSection =
+﻿export type AcademicSection =
   | "Nursery"
   | "Primary"
   | "JuniorSecondary"
   | "SeniorSecondary";
 
-export type ClassStream =
-  | "None"
-  | "Science"
-  | "Arts"
-  | "Commercial"
-  | "General";
+export type ClassStream = "None" | "Science" | "Arts" | "Commercial" | "General";
 
 export interface SchoolClass {
   id: string;
