@@ -38,8 +38,12 @@ namespace DIBA_School_Portal.Server.Configurations
         // Profiles & Enrollments
         public DbSet<Student> Students{ get; set; }
         public DbSet<Teacher> Teachers { get; set; }
+        public DbSet<TeacherSubject> TeacherSubjects { get; set; }
+        public DbSet<TeacherClass> TeacherClasses { get; set; }
         public DbSet<StudentEnrollments> StudentEnrollments { get; set; }
         public DbSet<ClassFeePrice> ClassFees { get; set; }
+        public DbSet<Enquiry> Enquiries { get; set; }
+     
     }
    
     

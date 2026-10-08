@@ -23,7 +23,18 @@ namespace DIBA_School_Portal.Server.Controllers
             ?? User.FindFirst("sub")?.Value
             ?? "System";
 
-        // GET STUDENTS FOR SCORE ENTRY — teachers + admins
+        // MY ASSIGNMENTS
+        [HttpGet("my-assignments")]
+        [Authorize(Roles = "Teacher,FormTeacher")]
+        public async Task<IActionResult> GetMyAssignments(
+            [FromQuery] Guid? academicSessionId = null,
+            [FromQuery] Guid? termId = null)
+        {
+            var r = await _service.GetMyAssignmentsAsync(CurrentUserId, academicSessionId, termId);
+            return StatusCode(r.StatusCode, r);
+        }
+
+        // SCORE SHEET
         [HttpGet("score-sheet")]
         [Authorize(Roles = "Teacher,FormTeacher,Principal,VicePrincipal,Headmaster,Headmistress,SuperAdmin")]
         public async Task<IActionResult> GetScoreSheet(
@@ -32,23 +43,23 @@ namespace DIBA_School_Portal.Server.Controllers
             [FromQuery] Guid termId,
             [FromQuery] Guid academicSessionId,
             [FromQuery] int pageNumber = 1,
-            [FromQuery] int pageSize = 20)
+            [FromQuery] int pageSize = 50)
         {
-            var result = await _service.GetStudentsForScoreEntryAsync(
-                classId, subjectId, termId, academicSessionId, pageNumber, pageSize);
-            return StatusCode(result.StatusCode, result);
+            var r = await _service.GetStudentsForScoreEntryAsync(
+                classId, subjectId, termId, academicSessionId, CurrentUserId, pageNumber, pageSize);
+            return StatusCode(r.StatusCode, r);
         }
 
-        // SAVE SCORES — teachers + form teachers only
+        // SAVE SCORES
         [HttpPost("save-scores")]
         [Authorize(Roles = "Teacher,FormTeacher")]
         public async Task<IActionResult> SaveScores([FromBody] ClassScoreSubmissionDto model)
         {
-            var result = await _service.SaveAndComputeSubjectScoresAsync(model, CurrentUserId);
-            return StatusCode(result.StatusCode, result);
+            var r = await _service.SaveAndComputeSubjectScoresAsync(model, CurrentUserId);
+            return StatusCode(r.StatusCode, r);
         }
 
-        // UPDATE INDIVIDUAL RESULT — override path (Principal, VP, SuperAdmin bypass 48h)
+        // UPDATE SINGLE (admin override)
         [HttpPut("update-result/{subjectResultId:guid}")]
         [Authorize(Roles = "Teacher,FormTeacher,Principal,VicePrincipal,Headmaster,Headmistress,SuperAdmin")]
         public async Task<IActionResult> UpdateResult(
@@ -57,17 +68,21 @@ namespace DIBA_School_Portal.Server.Controllers
             [FromQuery] decimal test2,
             [FromQuery] decimal exam)
         {
-            var result = await _service.UpdateTermSubjectResultAsync(subjectResultId, test1, test2, exam, CurrentUserId);
-            return StatusCode(result.StatusCode, result);
+            var r = await _service.UpdateTermSubjectResultAsync(
+                subjectResultId, test1, test2, exam, CurrentUserId);
+            return StatusCode(r.StatusCode, r);
         }
 
-        // GET REPORT CARD — everyone with a legitimate stake
+        // REPORT CARD
         [HttpGet("report-card/{studentId}")]
         [Authorize(Roles = "Student,Parent,Teacher,FormTeacher,Principal,VicePrincipal,Headmaster,Headmistress,SuperAdmin")]
-        public async Task<IActionResult> GetReportCard(string studentId, [FromQuery] Guid termId, [FromQuery] Guid academicSessionId)
+        public async Task<IActionResult> GetReportCard(
+            string studentId,
+            [FromQuery] Guid termId,
+            [FromQuery] Guid academicSessionId)
         {
-            var result = await _service.GetStudentReportCardAsync(studentId, termId, academicSessionId);
-            return StatusCode(result.StatusCode, result);
+            var r = await _service.GetStudentReportCardAsync(studentId, termId, academicSessionId);
+            return StatusCode(r.StatusCode, r);
         }
     }
 }

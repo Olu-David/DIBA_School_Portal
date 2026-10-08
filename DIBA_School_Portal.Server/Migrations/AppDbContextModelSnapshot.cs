@@ -94,9 +94,6 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid?>("TeacherProfileId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("bit");
 
@@ -109,8 +106,6 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ClassId");
-
-                    b.HasIndex("TeacherProfileId");
 
                     b.ToTable("ApplicationUser");
                 });
@@ -272,6 +267,74 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.ToTable("ClassSubjects");
                 });
 
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.Enquiry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChildDateOfBirth")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ChildFirstName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ChildGender")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ChildLastName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ContactedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ParentEmail")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ParentName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ParentPhone")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PreferredStartTerm")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PreviousSchool")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Section")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Subject")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Enquiries");
+                });
+
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.Fee", b =>
                 {
                     b.Property<Guid>("Id")
@@ -280,9 +343,6 @@ namespace DIBA_School_Portal.Server.Migrations
 
                     b.Property<Guid>("AcademicSessionId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<Guid>("ClassLevelId")
                         .HasColumnType("uniqueidentifier");
@@ -299,9 +359,6 @@ namespace DIBA_School_Portal.Server.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<decimal>("MinimumAmountToPay")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<Guid?>("SchoolClassId")
                         .HasColumnType("uniqueidentifier");
@@ -750,7 +807,71 @@ namespace DIBA_School_Portal.Server.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
                     b.ToTable("Teachers");
+                });
+
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.TeacherClass", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("SchoolClassId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TeacherId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SchoolClassId");
+
+                    b.HasIndex("TeacherId", "SchoolClassId")
+                        .IsUnique();
+
+                    b.ToTable("TeacherClasses");
+                });
+
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.TeacherSubject", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsPrimarySubject")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("SubjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TeacherId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubjectId");
+
+                    b.HasIndex("TeacherId");
+
+                    b.HasIndex("TeacherId", "SubjectId")
+                        .IsUnique();
+
+                    b.ToTable("TeacherSubjects");
                 });
 
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.TermResult", b =>
@@ -911,13 +1032,7 @@ namespace DIBA_School_Portal.Server.Migrations
                         .WithMany()
                         .HasForeignKey("ClassId");
 
-                    b.HasOne("DIBA_School_Portal.Server.Entities.Teacher", "TeacherProfile")
-                        .WithMany()
-                        .HasForeignKey("TeacherProfileId");
-
                     b.Navigation("SchoolClass");
-
-                    b.Navigation("TeacherProfile");
                 });
 
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.ClassBook", b =>
@@ -1169,6 +1284,55 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Navigation("Subject");
                 });
 
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.Teacher", b =>
+                {
+                    b.HasOne("DIBA_School_Portal.Server.Configurations.ApplicationUser", "User")
+                        .WithOne("TeacherProfile")
+                        .HasForeignKey("DIBA_School_Portal.Server.Entities.Teacher", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.TeacherClass", b =>
+                {
+                    b.HasOne("DIBA_School_Portal.Server.Entities.SchoolClass", "SchoolClass")
+                        .WithMany("TeacherClasses")
+                        .HasForeignKey("SchoolClassId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DIBA_School_Portal.Server.Entities.Teacher", "Teacher")
+                        .WithMany("TeacherClasses")
+                        .HasForeignKey("TeacherId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SchoolClass");
+
+                    b.Navigation("Teacher");
+                });
+
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.TeacherSubject", b =>
+                {
+                    b.HasOne("DIBA_School_Portal.Server.Entities.Subject", "Subject")
+                        .WithMany("TeacherSubjects")
+                        .HasForeignKey("SubjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DIBA_School_Portal.Server.Entities.Teacher", "Teacher")
+                        .WithMany("TeacherSubjects")
+                        .HasForeignKey("TeacherId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Subject");
+
+                    b.Navigation("Teacher");
+                });
+
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.TermResult", b =>
                 {
                     b.HasOne("DIBA_School_Portal.Server.Entities.AcademicSession", "AcademicSession")
@@ -1269,6 +1433,8 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Navigation("Notifications");
 
                     b.Navigation("StudentProfile");
+
+                    b.Navigation("TeacherProfile");
                 });
 
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.AcademicSession", b =>
@@ -1288,6 +1454,8 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Navigation("ClassSubjects");
 
                     b.Navigation("Fees");
+
+                    b.Navigation("TeacherClasses");
                 });
 
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.SchoolTerm", b =>
@@ -1317,6 +1485,15 @@ namespace DIBA_School_Portal.Server.Migrations
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.Subject", b =>
                 {
                     b.Navigation("ClassSubjects");
+
+                    b.Navigation("TeacherSubjects");
+                });
+
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.Teacher", b =>
+                {
+                    b.Navigation("TeacherClasses");
+
+                    b.Navigation("TeacherSubjects");
                 });
 
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.TermResult", b =>

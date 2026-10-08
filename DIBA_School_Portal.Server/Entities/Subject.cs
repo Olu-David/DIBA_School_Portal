@@ -17,6 +17,8 @@ namespace DIBA_School_Portal.Server.Entities
         public string Code { get; set; } = string.Empty; // e.g., "MTH101"
 
         public ICollection<ClassSubject> ClassSubjects { get; set; } = new List<ClassSubject>();
-      
+        public virtual ICollection<TeacherSubject> TeacherSubjects { get; set; } = new List<TeacherSubject>();
+        
+
     }
 }

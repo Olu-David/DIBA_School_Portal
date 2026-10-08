@@ -19,7 +19,12 @@ namespace DIBA_School_Portal.Server.Entities
 
         [ForeignKey(nameof(SchoolClassId))]
         public SchoolClass SchoolClass { get; set; } = null!;
+        [Required]
+        [Column(TypeName = "decimal(18,2)")]
         public decimal Amount { get;  set; }
+
+        [Required]
+        [Column(TypeName = "decimal(18,2)")]
         public decimal MinimumAmountToPay { get;  set; }
     }
 }

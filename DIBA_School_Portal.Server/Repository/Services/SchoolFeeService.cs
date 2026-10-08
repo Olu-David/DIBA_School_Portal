@@ -14,15 +14,15 @@ namespace DIBA_School_Portal.Server.Repository.Services
     {
         private readonly AppDbContext _context;
         private readonly ILogger<SchoolFeeService> _logger;
-        private readonly IAuditLog _auditLog;            
-        private readonly IHttpContextAccessor _http;       
+        private readonly IAuditLog _auditLog;
+        private readonly IHttpContextAccessor _http;
 
         #region Constructor
         public SchoolFeeService(
             AppDbContext context,
             ILogger<SchoolFeeService> logger,
-            IAuditLog auditLog,                           
-            IHttpContextAccessor http)                  
+            IAuditLog auditLog,
+            IHttpContextAccessor http)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -71,19 +71,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 var sections = Enum.GetValues(typeof(AcademicSection))
                     .Cast<AcademicSection>()
-                    .Select(e => new EnumLookupDto
-                    {
-                        Id = (int)e,
-                        Name = e.ToString()
-                    }).ToList();
+                    .Select(e => new EnumLookupDto { Id = (int)e, Name = e.ToString() })
+                    .ToList();
 
                 var streams = Enum.GetValues(typeof(ClassStream))
                     .Cast<ClassStream>()
-                    .Select(e => new EnumLookupDto
-                    {
-                        Id = (int)e,
-                        Name = e.ToString()
-                    }).ToList();
+                    .Select(e => new EnumLookupDto { Id = (int)e, Name = e.ToString() })
+                    .ToList();
 
                 response.Data = new FeeCreationMetadataDto
                 {
@@ -121,6 +115,15 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
+                // ✅ ClassPrices are now required — every fee needs at least one class price
+                if (feeDto.ClassPrices == null || !feeDto.ClassPrices.Any())
+                {
+                    response.Success = false;
+                    response.Message = "At least one class price (Amount + MinimumAmountToPay) is required.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
                 var termExists = await _context.SchoolTerms
                     .AnyAsync(t => t.Id == feeDto.TermId && t.AcademicSessionId == feeDto.AcademicSessionId);
 
@@ -143,12 +146,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
+                // ✅ Fee is now a catalog entry — no amounts here
                 var fee = new Fee
                 {
                     Id = Guid.NewGuid(),
                     FeeName = feeDto.FeeName.Trim(),
                     Description = feeDto.Description?.Trim() ?? "",
-                    Amount = feeDto.Amount,
                     AcademicSessionId = feeDto.AcademicSessionId,
                     TermId = feeDto.TermId,
                     SchoolClassId = feeDto.SchoolClassId,
@@ -158,29 +161,27 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 await _context.Fees.AddAsync(fee);
 
-                if (feeDto.ClassPrices != null && feeDto.ClassPrices.Any())
+                // ✅ Money lives on ClassFeePrice
+                foreach (var cp in feeDto.ClassPrices)
                 {
-                    foreach (var cp in feeDto.ClassPrices)
+                    var classFeePrice = new ClassFeePrice
                     {
-                        var classFeePrice = new ClassFeePrice
-                        {
-                            Id = Guid.NewGuid(),
-                            FeeId = fee.Id,
-                            SchoolClassId = cp.SchoolClassId,
-                            Amount = cp.MinimumAmountToPay
-                        };
+                        Id = Guid.NewGuid(),
+                        FeeId = fee.Id,
+                        SchoolClassId = cp.SchoolClassId,
+                        Amount = cp.Amount,
+                        MinimumAmountToPay = cp.MinimumAmountToPay
+                    };
 
-                        await _context.ClassFeePrices.AddAsync(classFeePrice);
-                    }
+                    await _context.ClassFeePrices.AddAsync(classFeePrice);
                 }
 
                 await _context.SaveChangesAsync();
 
-                // AUDIT LOG
                 await _auditLog.LogActivityAsync(
                     _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "System",
                     "Fee Created",
-                    $"Fee '{fee.FeeName}' (₦{fee.Amount:N2}) created for class {fee.SchoolClassId}, term {fee.TermId}. {feeDto.ClassPrices?.Count ?? 0} class-price override(s).",
+                    $"Fee '{fee.FeeName}' created for term {fee.TermId} with {feeDto.ClassPrices.Count} class-price row(s).",
                     Ip);
 
                 response.Success = true;
@@ -292,7 +293,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 _context.SchoolClasses.Update(schoolClass);
                 await _context.SaveChangesAsync();
 
-                // AUDIT LOG
                 await _auditLog.LogActivityAsync(
                     currentUserId,
                     "SchoolClass Updated (FeeSvc)",
@@ -328,7 +328,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 _context.SchoolClasses.Update(schoolClass);
                 await _context.SaveChangesAsync();
 
-                // AUDIT LOG
                 await _auditLog.LogActivityAsync(currentUserId, "SchoolClass SoftDeleted", $"Class ID {id}.", Ip);
 
                 return true;
@@ -353,7 +352,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 _context.SchoolClasses.Update(schoolClass);
                 await _context.SaveChangesAsync();
 
-                // AUDIT LOG
                 await _auditLog.LogActivityAsync(currentUserId, "SchoolClass Restored", $"Class ID {id}.", Ip);
 
                 return true;
@@ -461,7 +459,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 await _context.SaveChangesAsync();
 
-                // AUDIT LOG
                 await _auditLog.LogActivityAsync(
                     currentUserId,
                     "ClassSubjects Updated",

@@ -20,6 +20,13 @@ const variants: Record<Variant, string> = {
   danger: "bg-rose-600 text-white hover:bg-rose-700 disabled:bg-rose-300",
 };
 
+const rings: Record<Variant, string> = {
+  primary: "focus:ring-emerald-100",
+  secondary: "focus:ring-slate-100",
+  ghost: "focus:ring-slate-100",
+  danger: "focus:ring-rose-100",
+};
+
 const sizes: Record<Size, string> = {
   sm: "px-3 py-1.5 text-[13px] rounded-lg gap-1.5",
   md: "px-4 py-2.5 text-sm rounded-xl gap-2",
@@ -47,8 +54,9 @@ const Button = forwardRef<HTMLButtonElement, Props>(
       disabled={disabled || loading}
       className={[
         "inline-flex items-center justify-center font-medium transition-colors",
-        "focus:outline-none focus:ring-4 focus:ring-emerald-50 disabled:cursor-not-allowed",
+        "focus:outline-none focus:ring-4 disabled:cursor-not-allowed",
         variants[variant],
+        rings[variant],
         sizes[size],
         fullWidth ? "w-full" : "",
         className,

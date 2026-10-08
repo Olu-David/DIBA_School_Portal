@@ -17,15 +17,6 @@ namespace DIBA_School_Portal.Server.Entities
         public string Description { get; set; } = string.Empty;
 
         [Required]
-        [Column(TypeName = "decimal(18,2)")]
-        public decimal Amount { get; set; }
-
-        [Required]
-        [Column(TypeName = "decimal(18,2)")]
-        public decimal MinimumAmountToPay { get; set; }
-
-
-        [Required]
         public Guid? ClassLevelId { get; set; }
 
         [ForeignKey(nameof(ClassLevelId))]

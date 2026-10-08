@@ -1,4 +1,6 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using DIBA_School_Portal.Server.Configurations;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using System.ComponentModel.DataAnnotations;
 
 namespace DIBA_School_Portal.Server.Entities
 {
@@ -27,5 +29,15 @@ namespace DIBA_School_Portal.Server.Entities
         public string Qualification { get; set; } = string.Empty;
 
         public DateTime DateEmployed { get; set; } = DateTime.UtcNow;
+
+        
+        public virtual ApplicationUser? User { get; set; }
+
+        // 🆕 Subjects this teacher is assigned to
+        public ICollection<TeacherSubject> TeacherSubjects { get; set; } = new List<TeacherSubject>();
+
+        // 🆕 Classes this teacher is assigned to
+        public ICollection<TeacherClass> TeacherClasses { get; set; } = new List<TeacherClass>();
     }
 }
+

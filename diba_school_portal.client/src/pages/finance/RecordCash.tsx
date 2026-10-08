@@ -96,7 +96,10 @@ export default function RecordCash() {
     const id = e.target.value;
     setSessionId(id);
     const s = sessions.find((x) => x.id === id);
-    if (s && s.terms.length > 0) setTermId(s.terms[0].id);
+    if (s && s.terms.length > 0) {
+      const t = s.terms.find((x) => x.isCurrentTerm) ?? s.terms[0];
+      setTermId(t.id);
+    }
   };
 
   const handleTermChange = (e: ChangeEvent<HTMLSelectElement>) =>
@@ -159,6 +162,9 @@ export default function RecordCash() {
   const newBalance = selectedStudent
     ? Math.max(0, selectedStudent.outstandingBalance - amountNumber)
     : 0;
+
+  const isOverpaying =
+    !!selectedStudent && amountNumber > selectedStudent.outstandingBalance;
 
   return (
     <div>
@@ -385,6 +391,12 @@ export default function RecordCash() {
                 value={selectedStudent ? formatNaira(newBalance) : "—"}
               />
             </div>
+
+            {isOverpaying && (
+              <p className="mt-4 text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg p-2.5">
+                Amount exceeds outstanding balance — overpayment will be credited.
+              </p>
+            )}
 
             <Button
               fullWidth

@@ -18,9 +18,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private readonly ILogger<PaymentService> _logger;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
-        private readonly IAuditLog _auditLog;              // INJECTED
-        private readonly INotificationLog _notification;   // INJECTED
-        private readonly IHttpContextAccessor _http;       // INJECTED
+        private readonly IAuditLog _auditLog;
+        private readonly INotificationLog _notification;
+        private readonly IHttpContextAccessor _http;
 
         #region Constructor
         public PaymentService(
@@ -28,9 +28,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
             ILogger<PaymentService> logger,
             HttpClient httpClient,
             IConfiguration configuration,
-            IAuditLog auditLog,                            // INJECTED
-            INotificationLog notification,                 // INJECTED
-            IHttpContextAccessor http)                     // INJECTED
+            IAuditLog auditLog,
+            INotificationLog notification,
+            IHttpContextAccessor http)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -45,45 +45,63 @@ namespace DIBA_School_Portal.Server.Repository.Services
             _http.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
         #endregion
 
+        // ==========================================================
+        // BILL BREAKDOWN — works with or without enrollment
+        // ==========================================================
         #region GetStudentBillBreakdownAsync
-        public async Task<ServiceResponse<StudentBillResponseDto>> GetStudentBillBreakdownAsync(Guid studentProfileId, Guid termId)
+        public async Task<ServiceResponse<StudentBillResponseDto>> GetStudentBillBreakdownAsync(
+            Guid studentProfileId, Guid termId)
         {
             var response = new ServiceResponse<StudentBillResponseDto>();
             try
             {
-                var enrollment = await _context.StudentEnrollments
-                    .Include(e => e.StudentProfile)
-                    .Include(e => e.SchoolClass)
-                    .Include(e => e.Term)
-                    .FirstOrDefaultAsync(e => e.StudentProfileId == studentProfileId && e.TermId == termId);
+                var student = await _context.Students
+                    .Include(s => s.SchoolClass)
+                    .FirstOrDefaultAsync(s => s.Id == studentProfileId);
 
-                if (enrollment == null)
+                if (student == null)
                 {
                     response.Success = false;
-                    response.Message = "Student enrollment record not found for this term.";
+                    response.Message = "Student not found.";
                     response.StatusCode = 404;
                     return response;
                 }
 
-                var student = enrollment.StudentProfile;
-                var schoolClass = enrollment.SchoolClass;
+                var term = await _context.SchoolTerms
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.Id == termId);
 
-                decimal previousDebt = await CalculatePreviousOutstandingDebtAsync(studentProfileId, enrollment.Term.StartDate);
+                if (term == null)
+                {
+                    response.Success = false;
+                    response.Message = "Term not found.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                var schoolClass = student.SchoolClass;
+
+                decimal previousDebt = await CalculatePreviousOutstandingDebtAsync(
+                    studentProfileId, term.StartDate);
 
                 var classFeePrices = await _context.ClassFeePrices
                     .Include(cfp => cfp.Fee)
-                    .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId && cfp.Fee.TermId == termId)
+                    .Where(cfp => cfp.SchoolClassId == student.SchoolClassId
+                               && cfp.Fee.TermId == termId)
                     .AsNoTracking()
                     .ToListAsync();
 
                 var classBooks = await _context.ClassBooks
-                    .Where(cb => cb.SchoolClassId == enrollment.SchoolClassId && cb.TermId == termId)
+                    .Where(cb => cb.SchoolClassId == student.SchoolClassId
+                              && cb.TermId == termId)
                     .AsNoTracking()
                     .ToListAsync();
 
                 var successfulPayments = await _context.StudentPayments
                     .Include(p => p.PaymentItems)
-                    .Where(p => p.StudentProfileId == studentProfileId && p.TermId == termId && p.Status == PaymentStatus.Successful)
+                    .Where(p => p.StudentProfileId == studentProfileId
+                             && p.TermId == termId
+                             && p.Status == PaymentStatus.Successful)
                     .AsNoTracking()
                     .ToListAsync();
 
@@ -152,9 +170,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 {
                     StudentProfileId = student.Id,
                     StudentName = $"{student.FirstName} {student.LastName}",
-                    ClassName = schoolClass.Name,
+                    ClassName = schoolClass?.Name ?? "—",
                     TermId = termId,
-                    AcademicSessionId = enrollment.AcademicSessionId,
+                    AcademicSessionId = term.AcademicSessionId,
                     TotalBilledAmount = totalBilled,
                     TotalPaidSoFar = totalPaidSoFar,
                     TotalBalanceRemaining = balanceRemaining,
@@ -179,11 +197,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         #region Helper: CalculatePreviousOutstandingDebtAsync
-        private async Task<decimal> CalculatePreviousOutstandingDebtAsync(Guid studentProfileId, DateTime? currentTermStartDate)
+        private async Task<decimal> CalculatePreviousOutstandingDebtAsync(
+            Guid studentProfileId, DateTime? currentTermStartDate)
         {
             var pastEnrollments = await _context.StudentEnrollments
                 .Include(e => e.Term)
-                .Where(e => e.StudentProfileId == studentProfileId && e.Term.StartDate < currentTermStartDate)
+                .Where(e => e.StudentProfileId == studentProfileId
+                         && e.Term.StartDate < currentTermStartDate)
                 .AsNoTracking()
                 .ToListAsync();
 
@@ -193,17 +213,21 @@ namespace DIBA_School_Portal.Server.Repository.Services
             foreach (var pastEnrollment in pastEnrollments)
             {
                 var pastFees = await _context.ClassFeePrices
-                    .Where(cfp => cfp.SchoolClassId == pastEnrollment.SchoolClassId && cfp.Fee.TermId == pastEnrollment.TermId)
+                    .Where(cfp => cfp.SchoolClassId == pastEnrollment.SchoolClassId
+                               && cfp.Fee.TermId == pastEnrollment.TermId)
                     .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0;
 
                 var pastBooks = await _context.ClassBooks
-                    .Where(cb => cb.SchoolClassId == pastEnrollment.SchoolClassId && cb.TermId == pastEnrollment.TermId)
+                    .Where(cb => cb.SchoolClassId == pastEnrollment.SchoolClassId
+                              && cb.TermId == pastEnrollment.TermId)
                     .SumAsync(cb => (decimal?)cb.Price) ?? 0;
 
                 totalPastBilled += (pastFees + pastBooks);
 
                 var pastPayments = await _context.StudentPayments
-                    .Where(p => p.StudentProfileId == studentProfileId && p.TermId == pastEnrollment.TermId && p.Status == PaymentStatus.Successful)
+                    .Where(p => p.StudentProfileId == studentProfileId
+                             && p.TermId == pastEnrollment.TermId
+                             && p.Status == PaymentStatus.Successful)
                     .SumAsync(p => (decimal?)p.AmountPaid) ?? 0;
 
                 totalPastPaid += pastPayments;
@@ -213,6 +237,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+        // ==========================================================
+        // INITIALIZE PAYMENT
+        // ==========================================================
         #region RecordPaymentAsync
         public async Task<ServiceResponse<string>> RecordPaymentAsync(CreatePaymentDto paymentDto)
         {
@@ -240,7 +267,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
 
                 var termExists = await _context.SchoolTerms
-                    .AnyAsync(t => t.Id == paymentDto.TermId && t.AcademicSessionId == paymentDto.AcademicSessionId);
+                    .AnyAsync(t => t.Id == paymentDto.TermId
+                                && t.AcademicSessionId == paymentDto.AcademicSessionId);
+
                 if (!termExists)
                 {
                     response.Success = false;
@@ -251,16 +280,17 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 var classFeePrice = await _context.ClassFeePrices
                     .Include(cfp => cfp.Fee)
-                    .FirstOrDefaultAsync(cfp => cfp.SchoolClassId == studentProfile.SchoolClassId &&
-                                                cfp.Fee.TermId == paymentDto.TermId &&
-                                                (cfp.Fee.FeeName.ToLower().Contains("tuition") || cfp.Fee.FeeName.ToLower().Contains("school fee")));
+                    .FirstOrDefaultAsync(cfp => cfp.SchoolClassId == studentProfile.SchoolClassId
+                                             && cfp.Fee.TermId == paymentDto.TermId
+                                             && (cfp.Fee.FeeName.ToLower().Contains("tuition")
+                                              || cfp.Fee.FeeName.ToLower().Contains("school fee")));
 
                 if (classFeePrice == null)
                 {
                     classFeePrice = await _context.ClassFeePrices
                         .Include(cfp => cfp.Fee)
-                        .FirstOrDefaultAsync(cfp => cfp.SchoolClassId == studentProfile.SchoolClassId &&
-                                                    cfp.Fee.TermId == paymentDto.TermId);
+                        .FirstOrDefaultAsync(cfp => cfp.SchoolClassId == studentProfile.SchoolClassId
+                                                 && cfp.Fee.TermId == paymentDto.TermId);
                 }
 
                 if (classFeePrice != null && paymentDto.AmountPaid < classFeePrice.MinimumAmountToPay)
@@ -290,14 +320,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 await _context.StudentPayments.AddAsync(payment);
                 await _context.SaveChangesAsync();
 
-                // AUDIT LOG
                 await _auditLog.LogActivityAsync(
                     _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "System",
                     "Payment Initialized",
                     $"Ref {secureReference}: ₦{paymentDto.AmountPaid:N2} by student {paymentDto.StudentProfileId} via {paymentDto.Gateway}.",
                     Ip);
 
-                // NOTIFY STUDENT
                 if (!string.IsNullOrEmpty(studentProfile.UserId))
                 {
                     await _notification.SendNotificationAsync(
@@ -330,6 +358,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+        // ==========================================================
+        // GET BY STUDENT
+        // ==========================================================
         #region GetPaymentsByStudentAsync
         public async Task<ServiceResponse<IEnumerable<StudentPaymentDto>>> GetPaymentsByStudentAsync(Guid studentProfileId)
         {
@@ -347,7 +378,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     {
                         Id = p.Id,
                         StudentProfileId = p.StudentProfileId,
-                        StudentName = p.StudentProfile != null ? $"{p.StudentProfile.FirstName} {p.StudentProfile.LastName}" : "N/A",
+                        StudentName = p.StudentProfile != null
+                            ? $"{p.StudentProfile.FirstName} {p.StudentProfile.LastName}"
+                            : "N/A",
                         AmountPaid = p.AmountPaid,
                         ReferenceNumber = p.ReferenceNumber,
                         Gateway = p.Gateway,
@@ -374,6 +407,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+        // ==========================================================
+        // GET BY ID
+        // ==========================================================
         #region GetPaymentByIdAsync
         public async Task<ServiceResponse<StudentPaymentDto>> GetPaymentByIdAsync(Guid paymentId)
         {
@@ -399,7 +435,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 {
                     Id = p.Id,
                     StudentProfileId = p.StudentProfileId,
-                    StudentName = p.StudentProfile != null ? $"{p.StudentProfile.FirstName} {p.StudentProfile.LastName}" : "N/A",
+                    StudentName = p.StudentProfile != null
+                        ? $"{p.StudentProfile.FirstName} {p.StudentProfile.LastName}"
+                        : "N/A",
                     AmountPaid = p.AmountPaid,
                     ReferenceNumber = p.ReferenceNumber,
                     Gateway = p.Gateway,
@@ -423,13 +461,18 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+        // ==========================================================
+        // UPDATE STATUS — auto-creates / updates enrollment
+        // ==========================================================
         #region UpdatePaymentStatusAsync
         public async Task<ServiceResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, PaymentStatus status)
         {
             var response = new ServiceResponse<bool>();
             try
             {
-                var payment = await _context.StudentPayments.FirstOrDefaultAsync(p => p.Id == paymentId);
+                var payment = await _context.StudentPayments
+                    .FirstOrDefaultAsync(p => p.Id == paymentId);
+
                 if (payment == null)
                 {
                     response.Success = false;
@@ -439,19 +482,152 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
 
                 var oldStatus = payment.Status;
-
                 payment.Status = status;
                 _context.StudentPayments.Update(payment);
+
+                // ---------- Transition to Successful → apply & recompute ----------
+                if (oldStatus != PaymentStatus.Successful && status == PaymentStatus.Successful)
+                {
+                    var enrollment = await _context.StudentEnrollments
+                        .FirstOrDefaultAsync(e => e.StudentProfileId == payment.StudentProfileId
+                                               && e.TermId == payment.TermId
+                                               && e.AcademicSessionId == payment.AcademicSessionId);
+
+                    if (enrollment == null)
+                    {
+                        var student = await _context.Students
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(s => s.Id == payment.StudentProfileId);
+
+                        if (student != null)
+                        {
+                            var billedAmount = await _context.ClassFeePrices
+                                .Include(cfp => cfp.Fee)
+                                .Where(cfp => cfp.SchoolClassId == student.SchoolClassId
+                                           && cfp.Fee.TermId == payment.TermId
+                                           && cfp.Fee.AcademicSessionId == payment.AcademicSessionId)
+                                .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
+
+                            enrollment = new StudentEnrollments
+                            {
+                                Id = Guid.NewGuid(),
+                                StudentProfileId = student.Id,
+                                AcademicSessionId = payment.AcademicSessionId,
+                                TermId = payment.TermId,
+                                SchoolClassId = student.SchoolClassId,
+                                TotalAmountPaid = 0m,
+                                OutstandingBalance = billedAmount,
+                                IsFullyPaid = false,
+                                Status = StudentEnrollmentStatus.Pending,
+                                IsActive = false,
+                                EnrolledAt = DateTime.UtcNow,
+                            };
+
+                            _context.StudentEnrollments.Add(enrollment);
+
+                            _logger.LogInformation(
+                                "Auto-created enrollment for student {StudentId} term {TermId} — billed ₦{Billed:N2}.",
+                                student.Id, payment.TermId, billedAmount);
+                        }
+                    }
+
+                    if (enrollment != null)
+                    {
+                        // Sum all other successful payments (exclude this one from DB to avoid double count)
+                        var pastPaid = await _context.StudentPayments
+                            .Where(p => p.StudentProfileId == payment.StudentProfileId
+                                     && p.TermId == payment.TermId
+                                     && p.Status == PaymentStatus.Successful
+                                     && p.Id != payment.Id)
+                            .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
+
+                        var newTotalPaid = pastPaid + payment.AmountPaid;
+
+                        var totalRequiredFee = await _context.ClassFeePrices
+                            .Include(cfp => cfp.Fee)
+                            .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId
+                                       && cfp.Fee.TermId == payment.TermId)
+                            .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
+
+                        enrollment.TotalAmountPaid = newTotalPaid;
+                        enrollment.OutstandingBalance = Math.Max(0, totalRequiredFee - newTotalPaid);
+
+                        var tuitionFeePrice = await _context.ClassFeePrices
+                            .Include(cfp => cfp.Fee)
+                            .FirstOrDefaultAsync(cfp =>
+                                cfp.SchoolClassId == enrollment.SchoolClassId &&
+                                cfp.Fee.TermId == payment.TermId &&
+                                (cfp.Fee.FeeName.ToLower().Contains("tuition") ||
+                                 cfp.Fee.FeeName.ToLower().Contains("school fee")));
+
+                        if (tuitionFeePrice == null)
+                        {
+                            tuitionFeePrice = await _context.ClassFeePrices
+                                .Include(cfp => cfp.Fee)
+                                .FirstOrDefaultAsync(cfp =>
+                                    cfp.SchoolClassId == enrollment.SchoolClassId &&
+                                    cfp.Fee.TermId == payment.TermId);
+                        }
+
+                        if (tuitionFeePrice != null)
+                        {
+                            if (newTotalPaid < tuitionFeePrice.MinimumAmountToPay)
+                            {
+                                enrollment.Status = StudentEnrollmentStatus.Pending;
+                                enrollment.IsActive = false;
+                            }
+                            else
+                            {
+                                enrollment.Status = StudentEnrollmentStatus.Active;
+                                enrollment.IsActive = true;
+                            }
+                        }
+
+                        enrollment.IsFullyPaid = totalRequiredFee > 0 && newTotalPaid >= totalRequiredFee;
+
+                        _context.StudentEnrollments.Update(enrollment);
+                    }
+                }
+
+                // ---------- Transition FROM Successful → reverse ----------
+                if (oldStatus == PaymentStatus.Successful && status != PaymentStatus.Successful)
+                {
+                    var enrollment = await _context.StudentEnrollments
+                        .FirstOrDefaultAsync(e => e.StudentProfileId == payment.StudentProfileId
+                                               && e.TermId == payment.TermId
+                                               && e.AcademicSessionId == payment.AcademicSessionId);
+
+                    if (enrollment != null)
+                    {
+                        var remainingPaid = await _context.StudentPayments
+                            .Where(p => p.StudentProfileId == payment.StudentProfileId
+                                     && p.TermId == payment.TermId
+                                     && p.Status == PaymentStatus.Successful
+                                     && p.Id != payment.Id)
+                            .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
+
+                        var totalRequiredFee = await _context.ClassFeePrices
+                            .Include(cfp => cfp.Fee)
+                            .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId
+                                       && cfp.Fee.TermId == payment.TermId)
+                            .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
+
+                        enrollment.TotalAmountPaid = remainingPaid;
+                        enrollment.OutstandingBalance = Math.Max(0, totalRequiredFee - remainingPaid);
+                        enrollment.IsFullyPaid = totalRequiredFee > 0 && remainingPaid >= totalRequiredFee;
+
+                        _context.StudentEnrollments.Update(enrollment);
+                    }
+                }
+
                 await _context.SaveChangesAsync();
 
-                // AUDIT LOG
                 await _auditLog.LogActivityAsync(
                     _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "System",
                     "Payment Status Updated",
                     $"Ref {payment.ReferenceNumber}: {oldStatus} → {status}.",
                     Ip);
 
-                // NOTIFY STUDENT
                 var studentUserId = await _context.Students
                     .Where(s => s.Id == payment.StudentProfileId)
                     .Select(s => s.UserId)
@@ -489,6 +665,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+        // ==========================================================
+        // GET BY REFERENCE
+        // ==========================================================
         #region GetPaymentByReferenceAsync
         public async Task<ServiceResponse<StudentPaymentDto>> GetPaymentByReferenceAsync(string referenceNumber)
         {
@@ -514,7 +693,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 {
                     Id = p.Id,
                     StudentProfileId = p.StudentProfileId,
-                    StudentName = p.StudentProfile != null ? $"{p.StudentProfile.FirstName} {p.StudentProfile.LastName}" : "N/A",
+                    StudentName = p.StudentProfile != null
+                        ? $"{p.StudentProfile.FirstName} {p.StudentProfile.LastName}"
+                        : "N/A",
                     AmountPaid = p.AmountPaid,
                     ReferenceNumber = p.ReferenceNumber,
                     Gateway = p.Gateway,
@@ -538,8 +719,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+        // ==========================================================
+        // FLUTTERWAVE VERIFY — auto-creates / updates enrollment
+        // ==========================================================
         #region VerifyAndCompleteFlutterwavePaymentAsync
-        public async Task<ServiceResponse<bool>> VerifyAndCompleteFlutterwavePaymentAsync(string transactionId, string referenceNumber)
+        public async Task<ServiceResponse<bool>> VerifyAndCompleteFlutterwavePaymentAsync(
+            string transactionId, string referenceNumber)
         {
             var response = new ServiceResponse<bool>();
             try
@@ -599,72 +784,138 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
+                // Mark payment successful
                 paymentRecord.Status = PaymentStatus.Successful;
                 _context.StudentPayments.Update(paymentRecord);
+
+                // ==========================================================
+                // 1. LOOK UP ENROLLMENT
+                // ==========================================================
+                var enrollment = await _context.StudentEnrollments
+                    .FirstOrDefaultAsync(e =>
+                        e.StudentProfileId == paymentRecord.StudentProfileId &&
+                        e.TermId == paymentRecord.TermId &&
+                        e.AcademicSessionId == paymentRecord.AcademicSessionId);
+
+                // ==========================================================
+                // 2. IF NULL → CREATE IT (billed from ClassFeePrices)
+                // ==========================================================
+                if (enrollment == null)
+                {
+                    var student = await _context.Students
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(s => s.Id == paymentRecord.StudentProfileId);
+
+                    if (student == null)
+                    {
+                        _logger.LogWarning(
+                            "Cannot create enrollment — student {StudentId} not found.",
+                            paymentRecord.StudentProfileId);
+
+                        response.Success = false;
+                        response.Message = "Student not found — cannot create enrollment.";
+                        response.StatusCode = 404;
+                        return response;
+                    }
+
+                    var billedAmount = await _context.ClassFeePrices
+                        .Include(cfp => cfp.Fee)
+                        .Where(cfp => cfp.SchoolClassId == student.SchoolClassId &&
+                                      cfp.Fee.TermId == paymentRecord.TermId &&
+                                      cfp.Fee.AcademicSessionId == paymentRecord.AcademicSessionId)
+                        .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
+
+                    enrollment = new StudentEnrollments
+                    {
+                        Id = Guid.NewGuid(),
+                        StudentProfileId = student.Id,
+                        AcademicSessionId = paymentRecord.AcademicSessionId,
+                        TermId = paymentRecord.TermId,
+                        SchoolClassId = student.SchoolClassId,
+
+                        TotalAmountPaid = 0m,
+                        OutstandingBalance = billedAmount,
+                        IsFullyPaid = false,
+
+                        Status = StudentEnrollmentStatus.Pending,
+                        IsActive = false,
+                        EnrolledAt = DateTime.UtcNow,
+                    };
+
+                    _context.StudentEnrollments.Add(enrollment);
+
+                    _logger.LogInformation(
+                        "Auto-created enrollment for student {StudentId} term {TermId} — billed ₦{Billed:N2}.",
+                        student.Id, paymentRecord.TermId, billedAmount);
+                }
+
+                // ==========================================================
+                // 3. APPLY THIS PAYMENT + RECALCULATE (both paths)
+                // ==========================================================
+                var pastPaid = await _context.StudentPayments
+                    .Where(p => p.StudentProfileId == paymentRecord.StudentProfileId &&
+                                p.TermId == paymentRecord.TermId &&
+                                p.Status == PaymentStatus.Successful &&
+                                p.Id != paymentRecord.Id)
+                    .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
+
+                var newTotalPaid = pastPaid + paymentRecord.AmountPaid;
+
+                var totalRequiredFee = await _context.ClassFeePrices
+                    .Include(cfp => cfp.Fee)
+                    .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId &&
+                                  cfp.Fee.TermId == paymentRecord.TermId)
+                    .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
+
+                enrollment.TotalAmountPaid = newTotalPaid;
+                enrollment.OutstandingBalance = Math.Max(0, totalRequiredFee - newTotalPaid);
+
+                // ==========================================================
+                // 4. STATUS FLAGS
+                // ==========================================================
+                var tuitionFeePrice = await _context.ClassFeePrices
+                    .Include(cfp => cfp.Fee)
+                    .FirstOrDefaultAsync(cfp =>
+                        cfp.SchoolClassId == enrollment.SchoolClassId &&
+                        cfp.Fee.TermId == paymentRecord.TermId &&
+                        (cfp.Fee.FeeName.ToLower().Contains("tuition") ||
+                         cfp.Fee.FeeName.ToLower().Contains("school fee")));
+
+                if (tuitionFeePrice == null)
+                {
+                    tuitionFeePrice = await _context.ClassFeePrices
+                        .Include(cfp => cfp.Fee)
+                        .FirstOrDefaultAsync(cfp =>
+                            cfp.SchoolClassId == enrollment.SchoolClassId &&
+                            cfp.Fee.TermId == paymentRecord.TermId);
+                }
+
+                if (tuitionFeePrice != null)
+                {
+                    if (newTotalPaid < tuitionFeePrice.MinimumAmountToPay)
+                    {
+                        enrollment.Status = StudentEnrollmentStatus.Pending;
+                        enrollment.IsActive = false;
+                    }
+                    else
+                    {
+                        enrollment.Status = StudentEnrollmentStatus.Active;
+                        enrollment.IsActive = true;
+                    }
+                }
+
+                enrollment.IsFullyPaid = totalRequiredFee > 0 && newTotalPaid >= totalRequiredFee;
+
+                _context.StudentEnrollments.Update(enrollment);
+
                 await _context.SaveChangesAsync();
 
-                // AUDIT LOG
                 await _auditLog.LogActivityAsync(
                     "System/Flutterwave",
                     "Payment Verified",
                     $"Ref {referenceNumber}: ₦{paymentRecord.AmountPaid:N2} verified (TxId {transactionId}).",
                     Ip);
 
-                var enrollment = await _context.StudentEnrollments
-                    .FirstOrDefaultAsync(e => e.StudentProfileId == paymentRecord.StudentProfileId && e.TermId == paymentRecord.TermId);
-
-                if (enrollment != null)
-                {
-                    var totalPaidSoFar = await _context.StudentPayments
-                        .Where(p => p.StudentProfileId == paymentRecord.StudentProfileId &&
-                                    p.TermId == paymentRecord.TermId &&
-                                    p.Status == PaymentStatus.Successful)
-                        .SumAsync(p => p.AmountPaid);
-
-                    var tuitionFee = await _context.Fees
-                        .FirstOrDefaultAsync(f => f.SchoolClassId == enrollment.SchoolClassId &&
-                                                   f.TermId == paymentRecord.TermId &&
-                                                   (f.FeeName.ToLower().Contains("tuition") || f.FeeName.ToLower().Contains("school fee")));
-
-                    if (tuitionFee == null)
-                    {
-                        tuitionFee = await _context.Fees
-                            .FirstOrDefaultAsync(f => f.ClassLevelId == enrollment.SchoolClassId && f.TermId == paymentRecord.TermId);
-                    }
-
-                    var totalRequiredFee = await _context.Fees
-                        .Where(f => f.ClassLevelId == enrollment.SchoolClassId && f.TermId == paymentRecord.TermId)
-                        .SumAsync(f => (decimal?)f.Amount) ?? 0m;
-
-                    if (tuitionFee != null)
-                    {
-                        if (totalPaidSoFar < tuitionFee.MinimumAmountToPay)
-                        {
-                            enrollment.Status = StudentEnrollmentStatus.Pending;
-                            enrollment.IsActive = false;
-                        }
-                        else
-                        {
-                            enrollment.Status = StudentEnrollmentStatus.Active;
-                            enrollment.IsActive = true;
-                        }
-                    }
-
-                    if (totalRequiredFee > 0 && totalPaidSoFar >= totalRequiredFee)
-                    {
-                        enrollment.IsFullyPaid = true;
-                        enrollment.EnrolledAt = DateTime.UtcNow;
-                    }
-                    else
-                    {
-                        enrollment.IsFullyPaid = false;
-                    }
-
-                    _context.StudentEnrollments.Update(enrollment);
-                    await _context.SaveChangesAsync();
-                }
-
-                // NOTIFY STUDENT
                 var studentUserId = await _context.Students
                     .Where(s => s.Id == paymentRecord.StudentProfileId)
                     .Select(s => s.UserId)
@@ -703,137 +954,3 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
     }
 }
-
-        //#region HasStudentMetMinimumFeeRequirementAsync
-        //public async Task<ServiceResponse<bool>> HasStudentMetMinimumFeeRequirementAsync(Guid studentProfileId, Guid termId, decimal minimumPercentage = 0.50m)
-        //{
-        //    var response = new ServiceResponse<bool>();
-        //    try
-        //    {
-        //        var studentProfile = await _context.StudentProfiles
-        //            .AsNoTracking()
-        //            .FirstOrDefaultAsync(s => s.Id == studentProfileId);
-
-        //        if (studentProfile == null)
-        //        {
-        //            response.Success = false;
-        //            response.Message = "Student profile not found.";
-        //            response.StatusCode = 404;
-        //            return response;
-        //        }
-
-        //        var expectedFee = await _context.Fees
-        //            .Where(f => f.SchoolClassId == studentProfile.SchoolClassId && f.TermId == termId)
-        //            .SumAsync(f => (decimal?)f.Amount) ?? 0m;
-
-        //        if (expectedFee <= 0)
-        //        {
-        //            response.Data = true;
-        //            response.Success = true;
-        //            return response;
-        //        }
-
-        //        var totalPaid = await _context.StudentPayments
-        //            .Where(p => p.StudentProfileId == studentProfileId &&
-        //                        p.TermId == termId &&
-        //                        p.Status == PaymentStatus.Successful)
-        //            .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
-
-        //        decimal requiredMinimum = expectedFee * minimumPercentage;
-        //        bool hasMetRequirement = totalPaid >= requiredMinimum;
-
-        //        response.Data = hasMetRequirement;
-        //        response.Success = true;
-        //        response.StatusCode = 200;
-        //        response.Message = hasMetRequirement
-        //            ? "Minimum payment requirement met."
-        //            : $"Access restricted. You must pay at least {(minimumPercentage * 100)}% of your school fees to view results.";
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Error checking fee requirement for student {StudentId}", studentProfileId);
-        //        response.Success = false;
-        //        response.Message = ex.Message;
-        //        response.StatusCode = 500;
-        //    }
-        //    return response;
-        //}
-        //#endregion
-
-        //#region GetStudentComprehensiveBalanceAsync (Arrears + Current Term)
-        //public async Task<ServiceResponse<StudentComprehensiveBalanceDto>> GetStudentComprehensiveBalanceAsync(Guid studentProfileId, Guid currentTermId)
-        //{
-        //    var response = new ServiceResponse<StudentComprehensiveBalanceDto>();
-        //    try
-        //    {
-        //        var studentProfile = await _context.StudentProfiles
-        //            .AsNoTracking()
-        //            .FirstOrDefaultAsync(s => s.Id == studentProfileId);
-
-        //        if (studentProfile == null)
-        //        {
-        //            response.Success = false;
-        //            response.Message = "Student profile not found.";
-        //            response.StatusCode = 404;
-        //            return response;
-        //        }
-
-        //        // 1. Total expected fees across all terms for this student's class history
-        //        var allExpectedFees = await _context.Fees
-        //            .Where(f => f.SchoolClassId == studentProfile.SchoolClassId)
-        //            .SumAsync(f => (decimal?)f.Amount) ?? 0m;
-
-        //        // 2. Total successful payments made by this student across all time
-        //        var totalAllTimePaid = await _context.StudentPayments
-        //            .Where(p => p.StudentProfileId == studentProfileId &&
-        //                        p.Status == PaymentStatus.Successful)
-        //            .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
-
-        //        // 3. Cumulative overall balance (Previous Arrears + Current Term Balance)
-        //        decimal totalBalanceRemaining = Math.Max(0m, allExpectedFees - totalAllTimePaid);
-
-        //        // 4. Specific current term calculation (for breakdown)
-        //        var currentTermExpectedFee = await _context.Fees
-        //            .Where(f => f.SchoolClassId == studentProfile.SchoolClassId && f.TermId == currentTermId)
-        //            .SumAsync(f => (decimal?)f.Amount) ?? 0m;
-
-        //        var currentTermPaid = await _context.StudentPayments
-        //            .Where(p => p.StudentProfileId == studentProfileId &&
-        //                        p.TermId == currentTermId &&
-        //                        p.Status == PaymentStatus.Successful)
-        //            .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
-
-        //        decimal currentTermBalance = Math.Max(0m, currentTermExpectedFee - currentTermPaid);
-
-        //        // 5. Arrears is everything owed minus what belongs to the current term
-        //        decimal previousArrears = Math.Max(0m, totalBalanceRemaining - currentTermBalance);
-
-        //        response.Data = new StudentComprehensiveBalanceDto
-        //        {
-        //            StudentProfileId = studentProfileId,
-        //            CurrentTermId = currentTermId,
-        //            PreviousArrears = previousArrears,
-        //            CurrentTermFee = currentTermExpectedFee,
-        //            CurrentTermPaid = currentTermPaid,
-        //            CurrentTermBalance = currentTermBalance,
-        //            TotalBalanceDue = totalBalanceRemaining
-        //        };
-
-        //        response.Success = true;
-        //        response.StatusCode = 200;
-        //        response.Message = "Comprehensive student balance retrieved successfully.";
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Error fetching comprehensive balance for student {StudentId}", studentProfileId);
-        //        response.Success = false;
-        //        response.Message = ex.Message;
-        //        response.StatusCode = 500;
-        //    }
-        //    return response;
-        //}
-        //#endregion
-
-
-   
-

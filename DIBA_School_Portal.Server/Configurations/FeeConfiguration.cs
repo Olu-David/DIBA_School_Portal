@@ -17,11 +17,11 @@ namespace DIBA_School_Portal.Server.Configurations
             builder.Property(x => x.Description)
                    .HasMaxLength(500);
 
-            builder.Property(x => x.Amount)
-                   .HasColumnType("decimal(18,2)");
+            //builder.Property(x => x.Amount)
+            //       .HasColumnType("decimal(18,2)");
 
-            builder.Property(x => x.MinimumAmountToPay)
-                   .HasColumnType("decimal(18,2)");
+            //builder.Property(x => x.MinimumAmountToPay)
+            //       .HasColumnType("decimal(18,2)");
 
             // Relationship to ClassLevel (SchoolClass) - first FK
             builder.HasOne(x => x.ClassLevel)

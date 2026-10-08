@@ -8,11 +8,11 @@ import {
   CircleDot,
   AlertCircle,
 } from "lucide-react";
-import { useAuth } from "../hooks/useAuth";
-import PageHeader from "../components/PageHeader";
-import { Button, Card, StatCard, Skeleton } from "../components/ui";
-import api from "../lib/api";
-import type { ApiResponse, Paginated } from "../types/common";
+import { useAuth } from "../../hooks/useAuth";
+import PageHeader from "../../components/PageHeader";
+import { Button, Card, StatCard, Skeleton } from "../../components/ui";
+import api from "../../lib/api";
+import type { ApiResponse, Paginated } from "../../types/common";
 
 export default function Dashboard() {
   const { user } = useAuth();

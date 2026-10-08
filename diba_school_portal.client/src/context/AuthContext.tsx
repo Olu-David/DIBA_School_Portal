@@ -3,11 +3,18 @@ import type { AuthContextValue, AuthUser, LoginResponse } from "../types/auth";
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => {
+function readStoredUser(): AuthUser | null {
+  try {
     const stored = localStorage.getItem("diba_user");
     return stored ? (JSON.parse(stored) as AuthUser) : null;
-  });
+  } catch {
+    localStorage.removeItem("diba_user");
+    return null;
+  }
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(readStoredUser);
 
   const [token, setToken] = useState<string | null>(() =>
     localStorage.getItem("diba_token")

@@ -23,7 +23,7 @@ export default function Avatar({ name, src, size = "md" }: Props) {
   }
   return (
     <div className={`${s[size]} rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 grid place-items-center text-white font-semibold shrink-0`}>
-      {initials(name)}
-    </div>
+       {initials(name)}
+     </div>
   );
 }

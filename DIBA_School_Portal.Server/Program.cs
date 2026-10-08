@@ -1,3 +1,5 @@
+using Amazon.Runtime;
+using Amazon.S3;
 using DIBA_School_Portal.Server.Configurations;
 using DIBA_School_Portal.Server.Contracts;
 using DIBA_School_Portal.Server.Data;
@@ -8,11 +10,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Services;
+using Resend;
 using Scalar.AspNetCore;
 using System.Threading.RateLimiting;
-using Amazon.S3;
-using Amazon.Runtime;
-using Resend;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -214,6 +215,11 @@ builder.Services.AddScoped<IParentService, ParentService>();
 builder.Services.AddScoped<ISupaBaseFileService, SupabaseFileService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IPdfReportService, PdfReportService>();
+// And on Kestrel(or IIS) — cap the raw request body too
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 2 * 1024 * 1024;   // 2 MB headroom
+});
 
 // ==========================================================
 // 9. BUILD

@@ -1,5 +1,4 @@
 import { fileURLToPath, URL } from 'node:url';
-
 import { defineConfig } from 'vite';
 import plugin from '@vitejs/plugin-react';
 import fs from 'fs';
@@ -36,7 +35,6 @@ if (!fs.existsSync(certFilePath) || !fs.existsSync(keyFilePath)) {
 
 const target = env["services__diba_school_portal-server__https__0"] ?? 'https://localhost:7137';
 
-// https://vitejs.dev/config/
 export default defineConfig({
     plugins: [plugin()],
     resolve: {
@@ -46,10 +44,18 @@ export default defineConfig({
     },
     server: {
         proxy: {
-            '^/weatherforecast': {
+            // Proxy all API calls to the ASP.NET backend
+            '/api': {
                 target,
-                secure: false
-            }
+                secure: false,
+                changeOrigin: true,
+            },
+            '/dashboardHub': {
+                target,
+                secure: false,
+                changeOrigin: true,
+                ws: true,  // enable WebSocket for SignalR
+            },
         },
         port: parseInt(env.DEV_SERVER_PORT || '12050'),
         https: {
@@ -57,4 +63,4 @@ export default defineConfig({
             cert: fs.readFileSync(certFilePath),
         }
     }
-})
+});

@@ -45,3 +45,36 @@ export interface StudentFilter {
   pageNumber: number;
   pageSize: number;
 }
+
+export interface StudentParentLink {
+  parentUserId: string;
+  fullName: string;
+  phoneNumber: string | null;
+  email: string | null;
+  profilePictureUrl: string | null;
+  relationship: string;
+  isPrimaryContact: boolean;
+}
+
+export interface StudentDetail {
+  id: string;
+  userId: string;
+  admissionNumber: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phoneNumber: string | null;
+  profilePictureUrl: string | null;
+  schoolClassId: string;
+  className: string;
+  section: AcademicSection;
+  stream: ClassStream | null;
+  isActive: boolean;
+  createdAt: string;
+  outstandingBalance: number;
+  isFullyPaid: boolean;
+  latestAverageScore: number;
+  latestClassPosition: number;
+  latestTermName: string | null;
+  parents: StudentParentLink[];      // ← added
+}

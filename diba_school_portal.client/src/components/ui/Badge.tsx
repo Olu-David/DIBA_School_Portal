@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from "react";
+﻿ import type { ReactNode } from "react";
 
 type Variant = "neutral" | "emerald" | "amber" | "rose" | "sky" | "violet";
 
