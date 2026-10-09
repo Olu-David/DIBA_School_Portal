@@ -569,24 +569,375 @@ namespace DIBA_School_Portal.Server.Services
         #endregion
 
         // ==========================================================
-        // REPORT CARD — paste your existing implementation
+        // REPORT CARD
         // ==========================================================
         #region GetStudentReportCardAsync
         public async Task<ServiceResponse<StudentReportCardDto>> GetStudentReportCardAsync(
             string studentId, Guid termId, Guid academicSessionId)
         {
-            throw new NotImplementedException("Paste your existing implementation here.");
+            try
+            {
+                if (string.IsNullOrWhiteSpace(studentId))
+                {
+                    return new ServiceResponse<StudentReportCardDto>
+                    {
+                        Success = false,
+                        Message = "Student ID is required.",
+                        StatusCode = 400
+                    };
+                }
+
+                var term = await _context.SchoolTerms
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.Id == termId
+                                           && t.AcademicSessionId == academicSessionId);
+
+                if (term == null)
+                {
+                    return new ServiceResponse<StudentReportCardDto>
+                    {
+                        Success = false,
+                        Message = "Term not found or does not belong to this session.",
+                        StatusCode = 404
+                    };
+                }
+
+                bool isThirdTerm = term.Name.Contains("Third", StringComparison.OrdinalIgnoreCase);
+
+                return isThirdTerm
+                    ? await BuildCumulativeReportCardAsync(studentId, termId, academicSessionId, term)
+                    : await BuildSingleTermReportCardAsync(studentId, termId, academicSessionId, term);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching report card for student {StudentId}", studentId);
+                return new ServiceResponse<StudentReportCardDto>
+                {
+                    Success = false,
+                    Message = $"An error occurred: {ex.Message}",
+                    StatusCode = 500
+                };
+            }
+        }
+
+        private async Task<ServiceResponse<StudentReportCardDto>> BuildSingleTermReportCardAsync(
+            string studentId, Guid termId, Guid academicSessionId, SchoolTerm term)
+        {
+            var termResult = await _context.TermResults
+                .AsNoTracking()
+                .Include(tr => tr.Student)
+                .Include(tr => tr.Term)
+                .Include(tr => tr.AcademicSession)
+                .Include(tr => tr.SchoolClass)
+                .Include(tr => tr.SubjectResults)
+                    .ThenInclude(sr => sr.Subject)
+                .FirstOrDefaultAsync(tr =>
+                    tr.StudentId == studentId &&
+                    tr.TermId == termId &&
+                    tr.AcademicSessionId == academicSessionId);
+
+            if (termResult == null)
+            {
+                return new ServiceResponse<StudentReportCardDto>
+                {
+                    Success = false,
+                    Message = "Report card not found for this term.",
+                    StatusCode = 404
+                };
+            }
+
+            var subjectDtos = termResult.SubjectResults
+                .OrderBy(sr => sr.Subject != null ? sr.Subject.Name : "")
+                .Select(sr => new SubjectScoreDto
+                {
+                    Id = sr.Id,
+                    SubjectId = sr.SubjectId,
+                    SubjectName = sr.Subject?.Name ?? "—",
+                    Test1Score = sr.Test1Score,
+                    Test2Score = sr.Test2Score,
+                    ExamScore = sr.ExamScore,
+                    TotalScore = sr.TotalScore,
+                    SubjectPosition = sr.SubjectPosition,
+                    Grade = sr.Grade,
+                    Remark = sr.Remark,
+                })
+                .ToList();
+
+            return new ServiceResponse<StudentReportCardDto>
+            {
+                Success = true,
+                StatusCode = 200,
+                Data = new StudentReportCardDto
+                {
+                    TermResultId = termResult.Id,
+                    StudentId = studentId,
+                    StudentName = termResult.Student != null
+                        ? $"{termResult.Student.FirstName} {termResult.Student.LastName}"
+                        : "—",
+                    ClassId = termResult.ClassId,
+                    ClassName = termResult.SchoolClass?.Name ?? "—",
+                    TermId = termResult.TermId,
+                    TermName = termResult.Term?.Name ?? term.Name,
+                    AcademicSessionId = termResult.AcademicSessionId,
+                    SessionName = termResult.AcademicSession?.Name ?? "—",
+                    AverageScore = termResult.AverageScore,
+                    ClassPosition = termResult.Position,
+                    OverallGrade = termResult.OverallGrade,
+                    SubjectResults = subjectDtos,
+                }
+            };
+        }
+
+        private async Task<ServiceResponse<StudentReportCardDto>> BuildCumulativeReportCardAsync(
+            string studentId, Guid termId, Guid academicSessionId, SchoolTerm term)
+        {
+            var allResults = await _context.TermResults
+                .AsNoTracking()
+                .Include(tr => tr.Student)
+                .Include(tr => tr.Term)
+                .Include(tr => tr.AcademicSession)
+                .Include(tr => tr.SchoolClass)
+                .Include(tr => tr.SubjectResults)
+                    .ThenInclude(sr => sr.Subject)
+                .Where(tr => tr.StudentId == studentId
+                          && tr.AcademicSessionId == academicSessionId)
+                .ToListAsync();
+
+            var thirdTerm = allResults.FirstOrDefault(tr => tr.TermId == termId);
+            if (thirdTerm == null)
+            {
+                return new ServiceResponse<StudentReportCardDto>
+                {
+                    Success = false,
+                    Message = "Third term report card not computed yet.",
+                    StatusCode = 404
+                };
+            }
+
+            var cumulativeSubjects = allResults
+                .SelectMany(tr => tr.SubjectResults)
+                .GroupBy(sr => sr.SubjectId)
+                .Select(g =>
+                {
+                    var latest = g.OrderByDescending(sr => sr.CreatedAt).First();
+                    return new SubjectScoreDto
+                    {
+                        Id = latest.Id,
+                        SubjectId = g.Key,
+                        SubjectName = latest.Subject?.Name ?? "—",
+                        TotalScore = Math.Round(g.Average(sr => sr.TotalScore), 2),
+                        SubjectPosition = latest.SubjectPosition,
+                        Grade = latest.Grade,
+                        Remark = latest.Remark,
+                    };
+                })
+                .OrderBy(s => s.SubjectName)
+                .ToList();
+
+            var cumulativeAverage = allResults.Any()
+                ? Math.Round(allResults.Average(tr => tr.AverageScore), 2)
+                : 0m;
+
+            var student = allResults.FirstOrDefault()?.Student;
+
+            return new ServiceResponse<StudentReportCardDto>
+            {
+                Success = true,
+                StatusCode = 200,
+                Data = new StudentReportCardDto
+                {
+                    TermResultId = thirdTerm.Id,
+                    StudentId = studentId,
+                    StudentName = student != null
+                        ? $"{student.FirstName} {student.LastName}"
+                        : "—",
+                    ClassId = thirdTerm.ClassId,
+                    ClassName = thirdTerm.SchoolClass?.Name ?? "—",
+                    TermId = termId,
+                    TermName = term.Name,
+                    AcademicSessionId = academicSessionId,
+                    SessionName = thirdTerm.AcademicSession?.Name ?? "—",
+                    AverageScore = cumulativeAverage,
+                    ClassPosition = thirdTerm.Position,
+                    OverallGrade = thirdTerm.OverallGrade,
+                    SubjectResults = cumulativeSubjects,
+                }
+            };
         }
         #endregion
 
         // ==========================================================
-        // SCHOOL-WIDE RESULTS — paste your existing implementation
+        // SCHOOL-WIDE RESULTS
         // ==========================================================
         #region GetAllSchoolResultsAsync
         public async Task<ServiceResponse<SchoolResultResponseDto>> GetAllSchoolResultsAsync(
             Guid academicSessionId, Guid termId, AcademicSection? sectionFilter = null)
         {
-            throw new NotImplementedException("Paste your existing implementation here.");
+            var response = new ServiceResponse<SchoolResultResponseDto>();
+            try
+            {
+                // Verify session + term
+                var session = await _context.AcademicSessions.FindAsync(academicSessionId);
+                var term = await _context.SchoolTerms.FirstOrDefaultAsync(t =>
+                    t.Id == termId && t.AcademicSessionId == academicSessionId);
+
+                if (session == null || term == null)
+                {
+                    response.Success = false;
+                    response.Message = "Session or term not found, or term doesn't belong to session.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                // Pull all term results for this session + term
+                var termResults = await _context.TermResults
+                    .AsNoTracking()
+                    .Include(tr => tr.Student)
+                    .Include(tr => tr.SchoolClass)
+                    .Include(tr => tr.SubjectResults)
+                    .Where(tr => tr.TermId == termId && tr.AcademicSessionId == academicSessionId)
+                    .ToListAsync();
+
+                if (!termResults.Any())
+                {
+                    response.Success = true;
+                    response.StatusCode = 200;
+                    response.Data = new SchoolResultResponseDto
+                    {
+                        AcademicSessionId = academicSessionId,
+                        AcademicSessionName = session.Name,
+                        TermId = termId,
+                        TermName = term.Name,
+                        GeneratedAt = DateTime.UtcNow,
+                        Classes = new List<ClassResultGroupDto>(),
+                    };
+                    return response;
+                }
+
+                var classIds = termResults.Select(tr => tr.ClassId).Distinct().ToList();
+                var userIds = termResults.Select(tr => tr.StudentId).Distinct().ToList();
+
+                var classes = await _context.SchoolClasses
+                    .AsNoTracking()
+                    .Where(c => classIds.Contains(c.Id))
+                    .OrderBy(c => c.DisplayOrder)
+                    .ThenBy(c => c.Name)
+                    .ToListAsync();
+
+                var studentProfiles = await _context.Students
+                    .AsNoTracking()
+                    .Include(sp => sp.User)
+                    .Where(sp => userIds.Contains(sp.UserId))
+                    .ToDictionaryAsync(sp => sp.UserId, sp => sp);
+
+                if (sectionFilter.HasValue)
+                {
+                    classes = classes
+                        .Where(c => c.AcademicSection == sectionFilter.Value)
+                        .ToList();
+                }
+
+                var classGroups = new List<ClassResultGroupDto>();
+
+                foreach (var schoolClass in classes)
+                {
+                    var classResults = termResults.Where(tr => tr.ClassId == schoolClass.Id).ToList();
+                    if (!classResults.Any()) continue;
+
+                    var students = classResults.Select(tr =>
+                    {
+                        studentProfiles.TryGetValue(tr.StudentId, out var profile);
+
+                        return new StudentResultSummaryDto
+                        {
+                            TermResultId = tr.Id,
+                            StudentId = tr.StudentId,
+                            StudentName = tr.Student != null
+                                ? $"{tr.Student.FirstName} {tr.Student.LastName}".Trim()
+                                : "Unknown",
+                            AdmissionNumber = profile?.AdmissionNumber ?? "N/A",
+                            ProfilePictureUrl = profile?.User?.ProfilePictureUrl,
+                            Stream = profile?.Stream,
+                            AverageScore = Math.Round(tr.AverageScore, 2),
+                            TotalMarksObtained = tr.TotalMarksObtained,
+                            Position = tr.Position,
+                            OverallGrade = tr.OverallGrade,
+                            SubjectCount = tr.SubjectResults?.Count ?? 0,
+                            IsPublished = tr.IsPublished,
+                        };
+                    }).ToList();
+
+                    var streamGroups = students
+                        .GroupBy(s => s.Stream)
+                        .OrderBy(g => g.Key.HasValue ? (int)g.Key.Value : int.MaxValue)
+                        .Select(g => new StreamResultGroupDto
+                        {
+                            Stream = g.Key,
+                            StreamName = g.Key?.ToString() ?? "No Stream",
+                            StudentCount = g.Count(),
+                            StreamAverage = g.Any()
+                                ? Math.Round(g.Average(s => s.AverageScore), 2)
+                                : 0m,
+                            Students = g
+                                .OrderBy(s => s.Position)
+                                .ThenBy(s => s.StudentName)
+                                .ToList(),
+                        })
+                        .ToList();
+
+                    var classAvg = students.Any()
+                        ? Math.Round(students.Average(s => s.AverageScore), 2)
+                        : 0m;
+
+                    classGroups.Add(new ClassResultGroupDto
+                    {
+                        ClassId = schoolClass.Id,
+                        ClassName = schoolClass.Name,
+                        Section = schoolClass.AcademicSection,
+                        DisplayOrder = schoolClass.DisplayOrder,
+                        StudentCount = students.Count,
+                        ClassAverage = classAvg,
+                        HighestAverage = students.Any() ? students.Max(s => s.AverageScore) : 0m,
+                        LowestAverage = students.Any() ? students.Min(s => s.AverageScore) : 0m,
+                        PublishedCount = students.Count(s => s.IsPublished),
+                        PendingCount = students.Count(s => !s.IsPublished),
+                        Streams = streamGroups,
+                    });
+                }
+
+                var allStudents = classGroups
+                    .SelectMany(c => c.Streams)
+                    .SelectMany(s => s.Students)
+                    .ToList();
+
+                response.Success = true;
+                response.StatusCode = 200;
+                response.Data = new SchoolResultResponseDto
+                {
+                    AcademicSessionId = academicSessionId,
+                    AcademicSessionName = session.Name,
+                    TermId = termId,
+                    TermName = term.Name,
+                    GeneratedAt = DateTime.UtcNow,
+                    TotalStudents = allStudents.Count,
+                    TotalClasses = classGroups.Count,
+                    TotalPublished = allStudents.Count(s => s.IsPublished),
+                    TotalPending = allStudents.Count(s => !s.IsPublished),
+                    OverallAverage = allStudents.Any()
+                        ? Math.Round(allStudents.Average(s => s.AverageScore), 2)
+                        : 0m,
+                    Classes = classGroups,
+                };
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching all school results");
+                response.Success = false;
+                response.Message = $"An error occurred: {ex.Message}";
+                response.StatusCode = 500;
+                return response;
+            }
         }
         #endregion
 
@@ -607,29 +958,48 @@ namespace DIBA_School_Portal.Server.Services
                 .ToListAsync();
 
             int rank = 1;
-            foreach (var r in classSubjectResults) { r.SubjectPosition = rank; _context.TermSubjectResults.Update(r); rank++; }
+            foreach (var r in classSubjectResults)
+            {
+                r.SubjectPosition = rank;
+                _context.TermSubjectResults.Update(r);
+                rank++;
+            }
             await _context.SaveChangesAsync();
 
             var termResults = await _context.TermResults
                 .Include(tr => tr.SubjectResults)
-                .Where(tr => tr.ClassId == classId && tr.TermId == termId && tr.AcademicSessionId == academicSessionId)
+                .Where(tr => tr.ClassId == classId
+                          && tr.TermId == termId
+                          && tr.AcademicSessionId == academicSessionId)
                 .ToListAsync();
 
             foreach (var tr in termResults)
-                tr.AverageScore = tr.SubjectResults.Any() ? tr.SubjectResults.Average(sr => sr.TotalScore) : 0;
+            {
+                tr.AverageScore = tr.SubjectResults.Any()
+                    ? tr.SubjectResults.Average(sr => sr.TotalScore)
+                    : 0;
+            }
 
             var ranked = termResults.OrderByDescending(tr => tr.AverageScore).ToList();
             int cr = 1;
-            foreach (var tr in ranked) { tr.Position = cr; _context.TermResults.Update(tr); cr++; }
+            foreach (var tr in ranked)
+            {
+                tr.Position = cr;
+                _context.TermResults.Update(tr);
+                cr++;
+            }
             await _context.SaveChangesAsync();
         }
 
         private async Task NotifyPrincipalOfSubmissionAsync(
             ApplicationUser teacher, Guid classId, Guid subjectId, Guid termId, Guid academicSessionId)
         {
-            var className = await _context.SchoolClasses.Where(c => c.Id == classId).Select(c => c.Name).FirstOrDefaultAsync() ?? "Class";
-            var subjectName = await _context.Subjects.Where(s => s.Id == subjectId).Select(s => s.Name).FirstOrDefaultAsync() ?? "Subject";
-            var termName = await _context.SchoolTerms.Where(t => t.Id == termId).Select(t => t.Name).FirstOrDefaultAsync() ?? "Term";
+            var className = await _context.SchoolClasses
+                .Where(c => c.Id == classId).Select(c => c.Name).FirstOrDefaultAsync() ?? "Class";
+            var subjectName = await _context.Subjects
+                .Where(s => s.Id == subjectId).Select(s => s.Name).FirstOrDefaultAsync() ?? "Subject";
+            var termName = await _context.SchoolTerms
+                .Where(t => t.Id == termId).Select(t => t.Name).FirstOrDefaultAsync() ?? "Term";
 
             var principals = await _userManager.GetUsersInRoleAsync("Principal");
             if (!principals.Any()) principals = await _userManager.GetUsersInRoleAsync("Admin");
