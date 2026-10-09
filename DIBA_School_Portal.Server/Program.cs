@@ -237,8 +237,6 @@ builder.Services
             }
         };
     });
-
-
 // ==========================================================
 // 9. APPLICATION SERVICES
 // ==========================================================
@@ -253,6 +251,7 @@ builder.Services.AddScoped<IPaymentLog, PaymentLogService>();
 
 // --- Payments ---
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IAccountService  , AccountService>();   // ← ADD THIS
 
 // --- Academics ---
 builder.Services.AddScoped<IAcademicSession, AcademicSessionService>();
@@ -260,11 +259,16 @@ builder.Services.AddScoped<ISchoolClassService, SchoolClassService>();
 builder.Services.AddScoped<ISchoolFeeService, SchoolFeeService>();
 builder.Services.AddScoped<ISubjectService, SubjectService>();
 builder.Services.AddScoped<ITermSubjectResultService, TermSubjectResultService>();
+builder.Services.AddScoped<IStudentService, StudentService>();     // ← ADD THIS
 
 // --- Parents ---
 builder.Services.AddScoped<IParentService, ParentService>();
 
-// --- External ---
+// --- Files ---
+builder.Services.AddScoped<IPdfReportService, PdfReportService>();
+builder.Services.AddScoped<ISupaBaseFileService, SupabaseFileService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ISmsService, SmsService>();        // ← ADD if not there// --- External ---
 builder.Services.AddScoped<ISupaBaseFileService, SupabaseFileService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IPdfReportService, PdfReportService>();

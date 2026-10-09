@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { X, Bell, Check, Inbox } from "lucide-react";
 import api from "../../lib/api";
-import type { ApiResponse } from "../../types/common";
 
 interface Notification {
   id: string;
@@ -21,18 +20,17 @@ export default function NotificationsDrawer({ open, onClose }: Props) {
   const [items, setItems] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get<ApiResponse<Notification[]>>("/notificationlog/my");
-      if (data.success) setItems(data.data);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    if (open) load();
+    if (!open) return;
+    setLoading(true);
+    (async () => {
+      try {
+        const { data } = await api.get<Notification[]>("/notificationlog/my");
+        setItems(Array.isArray(data) ? data : []);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [open]);
 
   const markRead = async (id: string) => {
@@ -42,35 +40,26 @@ export default function NotificationsDrawer({ open, onClose }: Props) {
 
   const timeAgo = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "Just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    const days = Math.floor(hrs / 24);
-    return `${days}d ago`;
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return "Just now";
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
   };
 
   if (!open) return null;
 
   return (
     <>
-      <div
-        className="fixed inset-0 bg-slate-900/40 z-40"
-        onClick={onClose}
-        aria-hidden
-      />
+      <div className="fixed inset-0 bg-slate-900/40 z-40" onClick={onClose} aria-hidden />
       <aside className="fixed top-0 right-0 h-full w-full max-w-md bg-white z-50 shadow-2xl flex flex-col">
         <header className="h-16 px-5 flex items-center justify-between border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2">
             <Bell className="w-4 h-4 text-slate-500" />
             <h2 className="text-[14px] font-semibold text-slate-900">Notifications</h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-lg text-slate-400 hover:bg-slate-100"
-          >
+          <button onClick={onClose} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100">
             <X className="w-4 h-4" />
           </button>
         </header>
@@ -93,10 +82,14 @@ export default function NotificationsDrawer({ open, onClose }: Props) {
                   key={n.id}
                   type="button"
                   onClick={() => !n.isRead && markRead(n.id)}
-                  className={`w-full text-left p-5 hover:bg-slate-50 transition-colors ${!n.isRead ? "bg-emerald-50/30" : ""}`}
+                  className={`w-full text-left p-5 hover:bg-slate-50 transition-colors ${
+                    !n.isRead ? "bg-emerald-50/30" : ""
+                  }`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`w-9 h-9 rounded-xl grid place-items-center shrink-0 ${!n.isRead ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
+                    <div className={`w-9 h-9 rounded-xl grid place-items-center shrink-0 ${
+                      !n.isRead ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-500"
+                    }`}>
                       <Bell className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0">

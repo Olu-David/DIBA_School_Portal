@@ -95,7 +95,7 @@ export default function StudentsPage() {
               Export
             </Button>
             <Button icon={UserPlus} onClick={() => navigate("/admin/students/new")}>
-              Enrol student
+              Enroll student
             </Button>
           </>
         }

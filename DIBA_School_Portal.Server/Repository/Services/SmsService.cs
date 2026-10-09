@@ -5,13 +5,13 @@ using System.Net.Http.Json;
 
 namespace DIBA_School_Portal.Server.Services
 {
-    public class TermiiSmsService : ISmsService
+    public class SmsService : ISmsService
     {
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
-        private readonly ILogger<TermiiSmsService> _logger;
+        private readonly ILogger<SmsService> _logger;
 
-        public TermiiSmsService(HttpClient httpClient, IConfiguration configuration, ILogger<TermiiSmsService> logger)
+        public SmsService(HttpClient httpClient, IConfiguration configuration, ILogger<SmsService> logger)
         {
             _httpClient = httpClient;
             _configuration = configuration;

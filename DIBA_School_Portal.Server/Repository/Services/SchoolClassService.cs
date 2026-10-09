@@ -214,15 +214,24 @@ namespace DIBA_School_Portal.Server.Services
         public async Task<ServiceResponse<IEnumerable<SchoolClassDTO>>> GetAllSchoolClassesAsync()
         {
             var classes = await _context.SchoolClasses
+                .AsNoTracking()
                 .Select(c => new SchoolClassDTO
                 {
                     Id = c.Id,
                     Name = c.Name,
-                    AcademicSection = c.AcademicSection
+                    AcademicSection = c.AcademicSection,
+                    DisplayOrder = c.DisplayOrder,
+                    StudentCount = _context.Students.Count(s => s.SchoolClassId == c.Id)  
                 })
+                .OrderBy(c => c.DisplayOrder)
+                .ThenBy(c => c.Name)
                 .ToListAsync();
 
-            return new ServiceResponse<IEnumerable<SchoolClassDTO>> { Success = true, Data = classes };
+            return new ServiceResponse<IEnumerable<SchoolClassDTO>>
+            {
+                Success = true,
+                Data = classes
+            };
         }
 
         public async Task<ServiceResponse<IEnumerable<SubjectDto>>> GetSubjectsForClassAsync(Guid classId)

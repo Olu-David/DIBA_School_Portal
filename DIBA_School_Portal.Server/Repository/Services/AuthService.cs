@@ -1022,14 +1022,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
         #region Helpers - JWT
         private string GenerateJwtToken(
-            ApplicationUser user, IList<string> roles, string? primaryRoleOverride = null)
+     ApplicationUser user, IList<string> roles, string? primaryRoleOverride = null)
         {
-            // Ensure JWT configuration exists to prevent null reference errors
-            var jwtKey = _config["Jwt:Key"];
-            if (string.IsNullOrEmpty(jwtKey))
-            {
-                throw new InvalidOperationException("JWT Secret Key is not configured in appsettings.json.");
-            }
+            // Use the exact same fallback values as Program.cs to avoid mismatches
+            var jwtKey = _config["Jwt:Key"] ?? "THIS_IS_A_VERY_LONG_SECRET_KEY_THAT_IS_AT_LEAST_32_CHARACTERS_LONG_FOR_HMAC_SHA256";
+            var issuer = _config["Jwt:Issuer"] ?? "DIBA_School_Portal";
+            var audience = _config["Jwt:Audience"] ?? "DIBA_School_Portal_Clients";
 
             var primaryRole = primaryRoleOverride ?? user.PrimaryRole ?? roles.FirstOrDefault() ?? "";
 
@@ -1053,8 +1051,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
-                issuer: _config["Jwt:Issuer"],
-                audience: _config["Jwt:Audience"],
+                issuer: issuer,
+                audience: audience,
                 claims: claims,
                 expires: DateTime.UtcNow.AddHours(8),
                 signingCredentials: creds);

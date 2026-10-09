@@ -2,77 +2,73 @@
 import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./hooks/useToast";
 import ProtectedRoute from "./components/ProtectedRoute";
+import {
+  STAFF_ROLES, FINANCE_ROLES, TEACHING_ROLES, LEADERSHIP_ROLES,
+  ENQUIRY_ROLES, AUDIT_ROLES, PEOPLE_ROLES, REGISTRAR_ROLES,
+  ADMIN_ROLES, RESULT_VIEWERS,
+} from "./lib/roles";
 
-// ---------------------------------------------------------
 // Layouts
-// ---------------------------------------------------------
 import PublicLayout from "./layouts/PublicLayout";
 import AuthLayout from "./layouts/AuthLayout";
 import AdminLayout from "./layouts/AdminLayout";
 import StudentLayout from "./layouts/StudentLayout";
 import ParentLayout from "./layouts/ParentLayout";
 
-// ---------------------------------------------------------
-// Public pages  (NEW)
-// ---------------------------------------------------------
+// Public pages
 import HomePage from "./pages/public/HomePage";
 import AboutPage from "./pages/public/AboutPage";
 import AcademicsPage from "./pages/public/AcademicsPage";
 import AdmissionsPage from "./pages/public/AdmissionsPage";
 import ContactPage from "./pages/public/ContactPage";
 
-// ---------------------------------------------------------
 // Auth pages
-// ---------------------------------------------------------
 import StaffLogin from "./pages/auth/StaffLogin";
 import StudentLogin from "./pages/auth/StudentLogin";
 import ParentLogin from "./pages/auth/ParentLogin";
 
-// ---------------------------------------------------------
 // Admin pages
-// ---------------------------------------------------------
 import Dashboard from "./pages/admin/Dashboard";
 import StudentsPage from "./pages/admin/StudentsPage";
 import NewStudentPage from "./pages/admin/NewStudentPage";
 import StudentDetailPage from "./pages/admin/StudentDetailPage";
+import TeachersPage from "./pages/admin/TeachersPage";
+import TeacherDetailPage from "./pages/admin/TeacherDetailPage";
+import ParentsPage from "./pages/admin/ParentsPage";
 import ClassesPage from "./pages/admin/ClassesPage";
 import ClassDetailPage from "./pages/admin/ClassDetailPage";
 import SubjectsPage from "./pages/admin/SubjectsPage";
 import AcademicSessionsPage from "./pages/admin/AcademicSessionsPage";
 import AuditLogsPage from "./pages/admin/AuditLogsPage";
+import EnquiriesPage from "./pages/admin/EnquiriesPage";
+import SchoolResultsPage from "./pages/admin/SchoolResultsPage";
+import ResultsApprovalPage from "./pages/admin/ResultsApprovalPage";
+import ReportCardsPage from "./pages/admin/ReportCardsPage";
+import MyAssignmentsPage from "./pages/admin/MyAssignmentsPage";
 
-// ---------------------------------------------------------
-// Finance pages
-// ---------------------------------------------------------
+// Finance
 import FinanceDashboard from "./pages/finance/FinanceDashboard";
 import RecordCash from "./pages/finance/RecordCash";
 import PaymentsListPage from "./pages/finance/PaymentsListPage";
 import ArrearsPage from "./pages/finance/ArrearsPage";
 import FeesPage from "./pages/finance/FeesPage";
 
-// ---------------------------------------------------------
-// Teacher pages
-// ---------------------------------------------------------
+// Teacher
 import ScoreEntryPage from "./pages/teacher/ScoreEntryPage";
 
-// ---------------------------------------------------------
-// Student pages
-// ---------------------------------------------------------
+// Student
 import StudentDashboard from "./pages/student/StudentDashboard";
 import MyBillPage from "./pages/student/MyBillPage";
 import MyResultsPage from "./pages/student/MyResultsPage";
 
-// ---------------------------------------------------------
-// Parent pages
-// ---------------------------------------------------------
+// Parent
 import ParentDashboard from "./pages/parent/ParentDashboard";
 import ChildDetailPage from "./pages/parent/ChildDetailPage";
 
-// ---------------------------------------------------------
-// Shared pages
-// ---------------------------------------------------------
+// Shared
 import ProfilePage from "./pages/shared/ProfilePage";
 import ReportCardViewer from "./pages/shared/ReportCardViewer";
+import NotificationsPage from "./pages/shared/NotificationsPage";
 
 export default function App() {
   return (
@@ -80,9 +76,7 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
           <Routes>
-            {/* ============================================= */}
-            {/* PUBLIC — home, about, academics, admissions */}
-            {/* ============================================= */}
+            {/* ==================== PUBLIC ==================== */}
             <Route element={<PublicLayout />}>
               <Route path="/" element={<HomePage />} />
               <Route path="/about" element={<AboutPage />} />
@@ -91,9 +85,7 @@ export default function App() {
               <Route path="/contact" element={<ContactPage />} />
             </Route>
 
-            {/* ============================================= */}
-            {/* AUTH — login pages                          */}
-            {/* ============================================= */}
+            {/* ==================== AUTH ==================== */}
             <Route path="/auth" element={<AuthLayout />}>
               <Route index element={<Navigate to="/auth/staff" replace />} />
               <Route path="staff" element={<StaffLogin />} />
@@ -101,75 +93,99 @@ export default function App() {
               <Route path="parent" element={<ParentLogin />} />
             </Route>
 
-            {/* ============================================= */}
-            {/* ADMIN — protected                           */}
-            {/* ============================================= */}
-            <Route element={<ProtectedRoute />}>
+            {/* ==================== ADMIN (all staff) ==================== */}
+            <Route element={<ProtectedRoute allowedRoles={STAFF_ROLES} />}>
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Dashboard />} />
 
-                {/* Students */}
+                {/* People — visible to all staff (backend filters data) */}
                 <Route path="students" element={<StudentsPage />} />
-                <Route path="students/new" element={<NewStudentPage />} />
                 <Route path="students/:id" element={<StudentDetailPage />} />
-
-                {/* Classes */}
-                <Route path="classes" element={<ClassesPage />} />
-                <Route path="classes/:classId" element={<ClassDetailPage />} />
-
-                {/* Other academics */}
-                <Route path="subjects" element={<SubjectsPage />} />
-                <Route path="sessions" element={<AcademicSessionsPage />} />
-                <Route path="audit-logs" element={<AuditLogsPage />} />
-
-                {/* Finance */}
-                <Route path="finance" element={<FinanceDashboard />} />
-                <Route path="finance/record-cash" element={<RecordCash />} />
-                <Route path="finance/payments" element={<PaymentsListPage />} />
-                <Route path="finance/arrears" element={<ArrearsPage />} />
-                <Route path="finance/fees" element={<FeesPage />} />
-
-                {/* Teaching */}
-                <Route path="score-entry" element={<ScoreEntryPage />} />
-
-                {/* Shared */}
+                <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
-                <Route
-                  path="report-cards/:studentId/:sessionId/:termId"
-                  element={<ReportCardViewer />}
-                />
+
+                {/* People management — Registrar and above */}
+                <Route element={<ProtectedRoute allowedRoles={PEOPLE_ROLES} />}>
+                  <Route path="students/new" element={<NewStudentPage />} />
+                  <Route path="teachers" element={<TeachersPage />} />
+                  <Route path="teachers/:id" element={<TeacherDetailPage />} />
+                  <Route path="parents" element={<ParentsPage />} />
+                </Route>
+
+                {/* Academics — ADMIN_ROLES */}
+                <Route element={<ProtectedRoute allowedRoles={ADMIN_ROLES} />}>
+                  <Route path="classes" element={<ClassesPage />} />
+                  <Route path="classes/:classId" element={<ClassDetailPage />} />
+                  <Route path="subjects" element={<SubjectsPage />} />
+                  <Route path="sessions" element={<AcademicSessionsPage />} />
+                </Route>
+
+                {/* Results — different roles per action */}
+                <Route element={<ProtectedRoute allowedRoles={RESULT_VIEWERS} />}>
+                  <Route path="results" element={<SchoolResultsPage />} />
+                  <Route path="report-cards" element={<ReportCardsPage />} />
+                  <Route
+                    path="report-cards/:studentId/:sessionId/:termId"
+                    element={<ReportCardViewer />}
+                  />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={LEADERSHIP_ROLES} />}>
+                  <Route path="results-approval" element={<ResultsApprovalPage />} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={TEACHING_ROLES} />}>
+                  <Route path="my-assignments" element={<MyAssignmentsPage />} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={["SuperAdmin", "Principal", "VicePrincipal", "Headmaster", "Headmistress", "Teacher", "FormTeacher"]} />}>
+                  <Route path="score-entry" element={<ScoreEntryPage />} />
+                </Route>
+
+                {/* Finance — FINANCE_ROLES */}
+                <Route element={<ProtectedRoute allowedRoles={FINANCE_ROLES} />}>
+                  <Route path="finance" element={<FinanceDashboard />} />
+                  <Route path="finance/payments" element={<PaymentsListPage />} />
+                  <Route path="finance/arrears" element={<ArrearsPage />} />
+                  <Route path="finance/fees" element={<FeesPage />} />
+                  <Route path="finance/record-cash" element={<RecordCash />} />
+                </Route>
+
+                {/* Enquiries — REGISTRAR_ROLES */}
+                <Route element={<ProtectedRoute allowedRoles={ENQUIRY_ROLES} />}>
+                  <Route path="enquiries" element={<EnquiriesPage />} />
+                </Route>
+
+                {/* Audit — AUDIT_ROLES */}
+                <Route element={<ProtectedRoute allowedRoles={AUDIT_ROLES} />}>
+                  <Route path="audit-logs" element={<AuditLogsPage />} />
+                </Route>
               </Route>
             </Route>
 
-            {/* ============================================= */}
-            {/* STUDENT portal — protected                  */}
-            {/* ============================================= */}
+            {/* ==================== STUDENT ==================== */}
             <Route element={<ProtectedRoute allowedRoles={["Student"]} />}>
               <Route path="/student" element={<StudentLayout />}>
                 <Route index element={<StudentDashboard />} />
                 <Route path="bill" element={<MyBillPage />} />
                 <Route path="results" element={<MyResultsPage />} />
+                <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
             </Route>
 
-            {/* ============================================= */}
-            {/* PARENT portal — protected                   */}
-            {/* ============================================= */}
+            {/* ==================== PARENT ==================== */}
             <Route element={<ProtectedRoute allowedRoles={["Parent"]} />}>
               <Route path="/parent" element={<ParentLayout />}>
                 <Route index element={<ParentDashboard />} />
+                <Route path="children" element={<ParentDashboard />} />
                 <Route
                   path="children/:studentProfileId"
                   element={<ChildDetailPage />}
                 />
+                <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
             </Route>
 
-            {/* ============================================= */}
-            {/* Fallback — unknown URL → home               */}
-            {/* ============================================= */}
+            {/* ==================== FALLBACK ==================== */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ToastProvider>

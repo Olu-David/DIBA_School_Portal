@@ -7,8 +7,9 @@ namespace DIBA_School_Portal.Server.Contracts
     {
 
         public Guid Id { get; set; }
-        public string Name { get; set; } = string.Empty; // e.g., "JSS 1"
-        public int DisplayOrder { get; set; }
+        public string Name { get; set; } = "";
         public AcademicSection AcademicSection { get; set; }
+        public int DisplayOrder { get; set; }
+        public int StudentCount { get; set; }
     }
 }
