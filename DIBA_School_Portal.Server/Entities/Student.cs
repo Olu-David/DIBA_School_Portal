@@ -1,4 +1,5 @@
 ﻿using DIBA_School_Portal.Server.Configurations;
+using DIBA_School_Portal.Server.Database_Entities;
 using DIBA_School_Portal.Server.Enums;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;

@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace DIBA_School_Portal.Server.Configurations
+namespace DIBA_School_Portal.Server.Database_Entities
 {
     public class ApplicationUser : IdentityUser
     {

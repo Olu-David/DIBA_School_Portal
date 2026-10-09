@@ -1,4 +1,5 @@
 ﻿using DIBA_School_Portal.Server.Configurations;
+using DIBA_School_Portal.Server.Database_Entities;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using System.ComponentModel.DataAnnotations;
 

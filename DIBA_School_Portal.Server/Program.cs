@@ -2,7 +2,7 @@ using Amazon.Runtime;
 using Amazon.S3;
 using DIBA_School_Portal.Server.Configurations;
 using DIBA_School_Portal.Server.Contracts;
-using DIBA_School_Portal.Server.Data;
+using DIBA_School_Portal.Server.Database_Entities;
 using DIBA_School_Portal.Server.Repository.IServices;
 using DIBA_School_Portal.Server.Repository.Services;
 using DIBA_School_Portal.Server.Services;
@@ -10,6 +10,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Services;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Resend;
 using Scalar.AspNetCore;
 using System.Threading.RateLimiting;
@@ -51,9 +54,9 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     // User
     options.User.RequireUniqueEmail = false; // students have no email
 })
+.AddRoles<IdentityRole>() // <--- ADD THIS LINE HERE
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
-
 // ==========================================================
 // 3. HTTP CONTEXT ACCESSOR + SIGNALR
 // ==========================================================
@@ -185,9 +188,59 @@ builder.Services.AddSingleton<IAmazonS3>(sp =>
         new BasicAWSCredentials(accessKey, secretKey),
         s3Config);
 });
+// ==========================================================
+// 8. JWT 
+// ==========================================================
+
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "THIS_IS_A_VERY_LONG_SECRET_KEY_THAT_IS_AT_LEAST_32_CHARACTERS_LONG_FOR_HMAC_SHA256";
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "DIBA_School_Portal";
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "DIBA_School_Portal_Clients";
+
+builder.Services
+    .AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
+    {
+        options.RequireHttpsMetadata = false;              // dev only — set true in production
+        options.SaveToken = true;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ClockSkew = TimeSpan.Zero,                     // no grace period on expiry
+            NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier,
+            RoleClaimType = System.Security.Claims.ClaimTypes.Role,
+        };
+
+        // Allow the SignalR hub to receive the token via query string
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+
+                if (!string.IsNullOrEmpty(accessToken)
+                    && path.StartsWithSegments("/dashboardHub"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
+    });
+
 
 // ==========================================================
-// 8. APPLICATION SERVICES
+// 9. APPLICATION SERVICES
 // ==========================================================
 
 // --- Auth ---
@@ -222,12 +275,12 @@ builder.WebHost.ConfigureKestrel(options =>
 });
 
 // ==========================================================
-// 9. BUILD
+// 10. BUILD
 // ==========================================================
 var app = builder.Build();
 
 // ==========================================================
-// 10. DATABASE MIGRATION + SEEDING
+// 11. DATABASE MIGRATION + SEEDING
 // ==========================================================
 using (var scope = app.Services.CreateScope())
 {
@@ -246,7 +299,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ==========================================================
-// 11. MIDDLEWARE PIPELINE (order matters!)
+// 12. MIDDLEWARE PIPELINE (order matters!)
 // ==========================================================
 
 // Static files + default files (must be early)

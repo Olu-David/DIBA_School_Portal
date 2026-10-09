@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 import plugin from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import fs from 'fs';
 import path from 'path';
 import child_process from 'child_process';
@@ -28,7 +29,7 @@ if (!fs.existsSync(certFilePath) || !fs.existsSync(keyFilePath)) {
         '--format',
         'Pem',
         '--no-password',
-    ], { stdio: 'inherit', }).status) {
+    ], { stdio: 'inherit' }).status) {
         throw new Error("Could not create certificate.");
     }
 }
@@ -36,7 +37,10 @@ if (!fs.existsSync(certFilePath) || !fs.existsSync(keyFilePath)) {
 const target = env["services__diba_school_portal-server__https__0"] ?? 'https://localhost:7137';
 
 export default defineConfig({
-    plugins: [plugin()],
+    plugins: [
+        plugin(),
+        tailwindcss(),
+    ],
     resolve: {
         alias: {
             '@': fileURLToPath(new URL('./src', import.meta.url))
@@ -44,7 +48,6 @@ export default defineConfig({
     },
     server: {
         proxy: {
-            // Proxy all API calls to the ASP.NET backend
             '/api': {
                 target,
                 secure: false,
@@ -54,7 +57,7 @@ export default defineConfig({
                 target,
                 secure: false,
                 changeOrigin: true,
-                ws: true,  // enable WebSocket for SignalR
+                ws: true,
             },
         },
         port: parseInt(env.DEV_SERVER_PORT || '12050'),

@@ -6,10 +6,20 @@ import ProtectedRoute from "./components/ProtectedRoute";
 // ---------------------------------------------------------
 // Layouts
 // ---------------------------------------------------------
+import PublicLayout from "./layouts/PublicLayout";
 import AuthLayout from "./layouts/AuthLayout";
 import AdminLayout from "./layouts/AdminLayout";
 import StudentLayout from "./layouts/StudentLayout";
 import ParentLayout from "./layouts/ParentLayout";
+
+// ---------------------------------------------------------
+// Public pages  (NEW)
+// ---------------------------------------------------------
+import HomePage from "./pages/public/HomePage";
+import AboutPage from "./pages/public/AboutPage";
+import AcademicsPage from "./pages/public/AcademicsPage";
+import AdmissionsPage from "./pages/public/AdmissionsPage";
+import ContactPage from "./pages/public/ContactPage";
 
 // ---------------------------------------------------------
 // Auth pages
@@ -71,7 +81,18 @@ export default function App() {
         <ToastProvider>
           <Routes>
             {/* ============================================= */}
-            {/* Public — auth                               */}
+            {/* PUBLIC — home, about, academics, admissions */}
+            {/* ============================================= */}
+            <Route element={<PublicLayout />}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/academics" element={<AcademicsPage />} />
+              <Route path="/admissions" element={<AdmissionsPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+            </Route>
+
+            {/* ============================================= */}
+            {/* AUTH — login pages                          */}
             {/* ============================================= */}
             <Route path="/auth" element={<AuthLayout />}>
               <Route index element={<Navigate to="/auth/staff" replace />} />
@@ -81,7 +102,7 @@ export default function App() {
             </Route>
 
             {/* ============================================= */}
-            {/* Admin / staff area                          */}
+            {/* ADMIN — protected                           */}
             {/* ============================================= */}
             <Route element={<ProtectedRoute />}>
               <Route path="/admin" element={<AdminLayout />}>
@@ -111,7 +132,7 @@ export default function App() {
                 {/* Teaching */}
                 <Route path="score-entry" element={<ScoreEntryPage />} />
 
-                {/* Shared (within admin shell) */}
+                {/* Shared */}
                 <Route path="profile" element={<ProfilePage />} />
                 <Route
                   path="report-cards/:studentId/:sessionId/:termId"
@@ -121,7 +142,7 @@ export default function App() {
             </Route>
 
             {/* ============================================= */}
-            {/* Student portal                              */}
+            {/* STUDENT portal — protected                  */}
             {/* ============================================= */}
             <Route element={<ProtectedRoute allowedRoles={["Student"]} />}>
               <Route path="/student" element={<StudentLayout />}>
@@ -133,7 +154,7 @@ export default function App() {
             </Route>
 
             {/* ============================================= */}
-            {/* Parent portal                               */}
+            {/* PARENT portal — protected                   */}
             {/* ============================================= */}
             <Route element={<ProtectedRoute allowedRoles={["Parent"]} />}>
               <Route path="/parent" element={<ParentLayout />}>
@@ -147,10 +168,9 @@ export default function App() {
             </Route>
 
             {/* ============================================= */}
-            {/* Fallbacks                                   */}
+            {/* Fallback — unknown URL → home               */}
             {/* ============================================= */}
-            <Route path="/" element={<Navigate to="/admin" replace />} />
-            <Route path="*" element={<Navigate to="/admin" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ToastProvider>
       </AuthProvider>

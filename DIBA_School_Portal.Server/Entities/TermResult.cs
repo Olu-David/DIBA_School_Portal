@@ -1,4 +1,5 @@
 ﻿using DIBA_School_Portal.Server.Configurations;
+using DIBA_School_Portal.Server.Database_Entities;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;

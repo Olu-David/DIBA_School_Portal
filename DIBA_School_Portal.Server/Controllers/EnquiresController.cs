@@ -1,5 +1,6 @@
 ﻿using DIBA_School_Portal.Server.Configurations;
 using DIBA_School_Portal.Server.Contracts;
+using DIBA_School_Portal.Server.Database_Entities;
 using DIBA_School_Portal.Server.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

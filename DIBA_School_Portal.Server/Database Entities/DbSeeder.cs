@@ -6,9 +6,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace DIBA_School_Portal.Server.Data
+namespace DIBA_School_Portal.Server.Database_Entities
 {
-    public  class DbSeeder
+    public class DbSeeder
     {
         // ---------------- All roles ----------------
         private static readonly string[] Roles = new[]

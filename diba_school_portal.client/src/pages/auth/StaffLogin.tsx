@@ -1,5 +1,5 @@
 ﻿import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import api from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
 import type { ApiResponse } from "../../types/common";
@@ -18,10 +18,10 @@ export default function StaffLogin() {
     setError(null);
     setLoading(true);
     try {
-      const { data } = await api.post<ApiResponse<LoginResponse>>("/auth/staff/login", {
-        email,
-        password,
-      });
+      const { data } = await api.post<ApiResponse<LoginResponse>>(
+        "/auth/staff/login",
+        { email, password }
+      );
       if (!data.success) {
         setError(data.message ?? "Login failed.");
         return;
@@ -39,7 +39,9 @@ export default function StaffLogin() {
   return (
     <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-8">
       <h2 className="text-xl font-semibold text-slate-900">Staff sign in</h2>
-      <p className="mt-1 text-[13px] text-slate-500 mb-6">Use your school email to continue.</p>
+      <p className="mt-1 text-[13px] text-slate-500 mb-6">
+        Use your school email to continue.
+      </p>
 
       <form onSubmit={submit} className="space-y-4">
         <input
@@ -69,21 +71,19 @@ export default function StaffLogin() {
       </form>
 
       <div className="mt-6 pt-6 border-t border-slate-100 text-center text-[12px] text-slate-400">
-        <button
-          type="button"
-          onClick={() => navigate("/auth/student")}
-          className="text-emerald-600 hover:text-emerald-700 font-medium"
-        >
+        <Link to="/auth/student" className="text-emerald-600 font-medium">
           Student sign in
-        </button>
+        </Link>
         <span className="mx-2">·</span>
-        <button
-          type="button"
-          onClick={() => navigate("/auth/parent")}
-          className="text-emerald-600 hover:text-emerald-700 font-medium"
-        >
+        <Link to="/auth/parent" className="text-emerald-600 font-medium">
           Parent sign in
-        </button>
+        </Link>
+      </div>
+
+      <div className="mt-4 text-center">
+        <Link to="/" className="text-[12px] text-slate-400 hover:text-slate-600">
+          ← Back to home
+        </Link>
       </div>
     </div>
   );

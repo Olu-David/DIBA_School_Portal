@@ -28,6 +28,20 @@ namespace DIBA_School_Portal.Server.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AspNetRoles",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    NormalizedName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AspNetRoles", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "AuditLogs",
                 columns: table => new
                 {
@@ -43,6 +57,34 @@ namespace DIBA_School_Portal.Server.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AuditLogs", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Enquiries",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Type = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ChildFirstName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ChildLastName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ChildDateOfBirth = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ChildGender = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Section = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PreviousSchool = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PreferredStartTerm = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ParentName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ParentEmail = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ParentPhone = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Subject = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Message = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Notes = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ContactedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Enquiries", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -65,7 +107,7 @@ namespace DIBA_School_Portal.Server.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "SchoolClass",
+                name: "SchoolClasses",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -76,7 +118,7 @@ namespace DIBA_School_Portal.Server.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_SchoolClass", x => x.Id);
+                    table.PrimaryKey("PK_SchoolClasses", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -90,23 +132,6 @@ namespace DIBA_School_Portal.Server.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Subjects", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "Teachers",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    UserId = table.Column<string>(type: "nvarchar(450)", maxLength: 450, nullable: false),
-                    StaffId = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    FirstName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    LastName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    Qualification = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    DateEmployed = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Teachers", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -132,32 +157,28 @@ namespace DIBA_School_Portal.Server.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "ClassSubjects",
+                name: "AspNetRoleClaims",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SchoolClassId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SubjectId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    RoleId = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    ClaimType = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ClaimValue = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_ClassSubjects", x => x.Id);
+                    table.PrimaryKey("PK_AspNetRoleClaims", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ClassSubjects_SchoolClass_SchoolClassId",
-                        column: x => x.SchoolClassId,
-                        principalTable: "SchoolClass",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_ClassSubjects_Subjects_SubjectId",
-                        column: x => x.SubjectId,
-                        principalTable: "Subjects",
+                        name: "FK_AspNetRoleClaims_AspNetRoles_RoleId",
+                        column: x => x.RoleId,
+                        principalTable: "AspNetRoles",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
-                name: "ApplicationUser",
+                name: "AspNetUsers",
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
@@ -171,11 +192,10 @@ namespace DIBA_School_Portal.Server.Migrations
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     PrimaryRole = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    TeacherProfileId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UserName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    NormalizedUserName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    Email = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    NormalizedEmail = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    UserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    NormalizedUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    Email = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    NormalizedEmail = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     EmailConfirmed = table.Column<bool>(type: "bit", nullable: false),
                     PasswordHash = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     SecurityStamp = table.Column<string>(type: "nvarchar(max)", nullable: true),
@@ -189,17 +209,37 @@ namespace DIBA_School_Portal.Server.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_ApplicationUser", x => x.Id);
+                    table.PrimaryKey("PK_AspNetUsers", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ApplicationUser_SchoolClass_ClassId",
+                        name: "FK_AspNetUsers_SchoolClasses_ClassId",
                         column: x => x.ClassId,
-                        principalTable: "SchoolClass",
+                        principalTable: "SchoolClasses",
                         principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ClassSubjects",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SchoolClassId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SubjectId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ClassSubjects", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ApplicationUser_Teachers_TeacherProfileId",
-                        column: x => x.TeacherProfileId,
-                        principalTable: "Teachers",
-                        principalColumn: "Id");
+                        name: "FK_ClassSubjects_SchoolClasses_SchoolClassId",
+                        column: x => x.SchoolClassId,
+                        principalTable: "SchoolClasses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ClassSubjects_Subjects_SubjectId",
+                        column: x => x.SubjectId,
+                        principalTable: "Subjects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -224,9 +264,9 @@ namespace DIBA_School_Portal.Server.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_ClassBooks_SchoolClass_SchoolClassId",
+                        name: "FK_ClassBooks_SchoolClasses_SchoolClassId",
                         column: x => x.SchoolClassId,
-                        principalTable: "SchoolClass",
+                        principalTable: "SchoolClasses",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -244,8 +284,6 @@ namespace DIBA_School_Portal.Server.Migrations
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     FeeName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    MinimumAmountToPay = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     ClassLevelId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     AcademicSessionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     TermId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -263,15 +301,15 @@ namespace DIBA_School_Portal.Server.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Fees_SchoolClass_ClassLevelId",
+                        name: "FK_Fees_SchoolClasses_ClassLevelId",
                         column: x => x.ClassLevelId,
-                        principalTable: "SchoolClass",
+                        principalTable: "SchoolClasses",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Fees_SchoolClass_SchoolClassId",
+                        name: "FK_Fees_SchoolClasses_SchoolClassId",
                         column: x => x.SchoolClassId,
-                        principalTable: "SchoolClass",
+                        principalTable: "SchoolClasses",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -280,6 +318,91 @@ namespace DIBA_School_Portal.Server.Migrations
                         principalTable: "SchoolTerms",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AspNetUserClaims",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    ClaimType = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ClaimValue = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AspNetUserClaims", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AspNetUserClaims_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AspNetUserLogins",
+                columns: table => new
+                {
+                    LoginProvider = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    ProviderKey = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    ProviderDisplayName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AspNetUserLogins", x => new { x.LoginProvider, x.ProviderKey });
+                    table.ForeignKey(
+                        name: "FK_AspNetUserLogins_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AspNetUserRoles",
+                columns: table => new
+                {
+                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    RoleId = table.Column<string>(type: "nvarchar(450)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AspNetUserRoles", x => new { x.UserId, x.RoleId });
+                    table.ForeignKey(
+                        name: "FK_AspNetUserRoles_AspNetRoles_RoleId",
+                        column: x => x.RoleId,
+                        principalTable: "AspNetRoles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_AspNetUserRoles_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AspNetUserTokens",
+                columns: table => new
+                {
+                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    LoginProvider = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Value = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AspNetUserTokens", x => new { x.UserId, x.LoginProvider, x.Name });
+                    table.ForeignKey(
+                        name: "FK_AspNetUserTokens_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -301,9 +424,9 @@ namespace DIBA_School_Portal.Server.Migrations
                 {
                     table.PrimaryKey("PK_NotificationLogs", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_NotificationLogs_ApplicationUser_ApplicationUserId",
+                        name: "FK_NotificationLogs_AspNetUsers_ApplicationUserId",
                         column: x => x.ApplicationUserId,
-                        principalTable: "ApplicationUser",
+                        principalTable: "AspNetUsers",
                         principalColumn: "Id");
                 });
 
@@ -324,21 +447,44 @@ namespace DIBA_School_Portal.Server.Migrations
                 {
                     table.PrimaryKey("PK_Students", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Students_ApplicationUser_UserId",
+                        name: "FK_Students_AspNetUsers_UserId",
                         column: x => x.UserId,
-                        principalTable: "ApplicationUser",
+                        principalTable: "AspNetUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_Students_SchoolClass_SchoolClassId",
+                        name: "FK_Students_SchoolClasses_SchoolClassId",
                         column: x => x.SchoolClassId,
-                        principalTable: "SchoolClass",
+                        principalTable: "SchoolClasses",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
-                name: "ClassFeePrice",
+                name: "Teachers",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserId = table.Column<string>(type: "nvarchar(450)", maxLength: 450, nullable: false),
+                    StaffId = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    FirstName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    LastName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Qualification = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    DateEmployed = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Teachers", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Teachers_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ClassFeePrices",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -349,17 +495,17 @@ namespace DIBA_School_Portal.Server.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_ClassFeePrice", x => x.Id);
+                    table.PrimaryKey("PK_ClassFeePrices", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ClassFeePrice_Fees_FeeId",
+                        name: "FK_ClassFeePrices_Fees_FeeId",
                         column: x => x.FeeId,
                         principalTable: "Fees",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_ClassFeePrice_SchoolClass_SchoolClassId",
+                        name: "FK_ClassFeePrices_SchoolClasses_SchoolClassId",
                         column: x => x.SchoolClassId,
-                        principalTable: "SchoolClass",
+                        principalTable: "SchoolClasses",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -379,9 +525,9 @@ namespace DIBA_School_Portal.Server.Migrations
                 {
                     table.PrimaryKey("PK_ParentStudents", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ParentStudents_ApplicationUser_ParentUserId",
+                        name: "FK_ParentStudents_AspNetUsers_ParentUserId",
                         column: x => x.ParentUserId,
-                        principalTable: "ApplicationUser",
+                        principalTable: "AspNetUsers",
                         principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_ParentStudents_Students_StudentProfileId",
@@ -416,9 +562,9 @@ namespace DIBA_School_Portal.Server.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_StudentEnrollments_SchoolClass_SchoolClassId",
+                        name: "FK_StudentEnrollments_SchoolClasses_SchoolClassId",
                         column: x => x.SchoolClassId,
-                        principalTable: "SchoolClass",
+                        principalTable: "SchoolClasses",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -457,6 +603,61 @@ namespace DIBA_School_Portal.Server.Migrations
                         name: "FK_StudentSubjects_Subjects_SubjectId",
                         column: x => x.SubjectId,
                         principalTable: "Subjects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TeacherClasses",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TeacherId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SchoolClassId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    AssignedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TeacherClasses", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TeacherClasses_SchoolClasses_SchoolClassId",
+                        column: x => x.SchoolClassId,
+                        principalTable: "SchoolClasses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_TeacherClasses_Teachers_TeacherId",
+                        column: x => x.TeacherId,
+                        principalTable: "Teachers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TeacherSubjects",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TeacherId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SubjectId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    IsPrimarySubject = table.Column<bool>(type: "bit", nullable: false),
+                    AssignedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TeacherSubjects", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TeacherSubjects_Subjects_SubjectId",
+                        column: x => x.SubjectId,
+                        principalTable: "Subjects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_TeacherSubjects_Teachers_TeacherId",
+                        column: x => x.TeacherId,
+                        principalTable: "Teachers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -541,15 +742,15 @@ namespace DIBA_School_Portal.Server.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_TermResults_ApplicationUser_StudentId",
+                        name: "FK_TermResults_AspNetUsers_StudentId",
                         column: x => x.StudentId,
-                        principalTable: "ApplicationUser",
+                        principalTable: "AspNetUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_TermResults_SchoolClass_ClassId",
+                        name: "FK_TermResults_SchoolClasses_ClassId",
                         column: x => x.ClassId,
-                        principalTable: "SchoolClass",
+                        principalTable: "SchoolClasses",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -618,9 +819,9 @@ namespace DIBA_School_Portal.Server.Migrations
                 {
                     table.PrimaryKey("PK_TermSubjectResults", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_TermSubjectResults_ApplicationUser_TeacherId",
+                        name: "FK_TermSubjectResults_AspNetUsers_TeacherId",
                         column: x => x.TeacherId,
-                        principalTable: "ApplicationUser",
+                        principalTable: "AspNetUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -644,14 +845,48 @@ namespace DIBA_School_Portal.Server.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_ApplicationUser_ClassId",
-                table: "ApplicationUser",
+                name: "IX_AspNetRoleClaims_RoleId",
+                table: "AspNetRoleClaims",
+                column: "RoleId");
+
+            migrationBuilder.CreateIndex(
+                name: "RoleNameIndex",
+                table: "AspNetRoles",
+                column: "NormalizedName",
+                unique: true,
+                filter: "[NormalizedName] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AspNetUserClaims_UserId",
+                table: "AspNetUserClaims",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AspNetUserLogins_UserId",
+                table: "AspNetUserLogins",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AspNetUserRoles_RoleId",
+                table: "AspNetUserRoles",
+                column: "RoleId");
+
+            migrationBuilder.CreateIndex(
+                name: "EmailIndex",
+                table: "AspNetUsers",
+                column: "NormalizedEmail");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AspNetUsers_ClassId",
+                table: "AspNetUsers",
                 column: "ClassId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ApplicationUser_TeacherProfileId",
-                table: "ApplicationUser",
-                column: "TeacherProfileId");
+                name: "UserNameIndex",
+                table: "AspNetUsers",
+                column: "NormalizedUserName",
+                unique: true,
+                filter: "[NormalizedUserName] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ClassBooks_AcademicSessionId",
@@ -669,14 +904,14 @@ namespace DIBA_School_Portal.Server.Migrations
                 column: "TermId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClassFeePrice_FeeId_SchoolClassId",
-                table: "ClassFeePrice",
+                name: "IX_ClassFeePrices_FeeId_SchoolClassId",
+                table: "ClassFeePrices",
                 columns: new[] { "FeeId", "SchoolClassId" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClassFeePrice_SchoolClassId",
-                table: "ClassFeePrice",
+                name: "IX_ClassFeePrices_SchoolClassId",
+                table: "ClassFeePrices",
                 column: "SchoolClassId");
 
             migrationBuilder.CreateIndex(
@@ -727,8 +962,8 @@ namespace DIBA_School_Portal.Server.Migrations
                 column: "StudentProfileId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SchoolClass_Name",
-                table: "SchoolClass",
+                name: "IX_SchoolClasses_Name",
+                table: "SchoolClasses",
                 column: "Name",
                 unique: true);
 
@@ -834,6 +1069,39 @@ namespace DIBA_School_Portal.Server.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_TeacherClasses_SchoolClassId",
+                table: "TeacherClasses",
+                column: "SchoolClassId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TeacherClasses_TeacherId_SchoolClassId",
+                table: "TeacherClasses",
+                columns: new[] { "TeacherId", "SchoolClassId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Teachers_UserId",
+                table: "Teachers",
+                column: "UserId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TeacherSubjects_SubjectId",
+                table: "TeacherSubjects",
+                column: "SubjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TeacherSubjects_TeacherId",
+                table: "TeacherSubjects",
+                column: "TeacherId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TeacherSubjects_TeacherId_SubjectId",
+                table: "TeacherSubjects",
+                columns: new[] { "TeacherId", "SubjectId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_TermResults_AcademicSessionId",
                 table: "TermResults",
                 column: "AcademicSessionId");
@@ -880,13 +1148,31 @@ namespace DIBA_School_Portal.Server.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
+                name: "AspNetRoleClaims");
+
+            migrationBuilder.DropTable(
+                name: "AspNetUserClaims");
+
+            migrationBuilder.DropTable(
+                name: "AspNetUserLogins");
+
+            migrationBuilder.DropTable(
+                name: "AspNetUserRoles");
+
+            migrationBuilder.DropTable(
+                name: "AspNetUserTokens");
+
+            migrationBuilder.DropTable(
                 name: "AuditLogs");
 
             migrationBuilder.DropTable(
-                name: "ClassFeePrice");
+                name: "ClassFeePrices");
 
             migrationBuilder.DropTable(
                 name: "ClassSubjects");
+
+            migrationBuilder.DropTable(
+                name: "Enquiries");
 
             migrationBuilder.DropTable(
                 name: "NotificationLogs");
@@ -904,13 +1190,25 @@ namespace DIBA_School_Portal.Server.Migrations
                 name: "StudentSubjects");
 
             migrationBuilder.DropTable(
+                name: "TeacherClasses");
+
+            migrationBuilder.DropTable(
+                name: "TeacherSubjects");
+
+            migrationBuilder.DropTable(
                 name: "TermSubjectResults");
+
+            migrationBuilder.DropTable(
+                name: "AspNetRoles");
 
             migrationBuilder.DropTable(
                 name: "ClassBooks");
 
             migrationBuilder.DropTable(
                 name: "StudentPayments");
+
+            migrationBuilder.DropTable(
+                name: "Teachers");
 
             migrationBuilder.DropTable(
                 name: "Subjects");
@@ -934,13 +1232,10 @@ namespace DIBA_School_Portal.Server.Migrations
                 name: "AcademicSessions");
 
             migrationBuilder.DropTable(
-                name: "ApplicationUser");
+                name: "AspNetUsers");
 
             migrationBuilder.DropTable(
-                name: "SchoolClass");
-
-            migrationBuilder.DropTable(
-                name: "Teachers");
+                name: "SchoolClasses");
         }
     }
 }

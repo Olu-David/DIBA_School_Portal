@@ -10,8 +10,8 @@ interface Props {
 export default function ProtectedRoute({ allowedRoles }: Props) {
   const { isAuthenticated, user } = useAuth();
 
-  if (!isAuthenticated || !user) return <Navigate to="/auth/staff" replace />;
-  if (allowedRoles && !hasRole(user.role, allowedRoles)) return <Navigate to="/auth/staff" replace />;
+  if (!isAuthenticated || !user) return <Navigate to="/" replace />;
+  if (allowedRoles && !hasRole(user.role, allowedRoles)) return <Navigate to="/" replace />;
 
   return <Outlet />;
 }

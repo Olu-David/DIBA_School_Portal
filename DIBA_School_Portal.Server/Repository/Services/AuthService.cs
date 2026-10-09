@@ -2,6 +2,7 @@
 using DIBA_School_Portal.Server.Contracts;
 using DIBA_School_Portal.Server.Contracts.FinanceDto;
 using DIBA_School_Portal.Server.Contracts.StudentDTO;
+using DIBA_School_Portal.Server.Database_Entities;
 using DIBA_School_Portal.Server.Entities;
 using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.AspNetCore.Http;
@@ -1023,17 +1024,24 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private string GenerateJwtToken(
             ApplicationUser user, IList<string> roles, string? primaryRoleOverride = null)
         {
+            // Ensure JWT configuration exists to prevent null reference errors
+            var jwtKey = _config["Jwt:Key"];
+            if (string.IsNullOrEmpty(jwtKey))
+            {
+                throw new InvalidOperationException("JWT Secret Key is not configured in appsettings.json.");
+            }
+
             var primaryRole = primaryRoleOverride ?? user.PrimaryRole ?? roles.FirstOrDefault() ?? "";
 
             var claims = new List<Claim>
-            {
-                new(ClaimTypes.NameIdentifier, user.Id),
-                new(ClaimTypes.Email, user.Email ?? ""),
-                new(ClaimTypes.Name, user.UserName ?? ""),
-                new(ClaimTypes.GivenName, user.FirstName ?? ""),
-                new(ClaimTypes.Surname, user.LastName ?? ""),
-                new("primaryRole", primaryRole),
-            };
+    {
+        new(ClaimTypes.NameIdentifier, user.Id),
+        new(ClaimTypes.Email, user.Email ?? ""),
+        new(ClaimTypes.Name, user.UserName ?? ""),
+        new(ClaimTypes.GivenName, user.FirstName ?? ""),
+        new(ClaimTypes.Surname, user.LastName ?? ""),
+        new("primaryRole", primaryRole),
+    };
 
             foreach (var role in roles)
                 claims.Add(new Claim(ClaimTypes.Role, role));
@@ -1041,7 +1049,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             if (user.ClassId.HasValue)
                 claims.Add(new Claim("classId", user.ClassId.Value.ToString()));
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
