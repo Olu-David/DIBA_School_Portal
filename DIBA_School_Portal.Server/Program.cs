@@ -5,16 +5,18 @@ using DIBA_School_Portal.Server.Contracts;
 using DIBA_School_Portal.Server.Database_Entities;
 using DIBA_School_Portal.Server.Repository.IServices;
 using DIBA_School_Portal.Server.Repository.Services;
+using DIBA_School_Portal.Server.Repository.Services.Background;
 using DIBA_School_Portal.Server.Services;
+using DIBA_School_Portal.Server.Services.Background;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using OnlineVotingApplication.Services;
-using System.Text;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using OnlineVotingApplication.Services;
 using Resend;
 using Scalar.AspNetCore;
+using System.Text;
 using System.Threading.RateLimiting;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
@@ -276,8 +278,22 @@ builder.Services.AddScoped<IPdfReportService, PdfReportService>();
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.MaxRequestBodySize = 2 * 1024 * 1024;   // 2 MB headroom
-});
+});// ==========================================================
+// Background queues (Singleton — shared across requests)
+// ==========================================================
+builder.Services.AddSingleton<IBackgroundEmailQueue, BackgroundEmailQueue>();
+builder.Services.AddSingleton<IBackgroundSmsQueue, BackgroundSmsQueue>();
 
+// ==========================================================
+// Background workers (Hosted Services — run continuously)
+// ==========================================================
+builder.Services.AddHostedService<EmailWorker>();
+builder.Services.AddHostedService<SmsWorker>();
+
+// ==========================================================
+// Notification dispatch service
+// ==========================================================
+builder.Services.AddScoped<INotificationDispatchService, NotificationDispatchService>();
 // ==========================================================
 // 10. BUILD
 // ==========================================================

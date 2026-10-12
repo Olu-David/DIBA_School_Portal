@@ -13,9 +13,21 @@ namespace DIBA_School_Portal.Server.Services
 {
     public class PdfReportService : IPdfReportService
     {
-        #region Constants
+        #region Constants — School identity
         private const string AvatarBucket = "avatars";
 
+        private const string SchoolName = "DOMINION INTELLIGENT BUILDERS' ACADEMY";
+        private const string SchoolTagline = "Nursery, Primary & Secondary School";
+        private const string SchoolAddress = "Off Trade Fair Complex, beside RCCG H/Q, Old Airport Area, Sokoto";
+        private const string SchoolPostal = "P.M.B 3848, Sokoto State, Nigeria";
+        private const string SchoolPhone = "+234 803 000 0001";
+        private const string SchoolEmail = "hello@diba.edu.ng";
+        private const string SchoolRC = "RC-2372959";
+        private const string SchoolFounded = "Est. 6 November 2015";
+        private const string SchoolMotto = "Knowledge is Wealth";
+        #endregion
+
+        #region Constants — Palette
         private const string BgPage = "#F8FAFC";
         private const string BgCard = "#FFFFFF";
         private const string BgSubtle = "#F1F5F9";
@@ -23,14 +35,26 @@ namespace DIBA_School_Portal.Server.Services
         private const string TextPrimary = "#0F172A";
         private const string TextSecondary = "#64748B";
         private const string TextMuted = "#94A3B8";
-        private const string Accent = "#059669";
-        private const string AccentLight = "#ECFDF5";
+
+        // Brand colours — the school's logo is blue with a red dove,
+        // so we anchor on blue and use amber/gold as the accent.
+        private const string BrandBlue = "#1E40AF";        // core brand
+        private const string BrandBlueDark = "#1E3A8A";
+        private const string BrandBlueLight = "#EFF6FF";
+        private const string Accent = "#1E40AF";            // primary action / headers
+        private const string AccentLight = "#EFF6FF";
+
+        // Secondary accents for grades & stream chips
+        private const string AccentEmerald = "#059669";
+        private const string AccentEmeraldLight = "#ECFDF5";
         private const string AccentBlue = "#2563EB";
         private const string AccentBlueLight = "#EFF6FF";
         private const string AccentAmber = "#D97706";
         private const string AccentAmberLight = "#FFFBEB";
         private const string AccentRose = "#E11D48";
         private const string AccentRoseLight = "#FFF1F2";
+        private const string AccentViolet = "#7C3AED";
+        private const string AccentVioletLight = "#F5F3FF";
         #endregion
 
         #region Fields + Constructor
@@ -76,35 +100,42 @@ namespace DIBA_School_Portal.Server.Services
                     {
                         header.Background(BgCard).Padding(18).CornerRadius(12).Border(1).BorderColor(Border).Row(row =>
                         {
+                            // ---- Logo + name block ----
                             row.RelativeItem().Row(logoRow =>
                             {
-                                string logoPath = Path.Combine(
-                                    _webHostEnvironment.WebRootPath ?? Directory.GetCurrentDirectory(),
-                                    "images", "school-logo.png");
+                                // Try to load the real logo
+                                var logoBytes = LoadLogo();
 
-                                if (File.Exists(logoPath))
+                                if (logoBytes != null)
                                 {
-                                    logoRow.ConstantItem(52).Height(52).Image(logoPath).FitArea();
+                                    logoRow.ConstantItem(64).Height(64).Image(logoBytes).FitArea();
                                 }
                                 else
                                 {
-                                    logoRow.ConstantItem(52).Height(52)
-                                        .Background(Accent).CornerRadius(10)
+                                    // Fallback crest if logo.png missing
+                                    logoRow.ConstantItem(64).Height(64)
+                                        .Background(BrandBlue).CornerRadius(12)
                                         .AlignCenter().AlignMiddle()
-                                        .Text("DS").Bold().FontColor(Colors.White).FontSize(16);
+                                        .Text("DIBA").Bold().FontColor(Colors.White).FontSize(14);
                                 }
 
                                 logoRow.ConstantItem(14);
 
                                 logoRow.RelativeItem().Column(col =>
                                 {
-                                    col.Item().Text("DIBA SCHOOL").Bold().FontSize(17).FontColor(TextPrimary);
-                                    col.Item().Text("Official Student Report Card")
-                                        .FontSize(9).FontColor(TextSecondary);
+                                    col.Spacing(1);
+                                    col.Item().Text(SchoolName)
+                                        .Bold().FontSize(13).FontColor(BrandBlueDark)
+                                        .LetterSpacing(0.02f);
+                                    col.Item().Text(SchoolTagline)
+                                        .FontSize(9).Italic().FontColor(TextSecondary);
+                                    col.Item().Text(SchoolMotto)
+                                        .FontSize(8).Bold().FontColor(BrandBlue);
                                 });
                             });
 
-                            row.ConstantItem(220).AlignRight().Row(chips =>
+                            // ---- Session / Term chips ----
+                            row.ConstantItem(200).AlignRight().Row(chips =>
                             {
                                 chips.RelativeItem().Background(AccentLight).CornerRadius(8).Padding(9).Column(c =>
                                 {
@@ -144,7 +175,7 @@ namespace DIBA_School_Portal.Server.Services
                             else
                             {
                                 row.ConstantItem(78).Height(78)
-                                    .Background(Accent).CornerRadius(39)
+                                    .Background(BrandBlue).CornerRadius(39)
                                     .AlignCenter().AlignMiddle()
                                     .Text(GetInitials(report.StudentName))
                                     .Bold().FontColor(Colors.White).FontSize(22);
@@ -154,10 +185,30 @@ namespace DIBA_School_Portal.Server.Services
 
                             row.RelativeItem().Column(c =>
                             {
-                                c.Spacing(2);
+                                c.Spacing(3);
                                 c.Item().Text(report.StudentName ?? "—").Bold().FontSize(19).FontColor(TextPrimary);
-                                c.Item().Text($"Class: {report.ClassName ?? "—"}")
-                                    .FontSize(11).FontColor(TextSecondary);
+
+                                // ---- Class + Stream line ----
+                                c.Item().Row(classRow =>
+                                {
+                                    classRow.AutoItem().Text("Class: ")
+                                        .FontSize(11).FontColor(TextSecondary);
+
+                                    classRow.AutoItem().Text(report.ClassName ?? "—")
+                                        .FontSize(11).Bold().FontColor(TextPrimary);
+
+                                    if (report.Stream.HasValue)
+                                    {
+                                        classRow.ConstantItem(8);
+                                        classRow.AutoItem()
+                                            .Background(StreamBg(report.Stream))
+                                            .CornerRadius(6)
+                                            .Padding(4)
+                                            .Text(report.Stream.Value.ToString().ToUpperInvariant())
+                                            .FontSize(8).Bold()
+                                            .FontColor(StreamColor(report.Stream));
+                                    }
+                                });
 
                                 if (!string.IsNullOrWhiteSpace(report.AdmissionNumber))
                                 {
@@ -211,35 +262,26 @@ namespace DIBA_School_Portal.Server.Services
                                     columns.RelativeColumn(2);
                                 });
 
-                                // ---------- HEADER ROW (inline, no helper) ----------
                                 table.Header(header =>
                                 {
                                     header.Cell().Background(BgSubtle).Padding(9)
                                         .Text("Subject").FontSize(9).Bold().FontColor(TextSecondary);
-
                                     header.Cell().Background(BgSubtle).Padding(9).AlignRight()
                                         .Text("Test 1").FontSize(9).Bold().FontColor(TextSecondary);
-
                                     header.Cell().Background(BgSubtle).Padding(9).AlignRight()
                                         .Text("Test 2").FontSize(9).Bold().FontColor(TextSecondary);
-
                                     header.Cell().Background(BgSubtle).Padding(9).AlignRight()
                                         .Text("Exam").FontSize(9).Bold().FontColor(TextSecondary);
-
                                     header.Cell().Background(BgSubtle).Padding(9).AlignRight()
                                         .Text("Total").FontSize(9).Bold().FontColor(TextSecondary);
-
                                     header.Cell().Background(BgSubtle).Padding(9).AlignRight()
                                         .Text("Grade").FontSize(9).Bold().FontColor(TextSecondary);
-
                                     header.Cell().Background(BgSubtle).Padding(9).AlignRight()
                                         .Text("Pos").FontSize(9).Bold().FontColor(TextSecondary);
-
                                     header.Cell().Background(BgSubtle).Padding(9)
                                         .Text("Remark").FontSize(9).Bold().FontColor(TextSecondary);
                                 });
 
-                                // ---------- BODY ROWS ----------
                                 var subjects = report.SubjectResults ?? new List<TermSubjectResultDto>();
                                 var isAlt = false;
 
@@ -249,25 +291,18 @@ namespace DIBA_School_Portal.Server.Services
 
                                     table.Cell().Background(rowBg).Padding(9)
                                         .Text(sub.SubjectName ?? "—").FontSize(10).Bold().FontColor(TextPrimary);
-
                                     table.Cell().Background(rowBg).Padding(9).AlignRight()
                                         .Text(sub.Test1Score.ToString("0.##")).FontSize(10).FontColor(TextPrimary);
-
                                     table.Cell().Background(rowBg).Padding(9).AlignRight()
                                         .Text(sub.Test2Score.ToString("0.##")).FontSize(10).FontColor(TextPrimary);
-
                                     table.Cell().Background(rowBg).Padding(9).AlignRight()
                                         .Text(sub.ExamScore.ToString("0.##")).FontSize(10).FontColor(TextPrimary);
-
                                     table.Cell().Background(rowBg).Padding(9).AlignRight()
                                         .Text(sub.TotalScore.ToString("0.##")).FontSize(10).Bold().FontColor(TextPrimary);
-
                                     table.Cell().Background(rowBg).Padding(9).AlignRight()
                                         .Text(sub.Grade ?? "—").FontSize(10).Bold().FontColor(GradeColor(sub.Grade));
-
                                     table.Cell().Background(rowBg).Padding(9).AlignRight()
                                         .Text(sub.SubjectPosition.ToString()).FontSize(10).FontColor(TextPrimary);
-
                                     table.Cell().Background(rowBg).Padding(9)
                                         .Text(sub.Remark ?? "—").FontSize(10).FontColor(TextSecondary);
 
@@ -285,7 +320,6 @@ namespace DIBA_School_Portal.Server.Services
                                 rem.Spacing(10);
                                 rem.Item().Text("Remarks").Bold().FontSize(12).FontColor(TextPrimary);
 
-                                // ---- Class Teacher Remark ----
                                 if (!string.IsNullOrWhiteSpace(report.TeacherRemark))
                                 {
                                     rem.Item().Background(AccentBlueLight).CornerRadius(8).Padding(10).Column(c =>
@@ -298,7 +332,6 @@ namespace DIBA_School_Portal.Server.Services
                                     });
                                 }
 
-                                // ---- Principal Remark ----
                                 if (!string.IsNullOrWhiteSpace(report.PrincipalRemark))
                                 {
                                     rem.Item().Background(AccentLight).CornerRadius(8).Padding(10).Column(c =>
@@ -335,13 +368,34 @@ namespace DIBA_School_Portal.Server.Services
                     // ============================================
                     // FOOTER
                     // ============================================
-                    page.Footer().AlignCenter().Text(text =>
+                    page.Footer().Column(footer =>
                     {
-                        text.DefaultTextStyle(x => x.FontSize(8).FontColor(TextMuted));
-                        text.Span("DIBA School Portal  •  Computer-generated report card  •  Page ");
-                        text.CurrentPageNumber();
-                        text.Span(" of ");
-                        text.TotalPages();
+                        footer.Spacing(2);
+
+                        // School contact line
+                        footer.Item().AlignCenter().Text(text =>
+                        {
+                            text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
+                            text.Span(SchoolAddress);
+                            text.Span("  •  ");
+                            text.Span(SchoolPostal);
+                            text.Span("  •  ");
+                            text.Span(SchoolPhone);
+                        });
+
+                        // RC + motto + page
+                        footer.Item().AlignCenter().Text(text =>
+                        {
+                            text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
+                            text.Span($"{SchoolRC}  •  ");
+                            text.Span(SchoolFounded);
+                            text.Span("  •  ");
+                            text.Span(SchoolMotto);
+                            text.Span("  •  Page ");
+                            text.CurrentPageNumber();
+                            text.Span(" of ");
+                            text.TotalPages();
+                        });
                     });
                 });
             }).GeneratePdf();
@@ -355,6 +409,7 @@ namespace DIBA_School_Portal.Server.Services
         public byte[] GeneratePaymentReceiptPdf(StudentPaymentReceiptDto receipt)
         {
             var profileImage = LoadProfileImage(receipt.ProfilePictureUrl);
+            var logoBytes = LoadLogo();
 
             return Document.Create(container =>
             {
@@ -368,18 +423,39 @@ namespace DIBA_School_Portal.Server.Services
                     // ---------- HEADER ----------
                     page.Header().ShowOnce().Element(header =>
                     {
-                        header.Background(Accent).CornerRadius(12).Padding(16).Row(row =>
+                        header.Background(BrandBlue).CornerRadius(12).Padding(14).Row(row =>
                         {
-                            row.RelativeItem().Column(c =>
+                            // Logo + school name
+                            row.RelativeItem().Row(logoRow =>
                             {
-                                c.Spacing(2);
-                                c.Item().Text("DIBA SCHOOL").Bold().FontSize(15).FontColor(Colors.White);
-                                c.Item().Text("Official Payment Receipt")
-                                    .FontSize(9).FontColor(Colors.White);
+                                if (logoBytes != null)
+                                {
+                                    logoRow.ConstantItem(46).Height(46)
+                                        .Background(Colors.White).CornerRadius(8).Padding(3)
+                                        .Image(logoBytes).FitArea();
+                                }
+                                else
+                                {
+                                    logoRow.ConstantItem(46).Height(46)
+                                        .Background(Colors.White).CornerRadius(8)
+                                        .AlignCenter().AlignMiddle()
+                                        .Text("DIBA").Bold().FontColor(BrandBlue).FontSize(11);
+                                }
+
+                                logoRow.ConstantItem(12);
+
+                                logoRow.RelativeItem().Column(c =>
+                                {
+                                    c.Spacing(1);
+                                    c.Item().Text(SchoolName)
+                                        .Bold().FontSize(11).FontColor(Colors.White);
+                                    c.Item().Text("Official Payment Receipt")
+                                        .FontSize(8).FontColor(Colors.White);
+                                });
                             });
 
-                            // PAID badge — background comes BEFORE .Text()
-                            row.ConstantItem(70).AlignRight().AlignMiddle().Column(c =>
+                            // PAID badge
+                            row.ConstantItem(64).AlignRight().AlignMiddle().Column(c =>
                             {
                                 c.Item().Background("#047857").CornerRadius(6).Padding(7)
                                     .AlignCenter().AlignMiddle()
@@ -405,7 +481,7 @@ namespace DIBA_School_Portal.Server.Services
                             else
                             {
                                 row.ConstantItem(56).Height(56)
-                                    .Background(Accent).CornerRadius(28)
+                                    .Background(BrandBlue).CornerRadius(28)
                                     .AlignCenter().AlignMiddle()
                                     .Text(GetInitials(receipt.StudentName))
                                     .Bold().FontColor(Colors.White).FontSize(16);
@@ -479,13 +555,13 @@ namespace DIBA_School_Portal.Server.Services
                         });
 
                         // ---------- Total ----------
-                        col.Item().Background(AccentLight).CornerRadius(12).Border(1).BorderColor("#A7F3D0").Padding(14).Row(row =>
+                        col.Item().Background(AccentLight).CornerRadius(12).Border(1).BorderColor("#BFDBFE").Padding(14).Row(row =>
                         {
                             row.RelativeItem().AlignMiddle().Text("TOTAL PAID")
-                                .Bold().FontSize(11).FontColor(Accent);
+                                .Bold().FontSize(11).FontColor(BrandBlue);
 
                             row.RelativeItem().AlignRight().AlignMiddle().Text($"₦{receipt.TotalAmountPaid:N2}")
-                                .Bold().FontSize(18).FontColor(Accent);
+                                .Bold().FontSize(18).FontColor(BrandBlue);
                         });
 
                         col.Item().PaddingTop(6).AlignCenter().Text("Thank you for your payment.")
@@ -493,10 +569,27 @@ namespace DIBA_School_Portal.Server.Services
                     });
 
                     // ---------- FOOTER ----------
-                    page.Footer().AlignCenter().Text(text =>
+                    page.Footer().Column(footer =>
                     {
-                        text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
-                        text.Span("Computer-generated receipt from DIBA School Portal  •  No signature required");
+                        footer.Spacing(2);
+
+                        footer.Item().AlignCenter().Text(text =>
+                        {
+                            text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
+                            text.Span(SchoolAddress);
+                        });
+
+                        footer.Item().AlignCenter().Text(text =>
+                        {
+                            text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
+                            text.Span($"{SchoolRC}  •  {SchoolPhone}  •  {SchoolEmail}");
+                        });
+
+                        footer.Item().AlignCenter().Text(text =>
+                        {
+                            text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
+                            text.Span("Computer-generated receipt  •  No signature required");
+                        });
                     });
                 });
             }).GeneratePdf();
@@ -507,6 +600,33 @@ namespace DIBA_School_Portal.Server.Services
         // HELPERS
         // ==========================================================
         #region Helpers
+
+        /// <summary>
+        /// Loads the school logo from wwwroot/images/logo.png.
+        /// Returns null if the file is missing — callers fall back
+        /// to a plain blue crest.
+        /// </summary>
+        private byte[]? LoadLogo()
+        {
+            try
+            {
+                var root = _webHostEnvironment.WebRootPath
+                           ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+
+                var path = Path.Combine(root, "images", "logo.png");
+
+                if (File.Exists(path))
+                    return File.ReadAllBytes(path);
+
+                _logger.LogWarning("School logo not found at {Path}", path);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to load school logo.");
+                return null;
+            }
+        }
 
         private byte[]? LoadProfileImage(string? url)
         {
@@ -573,7 +693,7 @@ namespace DIBA_School_Portal.Server.Services
 
         private static string GradeColor(string? grade) => grade switch
         {
-            "A" => Accent,
+            "A" => AccentEmerald,
             "B" => AccentBlue,
             "C" => AccentAmber,
             "D" or "E" => "#EA580C",
@@ -583,12 +703,29 @@ namespace DIBA_School_Portal.Server.Services
 
         private static string GradeBg(string? grade) => grade switch
         {
-            "A" => AccentLight,
+            "A" => AccentEmeraldLight,
             "B" => AccentBlueLight,
             "C" => AccentAmberLight,
             "D" or "E" => "#FFF7ED",
             "F" => AccentRoseLight,
             _ => BgSubtle
+        };
+
+        // ---- Stream chip colours (blue theme) ----
+        private static string StreamColor(DIBA_School_Portal.Server.Enums.ClassStream? stream) => stream switch
+        {
+            DIBA_School_Portal.Server.Enums.ClassStream.Science => AccentBlue,
+            DIBA_School_Portal.Server.Enums.ClassStream.Arts => AccentViolet,
+            DIBA_School_Portal.Server.Enums.ClassStream.Commercial => AccentAmber,
+            _ => TextSecondary,
+        };
+
+        private static string StreamBg(DIBA_School_Portal.Server.Enums.ClassStream? stream) => stream switch
+        {
+            DIBA_School_Portal.Server.Enums.ClassStream.Science => AccentBlueLight,
+            DIBA_School_Portal.Server.Enums.ClassStream.Arts => AccentVioletLight,
+            DIBA_School_Portal.Server.Enums.ClassStream.Commercial => AccentAmberLight,
+            _ => BgSubtle,
         };
 
         #endregion

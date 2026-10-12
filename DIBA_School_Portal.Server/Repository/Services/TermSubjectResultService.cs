@@ -646,6 +646,13 @@ namespace DIBA_School_Portal.Server.Services
                 };
             }
 
+            // ---- Stream lives on the Student profile ----
+            var studentProfile = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.UserId == studentId)
+                .Select(s => new { s.Stream, s.AdmissionNumber, s.User!.ProfilePictureUrl })
+                .FirstOrDefaultAsync();
+
             var subjectDtos = termResult.SubjectResults
                 .OrderBy(sr => sr.Subject != null ? sr.Subject.Name : "")
                 .Select(sr => new SubjectScoreDto
@@ -674,8 +681,11 @@ namespace DIBA_School_Portal.Server.Services
                     StudentName = termResult.Student != null
                         ? $"{termResult.Student.FirstName} {termResult.Student.LastName}"
                         : "—",
+                    AdmissionNumber = studentProfile?.AdmissionNumber,
+                    ProfilePictureUrl = studentProfile?.ProfilePictureUrl,
                     ClassId = termResult.ClassId,
                     ClassName = termResult.SchoolClass?.Name ?? "—",
+                    Stream = studentProfile?.Stream,                    // ← NEW
                     TermId = termResult.TermId,
                     TermName = termResult.Term?.Name ?? term.Name,
                     AcademicSessionId = termResult.AcademicSessionId,
@@ -714,6 +724,12 @@ namespace DIBA_School_Portal.Server.Services
                 };
             }
 
+            var studentProfile = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.UserId == studentId)
+                .Select(s => new { s.Stream, s.AdmissionNumber, s.User!.ProfilePictureUrl })
+                .FirstOrDefaultAsync();
+
             var cumulativeSubjects = allResults
                 .SelectMany(tr => tr.SubjectResults)
                 .GroupBy(sr => sr.SubjectId)
@@ -751,8 +767,11 @@ namespace DIBA_School_Portal.Server.Services
                     StudentName = student != null
                         ? $"{student.FirstName} {student.LastName}"
                         : "—",
+                    AdmissionNumber = studentProfile?.AdmissionNumber,
+                    ProfilePictureUrl = studentProfile?.ProfilePictureUrl,
                     ClassId = thirdTerm.ClassId,
                     ClassName = thirdTerm.SchoolClass?.Name ?? "—",
+                    Stream = studentProfile?.Stream,                    // ← NEW
                     TermId = termId,
                     TermName = term.Name,
                     AcademicSessionId = academicSessionId,
@@ -776,7 +795,6 @@ namespace DIBA_School_Portal.Server.Services
             var response = new ServiceResponse<SchoolResultResponseDto>();
             try
             {
-                // Verify session + term
                 var session = await _context.AcademicSessions.FindAsync(academicSessionId);
                 var term = await _context.SchoolTerms.FirstOrDefaultAsync(t =>
                     t.Id == termId && t.AcademicSessionId == academicSessionId);
@@ -789,7 +807,6 @@ namespace DIBA_School_Portal.Server.Services
                     return response;
                 }
 
-                // Pull all term results for this session + term
                 var termResults = await _context.TermResults
                     .AsNoTracking()
                     .Include(tr => tr.Student)

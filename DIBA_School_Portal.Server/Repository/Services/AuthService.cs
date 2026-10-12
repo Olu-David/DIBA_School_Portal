@@ -4,6 +4,7 @@ using DIBA_School_Portal.Server.Contracts.FinanceDto;
 using DIBA_School_Portal.Server.Contracts.StudentDTO;
 using DIBA_School_Portal.Server.Database_Entities;
 using DIBA_School_Portal.Server.Entities;
+using DIBA_School_Portal.Server.Enums;
 using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -479,6 +480,57 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
+            // ---------- 2b. STREAM validation (students only) ----------
+            ClassStream? parsedStream = null;
+
+            if (isStudent)
+            {
+                var targetClass = await _context.SchoolClasses
+                    .FirstOrDefaultAsync(c => c.Id == request.SchoolClassId!.Value);
+
+                if (targetClass == null)
+                {
+                    response.Success = false;
+                    response.Message = "The selected class does not exist.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                bool isSenior = targetClass.AcademicSection == AcademicSection.SeniorSecondary;
+
+                if (isSenior)
+                {
+                    if (string.IsNullOrWhiteSpace(request.Stream))
+                    {
+                        response.Success = false;
+                        response.Message = "A stream is required for Senior Secondary students.";
+                        response.StatusCode = 400;
+                        return response;
+                    }
+
+                    if (!Enum.TryParse<ClassStream>(request.Stream.Trim(), ignoreCase: true, out var s))
+                    {
+                        response.Success = false;
+                        response.Message = $"Invalid stream '{request.Stream}'. Valid values: Science, Arts, Commercial.";
+                        response.StatusCode = 400;
+                        return response;
+                    }
+
+                    parsedStream = s;
+                }
+                else
+                {
+                    // Non-SS students must not have a stream
+                    if (!string.IsNullOrWhiteSpace(request.Stream))
+                    {
+                        response.Success = false;
+                        response.Message = "Streams only apply to Senior Secondary students.";
+                        response.StatusCode = 400;
+                        return response;
+                    }
+                }
+            }
+
             // ---------- 3. Uniqueness ----------
             if (!string.IsNullOrWhiteSpace(email) &&
                 await _userManager.FindByEmailAsync(email) != null)
@@ -556,6 +608,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     FirstName = newUser.FirstName!,
                     LastName = newUser.LastName!,
                     SchoolClassId = request.SchoolClassId!.Value,
+                    Stream = parsedStream,                       // ← NOW PERSISTED
                     CreatedAt = DateTime.UtcNow,
                 });
             }
@@ -608,6 +661,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             await _auditLog.LogActivityAsync(
                 currentUserId, "Account Created",
                 $"Created {request.Role} '{newUser.FirstName} {newUser.LastName}' (username: {username})." +
+                (parsedStream.HasValue ? $" Stream: {parsedStream}." : "") +
                 (pictureWarning != null ? $" Warning: {pictureWarning}" : ""),
                 ipAddress);
 

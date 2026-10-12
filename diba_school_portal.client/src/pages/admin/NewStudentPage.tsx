@@ -20,7 +20,9 @@ interface Created {
   temporaryPassword: string;
 }
 
-const STREAMS = ["None", "Science", "Arts", "Commercial", "General"];
+// Only these three are valid SS streams — matches ClassStream enum.
+// We never send "None" or "General" from the UI.
+const STREAMS = ["Science", "Arts", "Commercial"];
 
 export default function NewStudentPage() {
   const navigate = useNavigate();
@@ -35,7 +37,7 @@ export default function NewStudentPage() {
     email: "",
     phoneNumber: "",
     schoolClassId: "",
-    stream: "None",
+    stream: "",
   });
 
   const [file, setFile] = useState<File | null>(null);
@@ -67,12 +69,14 @@ export default function NewStudentPage() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+
     if (!form.firstName || !form.lastName || !form.schoolClassId) {
       toast({ variant: "error", title: "Please fill required fields" });
       return;
     }
-    if (isSenior && form.stream === "None") {
-      toast({ variant: "error", title: "Senior students need a stream" });
+
+    if (isSenior && !form.stream) {
+      toast({ variant: "error", title: "Please choose a stream for this SS student" });
       return;
     }
 
@@ -85,7 +89,12 @@ export default function NewStudentPage() {
       if (form.email) fd.append("email", form.email);
       if (form.phoneNumber) fd.append("phoneNumber", form.phoneNumber);
       fd.append("schoolClassId", form.schoolClassId);
-      if (isSenior) fd.append("stream", form.stream);
+
+      // Only send stream for Senior Secondary
+      if (isSenior && form.stream) {
+        fd.append("stream", form.stream);
+      }
+
       if (file) fd.append("profilePicture", file);
 
       const { data } = await api.post<ApiResponse<Created>>(
@@ -101,8 +110,12 @@ export default function NewStudentPage() {
 
       setCreated(data.data);
       toast({ variant: "success", title: "Student enrolled" });
-    } catch {
-      toast({ variant: "error", title: "Could not enrol student" });
+    } catch (err: unknown) {
+      const e2 = err as { response?: { data?: { message?: string } } };
+      toast({
+        variant: "error",
+        title: e2?.response?.data?.message ?? "Could not enrol student",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -244,23 +257,31 @@ export default function NewStudentPage() {
             <FormField label="Class" required>
               <Select
                 value={form.schoolClassId}
-                onChange={change("schoolClassId")}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  // Reset stream whenever the class changes
+                  setForm((p) => ({ ...p, schoolClassId: id, stream: "" }));
+                }}
                 placeholder="Choose a class"
                 options={classes.map((c) => ({ value: c.id, label: c.name }))}
               />
             </FormField>
-            <FormField
-              label="Stream"
-              required={isSenior}
-              hint={isSenior ? "Required for Senior Secondary" : "Not applicable"}
-            >
-              <Select
-                value={form.stream}
-                onChange={change("stream")}
-                disabled={!isSenior}
-                options={STREAMS.map((s) => ({ value: s, label: s }))}
-              />
-            </FormField>
+
+            {/* Stream picker only shows for Senior Secondary */}
+            {isSenior && (
+              <FormField
+                label="Stream"
+                required
+                hint="Required for Senior Secondary students"
+              >
+                <Select
+                  value={form.stream}
+                  onChange={change("stream")}
+                  placeholder="Choose a stream"
+                  options={STREAMS.map((s) => ({ value: s, label: s }))}
+                />
+              </FormField>
+            )}
           </div>
         </Card>
 

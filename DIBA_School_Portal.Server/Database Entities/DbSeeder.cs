@@ -199,37 +199,49 @@ namespace DIBA_School_Portal.Server.Database_Entities
             Dictionary<string, Guid> classes,
             ILogger logger)
         {
-            // (Email, First, Last, Role, Password, Phone, ClassName)
-            var seeds = new (string Email, string First, string Last, string Role, string Password, string Phone, string? ClassName)[]
+            // (Email, First, Last, Role, Password, Phone, ClassName, Stream)
+            // Stream is only used for SS students. Pass null for everyone else.
+            var seeds = new (
+                string Email,
+                string First,
+                string Last,
+                string Role,
+                string Password,
+                string Phone,
+                string? ClassName,
+                ClassStream? Stream
+            )[]
             {
                 // ---- Admin tier ----
-                ("superadmin@diba.com.ng",  "System",   "Administrator", "SuperAdmin",    "SuperAdmin@2026", "08000000001", null),
-                ("principal@diba.com.ng",   "Ada",      "Obi",           "Principal",     "Test@1234",       "08000000002", null),
-                ("headmaster@diba.com.ng",  "Emeka",    "Nwosu",         "Headmaster",    "Test@1234",       "08000000003", null),
-                ("headmistress@diba.com.ng","Ngozi",    "Eze",           "Headmistress",  "Test@1234",       "08000000004", null),
-                ("vp@diba.com.ng",          "Samuel",   "Adeyemi",       "VicePrincipal", "Test@1234",       "08000000005", null),
-                ("admin@diba.com.ng",       "Blessing", "Ige",           "SchoolAdmin",   "Test@1234",       "08000000006", null),
-                ("accountant@diba.com.ng",  "Kunle",    "Ojo",           "Accountant",    "Test@1234",       "08000000007", null),
-                ("registrar@diba.com.ng",   "Halima",   "Yusuf",         "Registrar",     "Test@1234",       "08000000008", null),
+                ("superadmin@diba.com.ng",  "System",   "Administrator", "SuperAdmin",    "SuperAdmin@2026", "08000000001", null, null),
+                ("principal@diba.com.ng",   "Ada",      "Obi",           "Principal",     "Test@1234",       "08000000002", null, null),
+                ("headmaster@diba.com.ng",  "Emeka",    "Nwosu",         "Headmaster",    "Test@1234",       "08000000003", null, null),
+                ("headmistress@diba.com.ng","Ngozi",    "Eze",           "Headmistress",  "Test@1234",       "08000000004", null, null),
+                ("vp@diba.com.ng",          "Samuel",   "Adeyemi",       "VicePrincipal", "Test@1234",       "08000000005", null, null),
+                ("admin@diba.com.ng",       "Blessing", "Ige",           "SchoolAdmin",   "Test@1234",       "08000000006", null, null),
+                ("accountant@diba.com.ng",  "Kunle",    "Ojo",           "Accountant",    "Test@1234",       "08000000007", null, null),
+                ("registrar@diba.com.ng",   "Halima",   "Yusuf",         "Registrar",     "Test@1234",       "08000000008", null, null),
 
                 // ---- Teachers ----
-                ("teacher1@diba.com.ng",    "Grace",    "Uche",          "Teacher",       "Test@1234",       "08000000009", null),
-                ("teacher2@diba.com.ng",    "Peter",    "Bello",         "Teacher",       "Test@1234",       "08000000010", null),
-                ("formteacher@diba.com.ng", "Chioma",   "Okeke",         "FormTeacher",   "Test@1234",       "08000000011", null),
+                ("teacher1@diba.com.ng",    "Grace",    "Uche",          "Teacher",       "Test@1234",       "08000000009", null, null),
+                ("teacher2@diba.com.ng",    "Peter",    "Bello",         "Teacher",       "Test@1234",       "08000000010", null, null),
+                ("formteacher@diba.com.ng", "Chioma",   "Okeke",         "FormTeacher",   "Test@1234",       "08000000011", null, null),
 
-                // ---- Students (each assigned to a class) ----
-                ("student1@diba.com.ng",    "Chidi",    "Okafor",        "Student",       "Test@1234",       "08000000012", "JSS 1"),
-                ("student2@diba.com.ng",    "Amaka",    "Uche",          "Student",       "Test@1234",       "08000000013", "JSS 1"),
-                ("student3@diba.com.ng",    "Tunde",    "Adeyemi",       "Student",       "Test@1234",       "08000000014", "JSS 2"),
-                ("student4@diba.com.ng",    "Fatima",   "Bello",         "Student",       "Test@1234",       "08000000015", "JSS 2"),
-                ("student5@diba.com.ng",    "Ibrahim",  "Musa",          "Student",       "Test@1234",       "08000000016", "SS 1"),
-                ("student6@diba.com.ng",    "Ngozi",    "Eze",           "Student",       "Test@1234",       "08000000017", "SS 1"),
-                ("student7@diba.com.ng",    "Samuel",   "Ade",           "Student",       "Test@1234",       "08000000018", "SS 2"),
-                ("student8@diba.com.ng",    "Rachael",  "John",          "Student",       "Test@1234",       "08000000019", "SS 2"),
+                // ---- Students — JSS (no stream) ----
+                ("student1@diba.com.ng",    "Chidi",    "Okafor",        "Student",       "Test@1234",       "08000000012", "JSS 1", null),
+                ("student2@diba.com.ng",    "Amaka",    "Uche",          "Student",       "Test@1234",       "08000000013", "JSS 1", null),
+                ("student3@diba.com.ng",    "Tunde",    "Adeyemi",       "Student",       "Test@1234",       "08000000014", "JSS 2", null),
+                ("student4@diba.com.ng",    "Fatima",   "Bello",         "Student",       "Test@1234",       "08000000015", "JSS 2", null),
+
+                // ---- Students — SS (with streams) ----
+                ("student5@diba.com.ng",    "Ibrahim",  "Musa",          "Student",       "Test@1234",       "08000000016", "SS 1", ClassStream.Science),
+                ("student6@diba.com.ng",    "Ngozi",    "Eze",           "Student",       "Test@1234",       "08000000017", "SS 1", ClassStream.Arts),
+                ("student7@diba.com.ng",    "Samuel",   "Ade",           "Student",       "Test@1234",       "08000000018", "SS 2", ClassStream.Commercial),
+                ("student8@diba.com.ng",    "Rachael",  "John",          "Student",       "Test@1234",       "08000000019", "SS 2", ClassStream.Science),
 
                 // ---- Parents ----
-                ("parent1@diba.com.ng",     "Yemi",     "Okafor",        "Parent",        "Test@1234",       "08111111111", null),
-                ("parent2@diba.com.ng",     "Kemi",     "Bello",         "Parent",        "Test@1234",       "08222222222", null),
+                ("parent1@diba.com.ng",     "Yemi",     "Okafor",        "Parent",        "Test@1234",       "08111111111", null, null),
+                ("parent2@diba.com.ng",     "Kemi",     "Bello",         "Parent",        "Test@1234",       "08222222222", null, null),
             };
 
             int admissionCounter = 1;
@@ -243,7 +255,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
                 var isParent = s.Role == "Parent";
 
                 // Generate username:
-                //   students → use later-generated admission number (temporarily email)
+                //   students → admission number (set after creation)
                 //   parents  → phone
                 //   others   → email
                 var username = isParent ? s.Phone : s.Email;
@@ -290,6 +302,20 @@ namespace DIBA_School_Portal.Server.Database_Entities
                     user.UserName = admissionNumber;
                     await userManager.UpdateAsync(user);
 
+                    // Stream is only meaningful for Senior Secondary.
+                    // For JSS/Primary/Nursery we force null even if the seed row
+                    // accidentally carries a value.
+                    Enums.ClassStream? parsedStream = null;
+
+                    var targetClass = await context.SchoolClasses
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(c => c.Id == classIdForUser.Value);
+
+                    if (targetClass?.AcademicSection == AcademicSection.SeniorSecondary)
+                    {
+                        parsedStream = s.Stream;
+                    }
+
                     context.Students.Add(new Student
                     {
                         UserId = user.Id,
@@ -297,8 +323,17 @@ namespace DIBA_School_Portal.Server.Database_Entities
                         FirstName = user.FirstName!,
                         LastName = user.LastName!,
                         SchoolClassId = classIdForUser.Value,
+                        Stream = parsedStream,
                         CreatedAt = DateTime.UtcNow,
                     });
+
+                    logger.LogInformation(
+                        "Student created: {Admission} ({First} {Last}) — {Class} — Stream: {Stream}",
+                        admissionNumber,
+                        user.FirstName,
+                        user.LastName,
+                        targetClass?.Name ?? "?",
+                        parsedStream?.ToString() ?? "none");
                 }
 
                 // -------- Teacher record --------

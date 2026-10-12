@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
 
-namespace DIBA_School_Portal.Server.Services
+namespace DIBA_School_Portal.Server.Repository.Services.Background
 {
     public class SmsService : ISmsService
     {

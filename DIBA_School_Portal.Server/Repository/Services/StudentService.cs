@@ -314,12 +314,21 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---- SS classes require a stream ----
-                if (targetClass.AcademicSection == Enums.AcademicSection.SeniorSecondary
-                    && request.Stream == null)
+                bool isSenior = targetClass.AcademicSection == Enums.AcademicSection.SeniorSecondary;
+
+                // ---- Stream validation (both directions) ----
+                if (isSenior && request.Stream == null)
                 {
                     response.Success = false;
                     response.Message = "A stream is required for Senior Secondary students.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                if (!isSenior && request.Stream != null)
+                {
+                    response.Success = false;
+                    response.Message = "Streams only apply to Senior Secondary students.";
                     response.StatusCode = 400;
                     return response;
                 }
@@ -334,7 +343,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 student.FirstName = request.FirstName.Trim();
                 student.LastName = request.LastName.Trim();
                 student.SchoolClassId = request.SchoolClassId;
-                student.Stream = request.Stream;
+                student.Stream = isSenior ? request.Stream : null;
 
                 if (student.User != null)
                 {
