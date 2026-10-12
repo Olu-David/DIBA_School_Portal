@@ -13,6 +13,38 @@ export interface StudentRow {
   primaryGuardianPhone: string | null;
 }
 
+
+export interface StudentReportCard {
+  termResultId: string;
+  studentId: string;
+  studentName: string;
+  admissionNumber?: string | null;
+  profilePictureUrl?: string | null;
+  classId: string;
+  className: string;
+  stream: ClassStream | null;         // ← NEW
+  termId: string;
+  termName: string;
+  academicSessionId: string;
+  sessionName: string;
+  averageScore: number;
+  classPosition: number;
+  overallGrade: string | null;
+  teacherRemark?: string | null;
+  principalRemark?: string | null;
+  subjectResults: {
+    id: string;
+    subjectId: string;
+    subjectName: string;
+    test1Score: number;
+    test2Score: number;
+    examScore: number;
+    totalScore: number;
+    subjectPosition: number;
+    grade: string;
+    remark: string;
+  }[];
+}
 export interface StudentDetail {
   id: string;
   userId: string;

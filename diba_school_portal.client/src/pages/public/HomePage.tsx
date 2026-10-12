@@ -3,7 +3,7 @@ import {
   ArrowRight, ArrowUpRight, BookOpen, Baby, Sparkles, GraduationCap,
   Trophy, Users, Building2, FlaskConical, Palette, Music, Globe2,
   Calendar, Award, Quote, HeartHandshake, Target, ShieldCheck,
-  ScrollText, Beaker, Microscope, LucideIcon,
+  ScrollText, Beaker, BookMarked, LucideIcon,
 } from "lucide-react";
 import HeroCarousel from "../../components/public/HeroCarousel";
 import SchoolCrest from "../../components/public/SchoolCrest";
@@ -23,8 +23,8 @@ interface SectionCard {
 const sections: SectionCard[] = [
   {
     title: "Nursery",
-    ages: "Ages 2 – 5",
-    blurb: "Play-based learning in warm, safe surroundings. Early literacy, numeracy, and wonder.",
+    ages: "Ages 3 – 5",
+    blurb: "A warm, play-based start. Early literacy, numeracy, and social confidence in a safe, faith-guided setting.",
     icon: Baby,
     bar: "from-pink-400 to-pink-600",
     bg: "bg-pink-50/60",
@@ -33,8 +33,8 @@ const sections: SectionCard[] = [
   },
   {
     title: "Primary",
-    ages: "Ages 6 – 11",
-    blurb: "Strong foundations in English, Mathematics, Science, and Character. Small classes.",
+    ages: "Primary 1 – 6",
+    blurb: "Strong foundations in English, Mathematics, Science, and Character. Small classes, personal attention.",
     icon: Sparkles,
     bar: "from-sky-400 to-sky-600",
     bg: "bg-sky-50/60",
@@ -43,8 +43,8 @@ const sections: SectionCard[] = [
   },
   {
     title: "Junior Secondary",
-    ages: "Ages 12 – 14",
-    blurb: "The BECE years. Broad curriculum, guided discovery, and leadership training.",
+    ages: "JSS 1 – 3",
+    blurb: "The BECE years. A broad curriculum, guided discovery, and the discipline that carries into senior school.",
     icon: BookOpen,
     bar: "from-violet-400 to-violet-600",
     bg: "bg-violet-50/60",
@@ -53,8 +53,8 @@ const sections: SectionCard[] = [
   },
   {
     title: "Senior Secondary",
-    ages: "Ages 15 – 17",
-    blurb: "Science, Arts, and Commercial streams. WAEC, NECO, and Cambridge examination pathways.",
+    ages: "SS 1 – 3",
+    blurb: "Science, Commercial, and Arts streams. WAEC and NECO examination pathways — prepared for university and for life.",
     icon: GraduationCap,
     bar: "from-emerald-400 to-emerald-600",
     bg: "bg-emerald-50/60",
@@ -68,76 +68,76 @@ const distinctions: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: Target,
     title: "Small classes. Big attention.",
-    body: "Average class size of 18 students. Every child is known by name and by need.",
+    body: "Average class size of twenty. Every child is known by name, by need, and by progress.",
+  },
+  {
+    icon: HeartHandshake,
+    title: "Founded on faith and character",
+    body: "Established in 2015 by the Evangelical Church International, Sokoto. Weekly moral instruction and devotion sit alongside academics.",
   },
   {
     icon: FlaskConical,
     title: "STEM-first curriculum",
-    body: "Two science labs, an ICT suite, and a robotics club. Science is a subject and a habit.",
-  },
-  {
-    icon: HeartHandshake,
-    title: "Character before credentials",
-    body: "Weekly moral instruction, house system, service projects. We build people, not just grades.",
+    body: "Equipped science and ICT laboratories. Physics, Chemistry, and Biology taught as lived subjects, not just exam papers.",
   },
   {
     icon: Globe2,
-    title: "Global outlook, local roots",
-    body: "Cambridge & WAEC pathways. Graduates in Lagos, London, Toronto, and Boston.",
+    title: "Bilingual, northern, and proud",
+    body: "English is the language of instruction. Hausa and cultural studies keep students rooted in the Sokoto they call home.",
   },
   {
-    icon: Palette,
-    title: "Arts and creativity",
-    body: "Music, visual arts, drama, and African culture. Every student plays, paints, or performs.",
+    icon: BookMarked,
+    title: "CRK and IRK offered side by side",
+    body: "Every student learns the values of their own faith. Christian and Islamic instruction are both available from Primary.",
   },
   {
     icon: ShieldCheck,
-    title: "Safe, supervised campus",
-    body: "24/7 security, a resident nurse, CCTV coverage, and disciplined boarding options.",
+    title: "Safe, gated campus",
+    body: "Perimeter wall, supervised gates, resident nurse, CCTV at entrances, and a disciplined pastoral team.",
   },
 ];
 
 // ---------- Stats ----------
 const stats = [
-  { value: "850+", label: "Students enrolled" },
-  { value: "62", label: "Qualified teachers" },
-  { value: "15", label: "Years of excellence" },
-  { value: "98%", label: "WAEC credit rate" },
+  { value: "500+", label: "Pupils enrolled" },
+  { value: "40", label: "Teaching & support staff" },
+  { value: "10", label: "Years of service to Sokoto" },
+  { value: "95%", label: "WAEC credit rate (2024 cohort)" },
 ];
 
 // ---------- Achievements ----------
 const achievements = [
   {
     year: "2024",
-    title: "National Science Olympiad — 1st Place (Senior)",
-    body: "Chidera Okonkwo (SS3 Science) beat 320 contenders from 48 schools.",
+    title: "Sokoto State Science Fair — 1st Place (Senior)",
+    body: "A three-person SS2 team took first place in the senior category with a solar-powered irrigation prototype.",
     icon: Beaker,
   },
   {
     year: "2024",
-    title: "Lagos Inter-School Debate Champions",
-    body: "DIBA's team took the trophy for the third consecutive year.",
+    title: "Sokoto Metro Inter-School Debate Champions",
+    body: "Our senior debate team defeated eleven schools across Sokoto and Kebbi states to lift the cup.",
     icon: Quote,
   },
   {
     year: "2023",
-    title: "Best Private Secondary School — Lekki Zone",
-    body: "Awarded by the Lagos State Ministry of Education.",
+    title: "Best Private Nursery & Primary School — Sokoto Metro",
+    body: "Awarded by the Evangelical Church International regional synod at its annual education review.",
     icon: Award,
   },
   {
     year: "2023",
-    title: "6 graduates admitted to Ivy League & Russell Group",
-    body: "Harvard, Yale, MIT, Imperial, UCL, and Bristol.",
+    title: "12 graduates admitted to federal universities",
+    body: "Usmanu Danfodiyo University Sokoto, Ahmadu Bello University Zaria, and Bayero University Kano.",
     icon: Trophy,
   },
 ];
 
 // ---------- Events ----------
 const events = [
-  { day: "15", month: "Nov", title: "Open Day & Campus Tour", time: "10:00 — 14:00" },
+  { day: "15", month: "Nov", title: "10th Anniversary & Open Day", time: "10:00 — 15:00" },
   { day: "06", month: "Dec", title: "Inter-House Sports Festival", time: "08:00 — 16:00" },
-  { day: "20", month: "Dec", title: "Carol Service & End-of-Term Concert", time: "17:00 — 19:30" },
+  { day: "19", month: "Dec", title: "Carol Service & End-of-Term Concert", time: "17:00 — 19:30" },
   { day: "23", month: "Dec", title: "Christmas Break Begins", time: "All day" },
 ];
 
@@ -145,17 +145,17 @@ const events = [
 const news = [
   {
     tag: "Facilities",
-    title: "Newly commissioned secondary science lab opens this term",
+    title: "Newly equipped science laboratory opens this term",
     excerpt:
-      "Fully equipped with fume hoods, microscopes, and digital sensors — three times the size of our old lab.",
+      "Fresh apparatus for Physics, Chemistry, and Biology — including microscopes and a functioning fume hood.",
     image:
       "https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=800&q=80",
   },
   {
     tag: "Debate",
-    title: "DIBA senior team wins the Lagos Inter-School Debate Cup",
+    title: "DIBA senior team wins the Sokoto Metro Debate Cup",
     excerpt:
-      "Our four-person team won every round, defeating schools from Ikoyi, Victoria Island, and Lekki.",
+      "Four students from SS2 and SS3 won every round, defeating schools from across Sokoto and Kebbi states.",
     image:
       "https://images.unsplash.com/photo-1544531585-9847b68c8c86?auto=format&fit=crop&w=800&q=80",
   },
@@ -209,14 +209,12 @@ export default function HomePage() {
       <section className="bg-amber-400">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-4 flex items-center justify-center">
           <p className="text-emerald-950 font-serif text-[15px] sm:text-base tracking-wide text-center">
-            Knowledge<span className="mx-4 opacity-40">·</span>
-            Character<span className="mx-4 opacity-40">·</span>
-            Service
+            Knowledge is Wealth
           </p>
         </div>
       </section>
 
-      {/* -------------------- WELCOME / MOTTO -------------------- */}
+      {/* -------------------- WELCOME -------------------- */}
       <section className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-28">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
           <div className="lg:col-span-5">
@@ -224,19 +222,23 @@ export default function HomePage() {
               Welcome to DIBA
             </p>
             <h2 className="font-serif text-3xl sm:text-4xl lg:text-[40px] leading-tight text-emerald-950 tracking-tight">
-              A school that takes{" "}
+              A Sokoto school that takes{" "}
               <span className="italic text-amber-600">intelligence</span> and{" "}
               <span className="italic text-amber-600">character</span> seriously.
             </h2>
           </div>
           <div className="lg:col-span-7 lg:pt-4">
             <p className="text-[16px] leading-relaxed text-slate-700">
-              Dominion Intelligent Builders Academy was founded in 2010 on a simple conviction: that every child carries
-              within them the capacity for excellence — academic, moral, and personal. We exist to draw it out.
+              Dominion Intelligent Builders' Academy was founded on 6 November 2015
+              by the Evangelical Church International, Sokoto — on the conviction
+              that every child carries within them the capacity for excellence:
+              academic, moral, and personal.
             </p>
             <p className="mt-5 text-[16px] leading-relaxed text-slate-700">
-              From our Nursery in Lekki Phase 1 through Senior Secondary, our students learn in small classes, are led by
-              teachers who know them personally, and are prepared not just for WAEC and Cambridge but for a life of purpose.
+              From our Nursery section off the Trade Fair Complex to Senior Secondary
+              at Old Airport Area, our pupils learn in small classes, are taught by
+              teachers who know them personally, and are prepared not only for WAEC
+              and NECO but for a life of purpose in Sokoto and beyond.
             </p>
             <div className="mt-8 flex items-center gap-4">
               <Link
@@ -365,7 +367,8 @@ export default function HomePage() {
                 Recent achievements
               </h2>
               <p className="mt-5 text-[14px] leading-relaxed text-slate-600">
-                Beyond the classroom, our students compete, perform, and lead. A selection of what they've done lately.
+                Beyond the classroom, our pupils compete, perform, and lead. A
+                selection of what they've done lately.
               </p>
               <Link
                 to="/about"
@@ -552,8 +555,9 @@ export default function HomePage() {
                 <span className="italic text-amber-300">growing into.</span>
               </h2>
               <p className="mt-5 text-white/75 text-[15px] leading-relaxed max-w-2xl">
-                Places are limited. Book an entrance assessment, take a tour, or speak with
-                our admissions team — we'd love to meet you.
+                Places are limited. Book an entrance assessment, take a tour of the
+                Old Airport campus, or speak with our admissions team — we'd love
+                to meet you.
               </p>
             </div>
 

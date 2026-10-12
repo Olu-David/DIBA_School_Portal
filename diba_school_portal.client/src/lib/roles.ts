@@ -73,7 +73,7 @@ export const hasRole = (
   if (userRole === "SuperAdmin") return true;
   return allowed.includes(userRole);
 };
-
+ 
 /** True if user is any kind of staff (can access /admin) */
 export const isStaff = (role: UserRole | undefined): boolean =>
   !!role && STAFF_ROLES.includes(role);

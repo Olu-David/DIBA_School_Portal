@@ -26,21 +26,21 @@ const departments = [
     icon: Users,
     name: "Admissions",
     email: "admissions@diba.edu.ng",
-    phone: "+234 (0) 812 345 6789",
-    body: "For enquiries about enrolling a new student.",
+    phone: "+234 803 000 0001",
+    body: "For enquiries about enrolling a new pupil.",
   },
   {
     icon: Building2,
     name: "Bursary",
     email: "bursary@diba.edu.ng",
-    phone: "+234 (0) 812 345 6790",
+    phone: "+234 803 000 0002",
     body: "Fee payments, receipts, and finance enquiries.",
   },
   {
     icon: MessageCircle,
     name: "General enquiries",
     email: "hello@diba.edu.ng",
-    phone: "+234 (0) 812 345 6789",
+    phone: "+234 803 000 0001",
     body: "Anything else — we'll route you to the right desk.",
   },
 ];
@@ -89,8 +89,9 @@ export default function ContactPage() {
             Come and visit us.
           </h1>
           <p className="mt-6 text-white/75 text-[16px] leading-relaxed max-w-2xl">
-            Our campus sits in the heart of Lekki Phase 1. Walk in, call, or send
-            a message — we respond to every enquiry personally.
+            Our campus sits just off the Trade Fair Complex at Old Airport Area,
+            Sokoto. Walk in, call, or send a message — we respond to every
+            enquiry personally.
           </p>
         </div>
       </section>
@@ -99,9 +100,7 @@ export default function ContactPage() {
       <section className="bg-amber-400">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-4 flex items-center justify-center">
           <p className="text-emerald-950 font-serif text-[15px] sm:text-base tracking-wide text-center">
-            Knowledge<span className="mx-4 opacity-40">·</span>
-            Character<span className="mx-4 opacity-40">·</span>
-            Service
+            Knowledge is Wealth
           </p>
         </div>
       </section>
@@ -115,11 +114,13 @@ export default function ContactPage() {
             </div>
             <h3 className="font-serif text-[19px] text-emerald-950">Visit</h3>
             <p className="mt-3 text-[14px] text-slate-600 leading-relaxed">
-              12 Dominion Close, Off Admiralty Way
+              Off Trade Fair Complex, beside RCCG Headquarters
               <br />
-              Lekki Phase 1, Lagos
+              Old Airport Area, Sokoto
               <br />
-              Nigeria
+              Sokoto State, Nigeria
+              <br />
+              P.M.B 3848, Sokoto
             </p>
           </div>
 
@@ -129,9 +130,9 @@ export default function ContactPage() {
             </div>
             <h3 className="font-serif text-[19px] text-emerald-950">Call</h3>
             <p className="mt-3 text-[14px] text-slate-600 leading-relaxed">
-              Main office: <a href="tel:+2348123456789" className="text-emerald-800 hover:underline">+234 (0) 812 345 6789</a>
+              Main office: <a href="tel:+2348030000001" className="text-emerald-800 hover:underline">+234 803 000 0001</a>
               <br />
-              Bursary: <a href="tel:+2348123456790" className="text-emerald-800 hover:underline">+234 (0) 812 345 6790</a>
+              Bursary: <a href="tel:+2348030000002" className="text-emerald-800 hover:underline">+234 803 000 0002</a>
               <br />
               WhatsApp: same numbers
             </p>
@@ -263,7 +264,7 @@ export default function ContactPage() {
               <div className="rounded-2xl overflow-hidden border border-stone-200 aspect-[4/3] bg-stone-200">
                 <iframe
                   title="DIBA Campus location"
-                  src="https://www.google.com/maps?q=Lekki+Phase+1+Lagos&output=embed"
+                  src="https://www.google.com/maps?q=Old+Airport+Area+Sokoto&output=embed"
                   className="w-full h-full"
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
@@ -272,9 +273,9 @@ export default function ContactPage() {
               <div className="mt-5 p-5 bg-white rounded-2xl border border-stone-200">
                 <p className="text-[13px] text-slate-600 leading-relaxed">
                   <strong className="text-emerald-950">Driving directions:</strong> From
-                  Admiralty Way, turn onto Dominion Close at the First Bank junction.
-                  We are the third gate on the left, behind the white walls with
-                  the emerald crest.
+                  the Trade Fair Complex, head toward Old Airport Area. Our gate is
+                  on the left, beside the RCCG Headquarters — look for the blue
+                  crest on the white perimeter wall. P.M.B 3848 for postal mail.
                 </p>
               </div>
             </div>

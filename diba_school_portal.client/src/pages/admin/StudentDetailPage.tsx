@@ -24,6 +24,13 @@ interface Payment {
   sessionName: string;
 }
 
+const STREAM_TONE: Record<string, "sky" | "violet" | "amber" | "rose"> = {
+  Science: "sky",
+  Arts: "violet",
+  Commercial: "amber",
+  General: "rose",
+};
+
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -97,6 +104,11 @@ export default function StudentDetailPage() {
                 <Badge variant="emerald">Active</Badge>
               ) : (
                 <Badge variant="neutral">Inactive</Badge>
+              )}
+              {student.stream && (
+                <Badge variant={STREAM_TONE[student.stream] ?? "sky"}>
+                  {student.stream}
+                </Badge>
               )}
             </div>
             <p className="mt-1 text-[13px] text-slate-500 font-mono">

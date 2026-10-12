@@ -2,12 +2,17 @@
 
 interface PageHeaderProps {
   eyebrow?: string;
-  title: string;
-  description?: string;
+  title: ReactNode;               // ← was string
+  description?: ReactNode;        // ← was string
   actions?: ReactNode;
 }
 
-export default function PageHeader({ eyebrow, title, description, actions }: PageHeaderProps) {
+export default function PageHeader({
+  eyebrow,
+  title,
+  description,
+  actions,
+}: PageHeaderProps) {
   return (
     <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
       <div>
@@ -16,8 +21,12 @@ export default function PageHeader({ eyebrow, title, description, actions }: Pag
             {eyebrow}
           </p>
         )}
-        <h1 className="mt-1 text-2xl font-semibold text-slate-900 tracking-tight">{title}</h1>
-        {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+        <h1 className="mt-1 text-2xl font-semibold text-slate-900 tracking-tight">
+          {title}
+        </h1>
+        {description && (
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        )}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>

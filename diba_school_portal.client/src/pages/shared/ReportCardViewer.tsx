@@ -1,14 +1,28 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Download, FileText } from "lucide-react";
+import { ArrowLeft, Download, FileText, GraduationCap } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import { Button, Card, EmptyState, Skeleton, Badge } from "../../components/ui";
 import api from "../../lib/api";
 import type { ApiResponse } from "../../types/common";
 
+// Matches the backend ClassStream enum.
+// "None" is not valid — a non-SS student will have stream === null.
+type ClassStream = "Science" | "Arts" | "Commercial" | "General";
+
+// Colour per stream — keeps the badge meaningfully tinted instead of neutral.
+const STREAM_TONE: Record<ClassStream, "sky" | "violet" | "amber" | "rose"> = {
+  Science: "sky",
+  Arts: "violet",
+  Commercial: "amber",
+  General: "rose",
+};
+
 export default function ReportCardViewer() {
   const { studentId, termId, sessionId } = useParams<{
-    studentId: string; termId: string; sessionId: string;
+    studentId: string;
+    termId: string;
+    sessionId: string;
   }>();
   const navigate = useNavigate();
   const [report, setReport] = useState<any>(null);
@@ -32,12 +46,12 @@ export default function ReportCardViewer() {
     if (!report) return;
     setPdfLoading(true);
     try {
-      const res = await api.post(
-        "/pdfreport/report-card",
-        report,
-        { responseType: "blob" }
+      const res = await api.post("/pdfreport/report-card", report, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(
+        new Blob([res.data], { type: "application/pdf" })
       );
-      const url = URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
       const a = document.createElement("a");
       a.href = url;
       a.download = `ReportCard_${report.studentName}_${report.termName}.pdf`;
@@ -48,7 +62,13 @@ export default function ReportCardViewer() {
     }
   };
 
-  if (loading) return <Card><Skeleton className="h-96" /></Card>;
+  if (loading) {
+    return (
+      <Card>
+        <Skeleton className="h-96" />
+      </Card>
+    );
+  }
 
   if (!report) {
     return (
@@ -63,6 +83,8 @@ export default function ReportCardViewer() {
     );
   }
 
+  const stream: ClassStream | null = report.stream ?? null;
+
   return (
     <div className="space-y-6">
       <button
@@ -76,8 +98,36 @@ export default function ReportCardViewer() {
 
       <PageHeader
         eyebrow={`${report.sessionName} · ${report.termName}`}
-        title={report.studentName}
-        description={`Class: ${report.className}`}
+        title={
+          <span className="inline-flex items-center gap-2 flex-wrap">
+            {report.studentName}
+            {stream && (
+              <Badge variant={STREAM_TONE[stream]}>
+                {stream}
+              </Badge>
+            )}
+          </span>
+        }
+        description={
+          <span className="inline-flex items-center gap-1.5 flex-wrap">
+            <GraduationCap className="w-3.5 h-3.5" />
+            Class: {report.className}
+            {stream && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span className="font-medium text-slate-700">{stream}</span>
+              </>
+            )}
+            {report.admissionNumber && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span className="font-mono text-slate-500">
+                  {report.admissionNumber}
+                </span>
+              </>
+            )}
+          </span>
+        }
         actions={
           <Button icon={Download} loading={pdfLoading} onClick={downloadPdf}>
             Download PDF
@@ -87,20 +137,28 @@ export default function ReportCardViewer() {
 
       <div className="grid grid-cols-3 gap-4">
         <Card padding="sm" className="text-center">
-          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">Average</p>
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">
+            Average
+          </p>
           <p className="text-2xl font-semibold text-slate-900 tabular-nums mt-1">
             {report.averageScore?.toFixed(2)}%
           </p>
         </Card>
         <Card padding="sm" className="text-center">
-          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">Position</p>
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">
+            Position
+          </p>
           <p className="text-2xl font-semibold text-slate-900 tabular-nums mt-1">
             #{report.classPosition}
           </p>
         </Card>
         <Card padding="sm" className="text-center">
-          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">Grade</p>
-          <p className="text-2xl font-semibold text-slate-900 mt-1">{report.overallGrade ?? "—"}</p>
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">
+            Grade
+          </p>
+          <p className="text-2xl font-semibold text-slate-900 mt-1">
+            {report.overallGrade ?? "—"}
+          </p>
         </Card>
       </div>
 
@@ -109,8 +167,20 @@ export default function ReportCardViewer() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50">
-                {["Subject", "Test 1", "Test 2", "Exam", "Total", "Grade", "Pos", "Remark"].map((h) => (
-                  <th key={h} className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-5 py-3 whitespace-nowrap">
+                {[
+                  "Subject",
+                  "Test 1",
+                  "Test 2",
+                  "Exam",
+                  "Total",
+                  "Grade",
+                  "Pos",
+                  "Remark",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-5 py-3 whitespace-nowrap"
+                  >
                     {h}
                   </th>
                 ))}
@@ -119,16 +189,40 @@ export default function ReportCardViewer() {
             <tbody className="divide-y divide-slate-100">
               {report.subjectResults.map((s: any) => (
                 <tr key={s.id} className="hover:bg-slate-50/50">
-                  <td className="px-5 py-3 text-[13px] font-medium text-slate-800">{s.subjectName}</td>
-                  <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">{s.test1Score}</td>
-                  <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">{s.test2Score}</td>
-                  <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">{s.examScore}</td>
-                  <td className="px-5 py-3 text-right tabular-nums text-[13px] font-semibold text-slate-900">{s.totalScore}</td>
-                  <td className="px-5 py-3 text-right">
-                    <Badge variant={s.grade === "A" ? "emerald" : s.grade === "F" ? "rose" : "sky"}>{s.grade}</Badge>
+                  <td className="px-5 py-3 text-[13px] font-medium text-slate-800">
+                    {s.subjectName}
                   </td>
-                  <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">#{s.subjectPosition}</td>
-                  <td className="px-5 py-3 text-[12px] text-slate-500">{s.remark}</td>
+                  <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">
+                    {s.test1Score}
+                  </td>
+                  <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">
+                    {s.test2Score}
+                  </td>
+                  <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">
+                    {s.examScore}
+                  </td>
+                  <td className="px-5 py-3 text-right tabular-nums text-[13px] font-semibold text-slate-900">
+                    {s.totalScore}
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <Badge
+                      variant={
+                        s.grade === "A"
+                          ? "emerald"
+                          : s.grade === "F"
+                          ? "rose"
+                          : "sky"
+                      }
+                    >
+                      {s.grade}
+                    </Badge>
+                  </td>
+                  <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">
+                    #{s.subjectPosition}
+                  </td>
+                  <td className="px-5 py-3 text-[12px] text-slate-500">
+                    {s.remark}
+                  </td>
                 </tr>
               ))}
             </tbody>

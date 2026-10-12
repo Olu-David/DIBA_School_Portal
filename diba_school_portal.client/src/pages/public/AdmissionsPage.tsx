@@ -43,12 +43,12 @@ const steps = [
   {
     icon: Calendar,
     title: "Book an assessment",
-    body: "Entrance assessments run every Saturday. Nursery applicants only need a play-visit.",
+    body: "Entrance assessments hold every Saturday from 9am. Nursery applicants only need a play-visit.",
   },
   {
     icon: Users,
     title: "Campus tour & interview",
-    body: "Meet your child's prospective teacher. You'll tour the campus and see a live class.",
+    body: "Meet your child's prospective teacher. You'll tour the Old Airport campus and see a live class.",
   },
   {
     icon: FileText,
@@ -97,12 +97,9 @@ export default function AdmissionsPage() {
 
     setSubmitting(true);
     try {
-      // Backend endpoint to be added — see notes below
       await api.post("/enquiries", form);
       setSent(true);
     } catch {
-      // Fall back to success even if endpoint isn't live yet — the visitor
-      // still gets confirmation, and we can log to console.
       console.warn("Enquiry endpoint not available — submission held in browser only.");
       setSent(true);
     } finally {
@@ -144,9 +141,7 @@ export default function AdmissionsPage() {
       <section className="bg-amber-400">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-4 flex items-center justify-center">
           <p className="text-emerald-950 font-serif text-[15px] sm:text-base tracking-wide text-center">
-            Knowledge<span className="mx-4 opacity-40">·</span>
-            Character<span className="mx-4 opacity-40">·</span>
-            Service
+            Knowledge is Wealth
           </p>
         </div>
       </section>
@@ -331,9 +326,7 @@ export default function AdmissionsPage() {
                     >
                       <option value="">Select a section</option>
                       {sectionOptions.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
+                        <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
                   </Field>
@@ -345,9 +338,7 @@ export default function AdmissionsPage() {
                     >
                       <option value="">Select a term</option>
                       {termOptions.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
+                        <option key={t} value={t}>{t}</option>
                       ))}
                     </select>
                   </Field>

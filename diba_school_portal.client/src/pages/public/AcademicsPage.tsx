@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import {
   ArrowRight, BookOpen, Baby, Sparkles, GraduationCap, FlaskConical,
   Calculator, Languages, Globe2, Palette, Music, Dumbbell, Cpu,
-  ScrollText, Award, CheckCircle2, type LucideIcon,
+  ScrollText, Award, CheckCircle2, BookMarked, type LucideIcon,
 } from "lucide-react";
 
 interface SectionBlock {
@@ -21,39 +21,40 @@ const blocks: SectionBlock[] = [
   {
     key: "nursery",
     title: "Nursery",
-    ages: "Ages 2 – 5",
+    ages: "Ages 3 – 5",
     bar: "from-pink-400 to-pink-600",
     badgeBg: "bg-pink-50",
     badgeText: "text-pink-700",
     intro:
-      "Play is the work of childhood. Our Nursery programme channels natural curiosity into early literacy, numeracy, motor skills, and social confidence.",
+      "Play is the work of childhood. Our Nursery programme channels natural curiosity into early literacy, numeracy, motor skills, and social confidence — guided by faith and kindness.",
     curriculum: [
       "Early literacy & phonics (Jolly Phonics)",
       "Early numeracy & pattern work",
       "Creative arts, music & movement",
       "Sensorial play & fine-motor skills",
       "Social & emotional learning",
-      "Story-time and library visits",
+      "Hausa songs & story-time",
     ],
     examPath: "Continuous assessment · No formal examinations",
   },
   {
     key: "primary",
     title: "Primary",
-    ages: "Ages 6 – 11",
+    ages: "Primary 1 – 6",
     bar: "from-sky-400 to-sky-600",
     badgeBg: "bg-sky-50",
     badgeText: "text-sky-700",
     intro:
       "The foundational years. We build fluent readers, confident mathematicians, and curious scientists — while never losing the joy of learning.",
     curriculum: [
-      "English Language & Literature",
+      "English Language & Reading",
       "Mathematics & Mental Maths",
       "Basic Science & Technology",
       "Social Studies & Civic Education",
+      "Hausa Language",
       "Computer Studies & Coding basics",
-      "French, Yoruba, and Cultural Arts",
-      "Bible Knowledge & Moral Instruction",
+      "Christian or Islamic Religious Knowledge",
+      "Cultural & Creative Arts",
       "Physical & Health Education",
     ],
     examPath: "Continuous assessment + End-of-Term examinations",
@@ -61,7 +62,7 @@ const blocks: SectionBlock[] = [
   {
     key: "jss",
     title: "Junior Secondary",
-    ages: "Ages 12 – 14",
+    ages: "JSS 1 – 3",
     bar: "from-violet-400 to-violet-600",
     badgeBg: "bg-violet-50",
     badgeText: "text-violet-700",
@@ -76,21 +77,21 @@ const blocks: SectionBlock[] = [
       "Computer Studies (ICT)",
       "Agricultural Science",
       "Home Economics",
-      "Fine Art & Music",
-      "French & Yoruba",
+      "Christian or Islamic Religious Knowledge",
+      "Hausa, French & Cultural Arts",
       "Physical & Health Education",
     ],
-    examPath: "BECE (Basic Education Certificate Examination) · Lagos State",
+    examPath: "BECE · Sokoto State Ministry of Education",
   },
   {
     key: "sss",
     title: "Senior Secondary",
-    ages: "Ages 15 – 17",
+    ages: "SS 1 – 3",
     bar: "from-emerald-400 to-emerald-600",
     badgeBg: "bg-emerald-50",
     badgeText: "text-emerald-700",
     intro:
-      "Three streams. One high standard. Whether Science, Arts, or Commercial, our SS students leave prepared for university and for life.",
+      "Three streams. One high standard. Whether Science, Commercial, or Arts, our SS pupils leave prepared for university and for life.",
     curriculum: [
       "English Language & Literature",
       "Mathematics (General & Further)",
@@ -99,35 +100,35 @@ const blocks: SectionBlock[] = [
       "Government · History · Geography",
       "Civic Education",
       "Computer Science & Data Processing",
-      "Fine Art & Music",
-      "French & Yoruba",
+      "Christian or Islamic Religious Knowledge",
+      "Hausa, French & Fine Art",
     ],
-    examPath: "WAEC (WASSCE) · NECO (SSCE) · Cambridge IGCSE & A-Level (optional)",
+    examPath: "WAEC (WASSCE) · NECO (SSCE)",
   },
 ];
 
 const streams: { name: string; icon: LucideIcon; subjects: string; tone: string }[] = [
-  { name: "Science", icon: FlaskConical, subjects: "Physics, Chemistry, Biology, Further Maths", tone: "emerald" },
+  { name: "Science", icon: FlaskConical, subjects: "Physics, Chemistry, Biology, Further Mathematics", tone: "emerald" },
   { name: "Commercial", icon: Calculator, subjects: "Accounting, Commerce, Economics, Book-keeping", tone: "amber" },
-  { name: "Arts & Humanities", icon: Languages, subjects: "Literature, Government, History, French", tone: "violet" },
+  { name: "Arts & Humanities", icon: Languages, subjects: "Literature, Government, History, Islamic Studies / CRK, French", tone: "violet" },
 ];
 
 const coCurricular: { name: string; icon: LucideIcon }[] = [
-  { name: "Robotics Club", icon: Cpu },
+  { name: "Robotics & Coding Club", icon: Cpu },
   { name: "Debate & Public Speaking", icon: ScrollText },
   { name: "Music & Choir", icon: Music },
   { name: "Visual Arts", icon: Palette },
   { name: "Football & Athletics", icon: Dumbbell },
   { name: "French Club", icon: Globe2 },
-  { name: "Press Club", icon: BookOpen },
+  { name: "Press & Literary Club", icon: BookOpen },
   { name: "Young Farmers", icon: Sparkles },
 ];
 
 const results = [
-  { stat: "98%", label: "WAEC credit rate (5+ subjects, 2024)" },
-  { stat: "94%", label: "BECE distinction rate (2024)" },
-  { stat: "42", label: "Distinctions in 2024 Cambridge IGCSE" },
-  { stat: "6", label: "Ivy League & Russell Group admits (last 3 years)" },
+  { stat: "95%", label: "WAEC credit rate (5+ subjects, 2024)" },
+  { stat: "88%", label: "BECE pass rate (2024)" },
+  { stat: "21", label: "WAEC candidates with 5+ credits (2024)" },
+  { stat: "12", label: "University admissions (2023 cohort)" },
 ];
 
 export default function AcademicsPage() {
@@ -144,9 +145,9 @@ export default function AcademicsPage() {
             <span className="italic text-amber-300">the whole child.</span>
           </h1>
           <p className="mt-6 text-white/75 text-[16px] leading-relaxed max-w-2xl">
-            From the Nursery sandbox to the Senior Secondary science lab, every
-            stage at DIBA is intentional — designed to stretch, support, and
-            prepare.
+            From the Nursery sandbox in Old Airport to the Senior Secondary science
+            laboratory, every stage at DIBA is intentional — designed to stretch,
+            support, and prepare our pupils for Sokoto and beyond.
           </p>
         </div>
       </section>
@@ -155,9 +156,7 @@ export default function AcademicsPage() {
       <section className="bg-amber-400">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-4 flex items-center justify-center">
           <p className="text-emerald-950 font-serif text-[15px] sm:text-base tracking-wide text-center">
-            Knowledge<span className="mx-4 opacity-40">·</span>
-            Character<span className="mx-4 opacity-40">·</span>
-            Service
+            Knowledge is Wealth
           </p>
         </div>
       </section>
@@ -222,8 +221,8 @@ export default function AcademicsPage() {
             Three streams. One standard.
           </h2>
           <p className="mt-5 text-[15px] text-slate-600 leading-relaxed">
-            SS1 students choose a stream at the start of the academic year after
-            a guided conversation with our careers counsellor. Our aim is fit — not
+            SS1 pupils choose a stream at the start of the academic year after a
+            guided conversation with our careers counsellor. Our aim is fit — not
             prestige.
           </p>
         </div>
@@ -323,8 +322,7 @@ export default function AcademicsPage() {
           </h2>
           <p className="mt-4 text-[15px] text-slate-600 leading-relaxed">
             Every applicant is invited for a classroom visit and a short
-            assessment. It helps us place your child well — and helps you
-            decide.
+            assessment. It helps us place your child well — and helps you decide.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             <Link

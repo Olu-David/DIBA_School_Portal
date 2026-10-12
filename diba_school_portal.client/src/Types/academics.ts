@@ -3,8 +3,8 @@
   | "Primary"
   | "JuniorSecondary"
   | "SeniorSecondary";
+export type ClassStream = "Science" | "Arts" | "Commercial" | "General";
 
-export type ClassStream = "None" | "Science" | "Arts" | "Commercial" | "General";
 
 export interface SchoolClass {
   id: string;

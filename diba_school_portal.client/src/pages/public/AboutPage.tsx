@@ -1,76 +1,96 @@
 import { Link } from "react-router-dom";
 import {
   ArrowRight, Target, Eye, Heart, BookOpen, Award, Users,
-  Building2, Microscope, Library, Trees, Trophy, Cross,
-  Quote, Calendar,
+  Building2, Microscope, Library, Trees, Trophy, BookMarked,
+  Quote, Church,
 } from "lucide-react";
 import SchoolCrest from "../../components/public/SchoolCrest";
 
 const timeline = [
   {
-    year: "2010",
+    year: "2015",
     title: "The founding",
-    body: "Nine students, three teachers, and one rented hall in Lekki Phase 1. DIBA opens with a Nursery and Primary section.",
-  },
-  {
-    year: "2014",
-    title: "Secondary section opens",
-    body: "Approved by the Lagos State Ministry of Education. First JSS1 cohort of 48 students enrols.",
+    body: "On 6 November 2015, the Evangelical Church International, Sokoto, registered Dominion Intelligent Builders' Academy (RC-2372959). Twenty-four pupils, four teachers, and one rented bungalow off Trade Fair Road.",
   },
   {
     year: "2017",
-    title: "Purpose-built campus",
-    body: "Move to our current 4-acre campus. Science labs, library, sports field, and a 400-seat hall commissioned.",
+    title: "The Old Airport campus",
+    body: "The school moved to its purpose-built site beside the RCCG headquarters at Old Airport Area. Six new classrooms, an assembly ground, and a small library.",
   },
   {
-    year: "2020",
-    title: "Digital pivot",
-    body: "During the pandemic, DIBA runs live online classes for every section. The Learning Management System remains in use today.",
+    year: "2019",
+    title: "Junior Secondary opens",
+    body: "Approved by the Sokoto State Ministry of Education. Our first JSS1 cohort of thirty-eight pupils began the BECE pathway.",
   },
   {
-    year: "2022",
-    title: "First Cambridge cohort",
-    body: "Six students sit Cambridge IGCSE and A-Level exams. All earn distinctions in Mathematics and Sciences.",
+    year: "2021",
+    title: "Senior Secondary opens",
+    body: "DIBA became a full Nursery–SS institution. The first SS1 stream of twenty-two pupils began the Science pathway.",
   },
   {
-    year: "2024",
-    title: "850 students strong",
-    body: "Across four sections. 98% WAEC credit rate. Six alumni at Harvard, Yale, MIT, Imperial, UCL, and Bristol.",
+    year: "2023",
+    title: "First WAEC cohort",
+    body: "Twenty-four candidates sat the WASSCE. Twenty-one earned credits in five or more subjects including English Language and Mathematics.",
+  },
+  {
+    year: "2025",
+    title: "Five hundred pupils strong",
+    body: "Across four sections with forty teaching and support staff. The school now serves families from across Sokoto and neighbouring Kebbi State.",
   },
 ];
 
 const values = [
   {
-    icon: Target,
-    title: "Knowledge",
-    body: "We pursue academic excellence with discipline. Curiosity is rewarded, questions are welcome, and laziness has no home here.",
+    icon: Heart,
+    title: "Faith",
+    body: "We are a school founded by the Evangelical Church International. Weekly devotion, moral instruction, and pastoral care shape the character of every pupil — Christian and Muslim alike.",
   },
   {
-    icon: Heart,
-    title: "Character",
-    body: "The classroom builds the mind. The house system, sports, and service build the person. We care about who your child becomes.",
+    icon: BookMarked,
+    title: "Knowledge",
+    body: "Academic excellence pursued with discipline and honesty. Curiosity is rewarded, questions are welcome, and no pupil is left behind.",
   },
   {
     icon: Users,
     title: "Service",
-    body: "Every senior student completes 40 hours of community service. Leadership is not a title — it is what you give away.",
+    body: "Every senior pupil completes community service hours before graduation. Leadership is not a title — it is what you give away.",
   },
 ];
 
 const facilities = [
-  { icon: Microscope, name: "Science laboratories", body: "Two fully equipped labs — Physics, Chemistry, and Biology." },
-  { icon: Library, name: "Library & reading room", body: "8,000+ volumes. Digital catalogue. Open until 5pm." },
-  { icon: Building2, name: "ICT suite", body: "40 workstations. Coding, robotics, and digital literacy." },
-  { icon: Trees, name: "Sports field & courts", body: "Full-size football pitch, basketball, and volleyball courts." },
-  { icon: Trophy, name: "400-seat hall", body: "Assemblies, theatre, prize-giving, and inter-house competitions." },
-  { icon: Cross, name: "Chapel & counselling", body: "Weekly services. Full-time guidance counsellor on staff." },
+  { icon: Microscope, name: "Science laboratories", body: "Physics, Chemistry, and Biology labs with functioning apparatus and a fume hood." },
+  { icon: Library, name: "Library & reading room", body: "Several thousand titles covering Nigerian and international curricula." },
+  { icon: Building2, name: "ICT suite", body: "Thirty workstations for Computer Studies, coding, and digital literacy." },
+  { icon: Trees, name: "Sports field", body: "Football pitch, volleyball court, and open space for athletics." },
+  { icon: Trophy, name: "Assembly hall", body: "Seats five hundred. Used for assemblies, drama, prize-giving, and chapel." },
+  { icon: Church, name: "Chapel & prayer rooms", body: "A chapel for Christian worship, plus a quiet room for Muslim prayers on campus." },
 ];
 
 const leadership = [
-  { name: "Dr. Emmanuel Adekunle", role: "Principal", initials: "EA", bio: "PhD Education (UNILAG), 22 years in secondary education." },
-  { name: "Mrs. Ngozi Okafor", role: "Vice Principal (Academics)", initials: "NO", bio: "M.Ed Curriculum Studies. Former WAEC examiner." },
-  { name: "Mr. Tunde Balogun", role: "Head, Junior Secondary", initials: "TB", bio: "B.Sc Mathematics, PGDE. Coordinates the BECE programme." },
-  { name: "Mrs. Folake Ajayi", role: "Head, Primary", initials: "FA", bio: "B.Ed Early Childhood. Leads our foundational literacy programme." },
+  {
+    name: "[Founder's Name]",
+    role: "Founder & Proprietor",
+    initials: "FN",
+    bio: "Evangelical Church International, Sokoto. Registered the school in November 2015.",
+  },
+  {
+    name: "[Principal's Name]",
+    role: "Principal",
+    initials: "PN",
+    bio: "Academic leadership across all four sections. Placeholder — to be updated.",
+  },
+  {
+    name: "[VP Academics' Name]",
+    role: "Vice Principal (Academics)",
+    initials: "VP",
+    bio: "Curriculum, examinations, and teacher development. Placeholder — to be updated.",
+  },
+  {
+    name: "[Head Primary's Name]",
+    role: "Head, Nursery & Primary",
+    initials: "HP",
+    bio: "Leads the foundational years and the early literacy programme. Placeholder — to be updated.",
+  },
 ];
 
 export default function AboutPage() {
@@ -84,13 +104,14 @@ export default function AboutPage() {
               About us
             </p>
             <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-[1.05] tracking-tight">
-              Fifteen years of building{" "}
+              Ten years of building{" "}
               <span className="italic text-amber-300">intelligent</span> men and women.
             </h1>
             <p className="mt-6 text-white/75 text-[16px] leading-relaxed max-w-2xl">
-              Since 2010, Dominion Intelligent Builders Academy has quietly grown
-              into one of Lekki's most respected independent schools — not because
-              of grand marketing, but because parents talk, and alumni come back.
+              Founded in Sokoto in November 2015 by the Evangelical Church
+              International, Dominion Intelligent Builders' Academy has grown
+              quietly and steadily into one of the most trusted private schools
+              in the Old Airport area.
             </p>
           </div>
           <div className="lg:col-span-5 flex justify-center lg:justify-end">
@@ -105,15 +126,23 @@ export default function AboutPage() {
       <section className="bg-amber-400">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-4 flex items-center justify-center">
           <p className="text-emerald-950 font-serif text-[15px] sm:text-base tracking-wide text-center">
-            Knowledge<span className="mx-4 opacity-40">·</span>
-            Character<span className="mx-4 opacity-40">·</span>
-            Service
+            Knowledge is Wealth
           </p>
         </div>
       </section>
 
+      {/* Registration facts */}
+      <section className="max-w-7xl mx-auto px-6 lg:px-12 py-16">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Fact label="Registered" value="RC-2372959" />
+          <Fact label="Date of Registration" value="6 November 2015" />
+          <Fact label="Founding Body" value="Evangelical Church International, Sokoto" />
+          <Fact label="Postal Address" value="P.M.B 3848, Sokoto" />
+        </div>
+      </section>
+
       {/* Mission & Vision */}
-      <section className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-24">
+      <section className="max-w-7xl mx-auto px-6 lg:px-12 pb-20 lg:pb-24">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="bg-white rounded-3xl border border-stone-200 p-8 lg:p-10">
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 grid place-items-center mb-6">
@@ -128,7 +157,7 @@ export default function AboutPage() {
             </h2>
             <p className="mt-5 text-[14px] text-slate-600 leading-relaxed">
               We provide a rigorous, balanced education that honours both the mind
-              and the character — preparing each student for the examinations of
+              and the character — preparing each pupil for the examinations of
               life, not just the examinations of the term.
             </p>
           </div>
@@ -141,12 +170,13 @@ export default function AboutPage() {
               Our vision
             </p>
             <h2 className="font-serif text-2xl text-emerald-950 leading-snug">
-              To be West Africa's most trusted school for building intelligent
+              To be Sokoto State's most trusted school for building intelligent
               leaders.
             </h2>
             <p className="mt-5 text-[14px] text-slate-600 leading-relaxed">
               A school where admissions are earned, not bought. Where every
-              graduate leaves knowing how to think, how to work, and how to serve.
+              graduate leaves knowing how to think, how to work, and how to serve
+              their community.
             </p>
           </div>
         </div>
@@ -188,7 +218,7 @@ export default function AboutPage() {
             Our story
           </p>
           <h2 className="font-serif text-3xl sm:text-4xl text-emerald-950 tracking-tight">
-            Fifteen years, one direction.
+            Ten years, one direction.
           </h2>
         </div>
 
@@ -219,7 +249,7 @@ export default function AboutPage() {
               Campus
             </p>
             <h2 className="font-serif text-3xl sm:text-4xl text-emerald-950 tracking-tight">
-              Four acres, built for learning.
+              A campus built for learning.
             </h2>
           </div>
 
@@ -278,7 +308,7 @@ export default function AboutPage() {
             partner with the home to build the whole person."
           </blockquote>
           <p className="mt-8 text-white/60 text-[12px] tracking-[0.25em] uppercase font-medium">
-            Dr. Emmanuel Adekunle · Principal
+            The Management · Dominion Intelligent Builders' Academy
           </p>
         </div>
       </section>
@@ -311,5 +341,18 @@ export default function AboutPage() {
         </div>
       </section>
     </>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-white rounded-2xl border border-stone-200 p-5">
+      <p className="text-[11px] tracking-[0.2em] uppercase text-slate-400 font-semibold">
+        {label}
+      </p>
+      <p className="mt-2 text-[14px] font-medium text-emerald-950 leading-snug">
+        {value}
+      </p>
+    </div>
   );
 }

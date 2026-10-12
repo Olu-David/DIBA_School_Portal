@@ -22,6 +22,13 @@ const SECTION_TONE: Record<string, "rose" | "sky" | "violet" | "emerald"> = {
   SeniorSecondary: "emerald",
 };
 
+const STREAM_TONE: Record<string, "rose" | "sky" | "violet" | "emerald" | "amber"> = {
+  Science: "sky",
+  Arts: "violet",
+  Commercial: "amber",
+  General: "rose",
+};
+
 export default function StudentsPage() {
   const navigate = useNavigate();
 
@@ -95,7 +102,7 @@ export default function StudentsPage() {
               Export
             </Button>
             <Button icon={UserPlus} onClick={() => navigate("/admin/students/new")}>
-              Enroll student
+              Enrol student
             </Button>
           </>
         }
@@ -118,7 +125,6 @@ export default function StudentsPage() {
                 setClassId(e.target.value);
                 setPage(1);
               }}
-              placeholder="All classes"
               options={[
                 { value: "", label: "All classes" },
                 ...classes.map((c) => ({ value: c.id, label: c.name })),
@@ -185,6 +191,9 @@ export default function StudentsPage() {
                       Class
                     </th>
                     <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">
+                      Stream
+                    </th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">
                       Guardian
                     </th>
                     <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">
@@ -223,6 +232,15 @@ export default function StudentsPage() {
                         </Badge>
                       </td>
                       <td className="px-6 py-4">
+                        {s.stream ? (
+                          <Badge variant={STREAM_TONE[s.stream] ?? "neutral"}>
+                            {s.stream}
+                          </Badge>
+                        ) : (
+                          <span className="text-[12px] text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
                         {s.primaryGuardianPhone ? (
                           <span className="inline-flex items-center gap-1.5 text-[12px] text-slate-600">
                             <Phone className="w-3 h-3 text-slate-400" />
@@ -255,7 +273,6 @@ export default function StudentsPage() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            /* open menu */
                           }}
                           className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"
                         >
@@ -279,9 +296,16 @@ export default function StudentsPage() {
                 >
                   <Avatar name={s.fullName} src={s.profilePictureUrl} size="lg" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[14px] font-semibold text-slate-900 truncate">
-                      {s.fullName}
-                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-[14px] font-semibold text-slate-900 truncate">
+                        {s.fullName}
+                      </p>
+                      {s.stream && (
+                        <Badge variant={STREAM_TONE[s.stream] ?? "neutral"}>
+                          {s.stream}
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-[11px] text-slate-400 font-mono mt-0.5">
                       {s.admissionNumber} · {s.className}
                     </p>
