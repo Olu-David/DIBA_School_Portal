@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DIBA_School_Portal.Server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261009005154_InitialCreate")]
+    [Migration("20261013214344_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />

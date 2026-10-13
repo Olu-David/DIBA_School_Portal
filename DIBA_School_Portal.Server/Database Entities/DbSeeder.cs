@@ -45,6 +45,9 @@ namespace DIBA_School_Portal.Server.Database_Entities
                 // -------- 5. Subjects --------
                 await SeedSubjectsAsync(context, logger);
 
+                // -------- 5b. Teacher assignments + class subjects --------
+                await SeedTeacherAssignmentsAsync(context, classes, logger);
+
                 // -------- 6. Link parents to students --------
                 await SeedParentLinksAsync(userManager, context, logger);
 
@@ -166,7 +169,6 @@ namespace DIBA_School_Portal.Server.Database_Entities
 
                 if (existing != null)
                 {
-                    // Backfill in case it was created without order/section
                     existing.AcademicSection = c.Section;
                     existing.DisplayOrder = c.Order;
                     result[c.Name] = existing.Id;
@@ -199,8 +201,6 @@ namespace DIBA_School_Portal.Server.Database_Entities
             Dictionary<string, Guid> classes,
             ILogger logger)
         {
-            // (Email, First, Last, Role, Password, Phone, ClassName, Stream)
-            // Stream is only used for SS students. Pass null for everyone else.
             var seeds = new (
                 string Email,
                 string First,
@@ -254,10 +254,6 @@ namespace DIBA_School_Portal.Server.Database_Entities
                 var isStudent = s.Role == "Student";
                 var isParent = s.Role == "Parent";
 
-                // Generate username:
-                //   students → admission number (set after creation)
-                //   parents  → phone
-                //   others   → email
                 var username = isParent ? s.Phone : s.Email;
 
                 var user = new ApplicationUser
@@ -273,7 +269,6 @@ namespace DIBA_School_Portal.Server.Database_Entities
                     CreatedAt = DateTime.UtcNow,
                 };
 
-                // Attach class for students
                 Guid? classIdForUser = null;
                 if (isStudent && s.ClassName != null && classes.TryGetValue(s.ClassName, out var cid))
                 {
@@ -298,13 +293,9 @@ namespace DIBA_School_Portal.Server.Database_Entities
                     var admissionNumber = $"DIBA/{year}/{admissionCounter:D3}";
                     admissionCounter++;
 
-                    // Update username to admission number
                     user.UserName = admissionNumber;
                     await userManager.UpdateAsync(user);
 
-                    // Stream is only meaningful for Senior Secondary.
-                    // For JSS/Primary/Nursery we force null even if the seed row
-                    // accidentally carries a value.
                     Enums.ClassStream? parsedStream = null;
 
                     var targetClass = await context.SchoolClasses
@@ -328,7 +319,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
                     });
 
                     logger.LogInformation(
-                        "Student created: {Admission} ({First} {Last}) — {Class} — Stream: {Stream}",
+                        "Student created: {Admission} ({First} {Last}) - {Class} - Stream: {Stream}",
                         admissionNumber,
                         user.FirstName,
                         user.LastName,
@@ -367,21 +358,21 @@ namespace DIBA_School_Portal.Server.Database_Entities
         {
             var subjects = new (string Name, string Code)[]
             {
-                ("Mathematics",       "MTH"),
-                ("English Language",  "ENG"),
-                ("Basic Science",     "BSC"),
-                ("Social Studies",    "SOS"),
-                ("Civic Education",   "CIV"),
-                ("Computer Studies",  "CMP"),
+                ("Mathematics",          "MTH"),
+                ("English Language",     "ENG"),
+                ("Basic Science",        "BSC"),
+                ("Social Studies",       "SOS"),
+                ("Civic Education",      "CIV"),
+                ("Computer Studies",     "CMP"),
                 ("Agricultural Science", "AGR"),
-                ("Business Studies",  "BUS"),
-                ("Physics",           "PHY"),
-                ("Chemistry",         "CHM"),
-                ("Biology",           "BIO"),
-                ("Further Mathematics","FMT"),
-                ("Economics",         "ECO"),
-                ("Government",        "GOV"),
-                ("Literature",        "LIT"),
+                ("Business Studies",     "BUS"),
+                ("Physics",              "PHY"),
+                ("Chemistry",            "CHM"),
+                ("Biology",              "BIO"),
+                ("Further Mathematics",  "FMT"),
+                ("Economics",            "ECO"),
+                ("Government",           "GOV"),
+                ("Literature",           "LIT"),
             };
 
             foreach (var s in subjects)
@@ -401,7 +392,190 @@ namespace DIBA_School_Portal.Server.Database_Entities
         }
 
         // =====================================================
-        // 6. LINK PARENTS TO STUDENTS
+        // 6. TEACHER ASSIGNMENTS + CLASS SUBJECTS
+        // =====================================================
+        private static async Task SeedTeacherAssignmentsAsync(
+            AppDbContext context,
+            Dictionary<string, Guid> classes,
+            ILogger logger)
+        {
+            await SeedClassSubjectsAsync(context, classes, logger);
+            await SeedTeacherClassesAndSubjectsAsync(context, classes, logger);
+        }
+
+        // =====================================================
+        // 6a. CLASS SUBJECTS
+        // =====================================================
+        private static async Task SeedClassSubjectsAsync(
+            AppDbContext context,
+            Dictionary<string, Guid> classes,
+            ILogger logger)
+        {
+            var subjectIds = await context.Subjects
+                .AsNoTracking()
+                .ToDictionaryAsync(s => s.Code, s => s.Id);
+
+            Guid? Sub(string code) =>
+                subjectIds.TryGetValue(code, out var id) ? id : null;
+
+            var map = new Dictionary<string, string[]>
+            {
+                ["Nursery 1"] = new[] { "ENG", "MTH" },
+                ["Nursery 2"] = new[] { "ENG", "MTH" },
+
+                ["Primary 1"] = new[] { "ENG", "MTH", "BSC", "SOS", "CIV", "CMP" },
+                ["Primary 2"] = new[] { "ENG", "MTH", "BSC", "SOS", "CIV", "CMP" },
+                ["Primary 3"] = new[] { "ENG", "MTH", "BSC", "SOS", "CIV", "CMP", "AGR" },
+                ["Primary 4"] = new[] { "ENG", "MTH", "BSC", "SOS", "CIV", "CMP", "AGR" },
+                ["Primary 5"] = new[] { "ENG", "MTH", "BSC", "SOS", "CIV", "CMP", "AGR" },
+                ["Primary 6"] = new[] { "ENG", "MTH", "BSC", "SOS", "CIV", "CMP", "AGR" },
+
+                ["JSS 1"] = new[] { "ENG", "MTH", "BSC", "SOS", "CIV", "CMP", "AGR", "BUS" },
+                ["JSS 2"] = new[] { "ENG", "MTH", "BSC", "SOS", "CIV", "CMP", "AGR", "BUS" },
+                ["JSS 3"] = new[] { "ENG", "MTH", "BSC", "SOS", "CIV", "CMP", "AGR", "BUS" },
+
+                ["SS 1"] = new[] { "ENG", "MTH", "PHY", "CHM", "BIO", "FMT", "ECO", "GOV", "LIT", "CIV", "CMP" },
+                ["SS 2"] = new[] { "ENG", "MTH", "PHY", "CHM", "BIO", "FMT", "ECO", "GOV", "LIT", "CIV", "CMP" },
+                ["SS 3"] = new[] { "ENG", "MTH", "PHY", "CHM", "BIO", "FMT", "ECO", "GOV", "LIT", "CIV", "CMP" },
+            };
+
+            foreach (var (className, codes) in map)
+            {
+                if (!classes.TryGetValue(className, out var classId)) continue;
+
+                foreach (var code in codes)
+                {
+                    var subjectId = Sub(code);
+                    if (subjectId == null) continue;
+
+                    bool exists = await context.ClassSubjects.AnyAsync(cs =>
+                        cs.SchoolClassId == classId && cs.SubjectId == subjectId.Value);
+
+                    if (!exists)
+                    {
+                        context.ClassSubjects.Add(new ClassSubject
+                        {
+                            Id = Guid.NewGuid(),
+                            SchoolClassId = classId,
+                            SubjectId = subjectId.Value,
+                        });
+                    }
+                }
+            }
+
+            await context.SaveChangesAsync();
+            logger.LogInformation("Class subjects seeded.");
+        }
+
+        // =====================================================
+        // 6b. TEACHER -> CLASS -> SUBJECT
+        // =====================================================
+        private static async Task SeedTeacherClassesAndSubjectsAsync(
+            AppDbContext context,
+            Dictionary<string, Guid> classes,
+            ILogger logger)
+        {
+            var teacherEmails = new[]
+            {
+                "teacher1@diba.com.ng",
+                "teacher2@diba.com.ng",
+                "formteacher@diba.com.ng",
+            };
+
+            var teacherProfiles = await context.Teachers
+                .AsNoTracking()
+                .ToListAsync();
+
+            var users = await context.Users
+                .AsNoTracking()
+                .Where(u => teacherEmails.Contains(u.Email!))
+                .ToListAsync();
+
+            var teacherIdByEmail = new Dictionary<string, Guid>();
+            foreach (var u in users)
+            {
+                var tp = teacherProfiles.FirstOrDefault(t => t.UserId == u.Id);
+                if (tp != null) teacherIdByEmail[u.Email!] = tp.Id;
+            }
+
+            var subjectIds = await context.Subjects
+                .AsNoTracking()
+                .ToDictionaryAsync(s => s.Code, s => s.Id);
+
+            Guid? Sub(string code) =>
+                subjectIds.TryGetValue(code, out var id) ? id : null;
+
+            // ---- Class assignments ----
+            var classAssignments = new (string TeacherEmail, string[] ClassNames)[]
+            {
+                ("teacher1@diba.com.ng",    new[] { "JSS 1", "JSS 2" }),
+                ("teacher2@diba.com.ng",    new[] { "SS 1", "SS 2" }),
+                ("formteacher@diba.com.ng", new[] { "JSS 1" }),
+            };
+
+            foreach (var (email, classNames) in classAssignments)
+            {
+                if (!teacherIdByEmail.TryGetValue(email, out var teacherId)) continue;
+
+                foreach (var className in classNames)
+                {
+                    if (!classes.TryGetValue(className, out var classId)) continue;
+
+                    bool exists = await context.TeacherClasses.AnyAsync(tc =>
+                        tc.TeacherId == teacherId && tc.SchoolClassId == classId);
+
+                    if (!exists)
+                    {
+                        context.TeacherClasses.Add(new TeacherClass
+                        {
+                            Id = Guid.NewGuid(),
+                            TeacherId = teacherId,
+                            SchoolClassId = classId,
+                            AssignedAt = DateTime.UtcNow,
+                        });
+                    }
+                }
+            }
+
+            // ---- Subject assignments ----
+            var subjectAssignments = new (string TeacherEmail, string[] SubjectCodes)[]
+            {
+                ("teacher1@diba.com.ng",    new[] { "ENG", "MTH" }),
+                ("teacher2@diba.com.ng",    new[] { "PHY", "CHM", "BIO" }),
+                ("formteacher@diba.com.ng", new[] { "ENG" }),
+            };
+
+            foreach (var (email, codes) in subjectAssignments)
+            {
+                if (!teacherIdByEmail.TryGetValue(email, out var teacherId)) continue;
+
+                foreach (var code in codes)
+                {
+                    var subjectId = Sub(code);
+                    if (subjectId == null) continue;
+
+                    bool exists = await context.TeacherSubjects.AnyAsync(ts =>
+                        ts.TeacherId == teacherId && ts.SubjectId == subjectId.Value);
+
+                    if (!exists)
+                    {
+                        context.TeacherSubjects.Add(new TeacherSubject
+                        {
+                            Id = Guid.NewGuid(),
+                            TeacherId = teacherId,
+                            SubjectId = subjectId.Value,
+                            AssignedAt = DateTime.UtcNow,
+                        });
+                    }
+                }
+            }
+
+            await context.SaveChangesAsync();
+            logger.LogInformation("Teacher assignments seeded.");
+        }
+
+        // =====================================================
+        // 7. LINK PARENTS TO STUDENTS
         // =====================================================
         private static async Task SeedParentLinksAsync(
             UserManager<ApplicationUser> userManager,
@@ -413,7 +587,6 @@ namespace DIBA_School_Portal.Server.Database_Entities
 
             if (parent1 == null || parent2 == null) return;
 
-            // Parent1's children
             var p1Children = await context.Students
                 .Where(p => p.FirstName == "Chidi" || p.FirstName == "Tunde")
                 .ToListAsync();
@@ -436,7 +609,6 @@ namespace DIBA_School_Portal.Server.Database_Entities
                 }
             }
 
-            // Parent2's child
             var p2Child = await context.Students
                 .FirstOrDefaultAsync(p => p.FirstName == "Fatima");
 
