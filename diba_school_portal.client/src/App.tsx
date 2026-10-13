@@ -3,9 +3,14 @@ import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./hooks/useToast";
 import ProtectedRoute from "./components/ProtectedRoute";
 import {
-  STAFF_ROLES, FINANCE_ROLES, TEACHING_ROLES, LEADERSHIP_ROLES,
-  ENQUIRY_ROLES, AUDIT_ROLES, PEOPLE_ROLES, REGISTRAR_ROLES,
-  ADMIN_ROLES, RESULT_VIEWERS,
+  STAFF_ROLES,
+  FINANCE_ROLES,
+  TEACHING_ROLES,
+  LEADERSHIP_ROLES,
+  ENQUIRY_ROLES,
+  AUDIT_ROLES,
+  ADMIN_ROLES,
+  RESULT_VIEWERS,
 } from "./lib/roles";
 
 // Layouts
@@ -98,29 +103,19 @@ export default function App() {
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Dashboard />} />
 
-                {/* People — visible to all staff (backend filters data) */}
+                {/* ---------- Class list + detail: any staff ---------- */}
+                <Route path="classes" element={<ClassesPage />} />
+                <Route path="classes/:classId" element={<ClassDetailPage />} />
+
+                {/* ---------- Students: any staff (service filters by role) ---------- */}
                 <Route path="students" element={<StudentsPage />} />
                 <Route path="students/:id" element={<StudentDetailPage />} />
+
+                {/* ---------- Common ---------- */}
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
 
-                {/* People management — Registrar and above */}
-                <Route element={<ProtectedRoute allowedRoles={PEOPLE_ROLES} />}>
-                  <Route path="students/new" element={<NewStudentPage />} />
-                  <Route path="teachers" element={<TeachersPage />} />
-                  <Route path="teachers/:id" element={<TeacherDetailPage />} />
-                  <Route path="parents" element={<ParentsPage />} />
-                </Route>
-
-                {/* Academics — ADMIN_ROLES */}
-                <Route element={<ProtectedRoute allowedRoles={ADMIN_ROLES} />}>
-                  <Route path="classes" element={<ClassesPage />} />
-                  <Route path="classes/:classId" element={<ClassDetailPage />} />
-                  <Route path="subjects" element={<SubjectsPage />} />
-                  <Route path="sessions" element={<AcademicSessionsPage />} />
-                </Route>
-
-                {/* Results — different roles per action */}
+                {/* ---------- Results viewer (role-filtered by API) ---------- */}
                 <Route element={<ProtectedRoute allowedRoles={RESULT_VIEWERS} />}>
                   <Route path="results" element={<SchoolResultsPage />} />
                   <Route path="report-cards" element={<ReportCardsPage />} />
@@ -129,17 +124,65 @@ export default function App() {
                     element={<ReportCardViewer />}
                   />
                 </Route>
-                <Route element={<ProtectedRoute allowedRoles={LEADERSHIP_ROLES} />}>
-                  <Route path="results-approval" element={<ResultsApprovalPage />} />
-                </Route>
-                <Route element={<ProtectedRoute allowedRoles={TEACHING_ROLES} />}>
-                  <Route path="my-assignments" element={<MyAssignmentsPage />} />
-                </Route>
-                <Route element={<ProtectedRoute allowedRoles={["SuperAdmin", "Principal", "VicePrincipal", "Headmaster", "Headmistress", "Teacher", "FormTeacher"]} />}>
+
+                {/* ---------- Score entry (teachers + leadership) ---------- */}
+                <Route
+                  element={
+                    <ProtectedRoute
+                      allowedRoles={[
+                        "SuperAdmin",
+                        "Principal",
+                        "VicePrincipal",
+                        "Headmaster",
+                        "Headmistress",
+                        "Teacher",
+                        "FormTeacher",
+                      ]}
+                    />
+                  }
+                >
                   <Route path="score-entry" element={<ScoreEntryPage />} />
                 </Route>
 
-                {/* Finance — FINANCE_ROLES */}
+                {/* ---------- My Assignments (teachers only) ---------- */}
+                <Route element={<ProtectedRoute allowedRoles={TEACHING_ROLES} />}>
+                  <Route path="my-assignments" element={<MyAssignmentsPage />} />
+                </Route>
+
+                {/* ---------- Results approval (leadership only) ---------- */}
+                <Route element={<ProtectedRoute allowedRoles={LEADERSHIP_ROLES} />}>
+                  <Route path="results-approval" element={<ResultsApprovalPage />} />
+                </Route>
+
+                {/* ---------- People management (Registrar and above) ---------- */}
+                <Route
+                  element={
+                    <ProtectedRoute
+                      allowedRoles={[
+                        "SuperAdmin",
+                        "Principal",
+                        "Headmaster",
+                        "Headmistress",
+                        "VicePrincipal",
+                        "SchoolAdmin",
+                        "Registrar",
+                      ]}
+                    />
+                  }
+                >
+                  <Route path="students/new" element={<NewStudentPage />} />
+                  <Route path="teachers" element={<TeachersPage />} />
+                  <Route path="teachers/:id" element={<TeacherDetailPage />} />
+                  <Route path="parents" element={<ParentsPage />} />
+                </Route>
+
+                {/* ---------- Subjects & Sessions (admin only) ---------- */}
+                <Route element={<ProtectedRoute allowedRoles={ADMIN_ROLES} />}>
+                  <Route path="subjects" element={<SubjectsPage />} />
+                  <Route path="sessions" element={<AcademicSessionsPage />} />
+                </Route>
+
+                {/* ---------- Finance (finance roles only) ---------- */}
                 <Route element={<ProtectedRoute allowedRoles={FINANCE_ROLES} />}>
                   <Route path="finance" element={<FinanceDashboard />} />
                   <Route path="finance/payments" element={<PaymentsListPage />} />
@@ -148,12 +191,12 @@ export default function App() {
                   <Route path="finance/record-cash" element={<RecordCash />} />
                 </Route>
 
-                {/* Enquiries — REGISTRAR_ROLES */}
+                {/* ---------- Enquiries (Registrar and above) ---------- */}
                 <Route element={<ProtectedRoute allowedRoles={ENQUIRY_ROLES} />}>
                   <Route path="enquiries" element={<EnquiriesPage />} />
                 </Route>
 
-                {/* Audit — AUDIT_ROLES */}
+                {/* ---------- Audit logs (leadership only) ---------- */}
                 <Route element={<ProtectedRoute allowedRoles={AUDIT_ROLES} />}>
                   <Route path="audit-logs" element={<AuditLogsPage />} />
                 </Route>
@@ -175,7 +218,6 @@ export default function App() {
             <Route element={<ProtectedRoute allowedRoles={["Parent"]} />}>
               <Route path="/parent" element={<ParentLayout />}>
                 <Route index element={<ParentDashboard />} />
-                <Route path="children" element={<ParentDashboard />} />
                 <Route
                   path="children/:studentProfileId"
                   element={<ChildDetailPage />}

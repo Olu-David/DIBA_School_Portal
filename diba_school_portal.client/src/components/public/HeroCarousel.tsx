@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight, ChevronLeft, ChevronRight, Pause, Play,
@@ -18,11 +18,11 @@ interface Slide {
 
 const slides: Slide[] = [
   {
-    eyebrow: "Knowledge · Character · Service",
+    eyebrow: "Knowledge Â· Character Â· Service",
     title: "Building intelligent leaders of tomorrow",
     accent: "one curious mind at a time",
     description:
-      "Dominion Intelligent Builders Academy is a co-educational school in Lagos shaping confident, capable, and God-fearing young people from Nursery through Senior Secondary.",
+      "Dominion Intelligent Builders' Academy is a co-educational school in Sokoto shaping confident, capable, and God-fearing young people from Nursery through Senior Secondary.",
     ctaLabel: "Apply for 2025/2026",
     ctaTo: "/admissions",
     secondary: { label: "Take a campus tour", to: "/contact" },
@@ -35,7 +35,7 @@ const slides: Slide[] = [
     title: "Your child's next chapter",
     accent: "starts here",
     description:
-      "Limited places available across Nursery, Primary, Junior and Senior Secondary. Entrance assessments hold every Saturday — book a slot online.",
+      "Limited places available across Nursery, Primary, Junior and Senior Secondary. Entrance assessments hold every Saturday â€” book a slot online.",
     ctaLabel: "Begin application",
     ctaTo: "/admissions",
     secondary: { label: "Download prospectus", to: "/contact" },

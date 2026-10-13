@@ -1,10 +1,22 @@
-﻿import { useState } from "react";
-import { Outlet } from "react-router-dom";
+﻿import { useEffect, useState } from "react";
+import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 
 export default function AdminLayout() {
   const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    document.body.style.overflow = open ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open]);
 
   return (
     <div className="min-h-screen flex bg-slate-50">

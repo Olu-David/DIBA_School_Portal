@@ -1,5 +1,6 @@
 ﻿import { Outlet } from "react-router-dom";
-import { GraduationCap, BookOpen, Users, Wallet } from "lucide-react";
+import { BookOpen, Users, Wallet } from "lucide-react";
+import SchoolCrest from "../components/public/SchoolCrest";
 
 export default function AuthLayout() {
   return (
@@ -11,35 +12,37 @@ export default function AuthLayout() {
 
         <div className="relative z-10 flex flex-col justify-between w-full">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur grid place-items-center">
-              <GraduationCap className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[13px] font-semibold">DIBA School</p>
-              <p className="text-[11px] text-white/70">Portal</p>
+            <SchoolCrest className="w-14 h-14" tone="white" />
+            <div className="leading-tight">
+              <p className="text-[13px] font-semibold">
+                Dominion Intelligent Builders'
+              </p>
+              <p className="text-[11px] text-white/70">
+                Academy · Sokoto
+              </p>
             </div>
           </div>
 
           <div>
             <h1 className="text-4xl font-semibold leading-tight tracking-tight">
-              Modern school
+              Building intelligent
               <br />
-              management.
+              men and women.
             </h1>
             <p className="mt-4 text-white/70 max-w-sm text-[14px] leading-relaxed">
-              One portal for students, staff, and parents — attendance, results,
-              fees, and payments.
+              One portal for students, staff, and parents — Sokoto's trusted
+              private school since 2015.
             </p>
 
             <div className="mt-12 grid grid-cols-3 gap-6 max-w-sm">
-              <Stat icon={Users} label="Students" value="1,200+" />
-              <Stat icon={BookOpen} label="Classes" value="36" />
-              <Stat icon={Wallet} label="Collected" value="₦42M" />
+              <Stat icon={Users} label="Pupils" value="500+" />
+              <Stat icon={BookOpen} label="Classes" value="14" />
+              <Stat icon={Wallet} label="Fees" value="Online" />
             </div>
           </div>
 
           <p className="text-[11px] text-white/50">
-            © {new Date().getFullYear()} DIBA School Portal
+            RC-2372959 · © {new Date().getFullYear()} DIBA · Knowledge is Wealth
           </p>
         </div>
       </div>

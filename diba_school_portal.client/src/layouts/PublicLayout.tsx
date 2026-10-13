@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import {
   Menu, X, Phone, Mail, MapPin, Globe, BookOpen, Users, Send,
@@ -40,9 +40,9 @@ export default function PublicLayout() {
           </div>
           <div className="flex items-center gap-4">
             <Link to="/auth/student" className="hover:text-white transition">Student</Link>
-            <span className="text-white/20">·</span>
+            <span className="text-white/20">Â·</span>
             <Link to="/auth/parent" className="hover:text-white transition">Parent</Link>
-            <span className="text-white/20">·</span>
+            <span className="text-white/20">Â·</span>
             <Link to="/auth/staff" className="hover:text-white transition">Staff</Link>
           </div>
         </div>
@@ -58,7 +58,7 @@ export default function PublicLayout() {
                 Dominion Intelligent Builders
               </p>
               <p className="text-[10px] tracking-[0.3em] uppercase text-emerald-700 font-medium">
-                Academy · Lagos
+                Academy Sokoto
               </p>
             </div>
           </Link>
@@ -151,7 +151,7 @@ export default function PublicLayout() {
                 </div>
               </div>
               <p className="text-[13px] leading-relaxed">
-                Building intelligent leaders since 2010. Knowledge · Character · Service.
+                Building intelligent leaders since 2010. Knowledge Â· Character Â· Service.
               </p>
               <div className="mt-5 flex items-center gap-3">
                 {socialLinks.map(({ href, label, Icon }) => (
@@ -197,7 +197,13 @@ export default function PublicLayout() {
               <ul className="space-y-3 text-[13px]">
                 <li className="flex gap-2">
                   <MapPin className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>12 Dominion Close, Off Admiralty Way, Lekki Phase 1, Lagos</span>
+                  <span>
+                    Off Trade Fair Complex, beside RCCG H/Q
+                    <br />
+                    Old Airport Area, Sokoto
+                    <br />
+                    P.M.B 3848, Sokoto State, Nigeria
+                  </span>
                 </li>
                 <li className="flex gap-2">
                   <Phone className="w-4 h-4 shrink-0 mt-0.5" />
@@ -212,11 +218,12 @@ export default function PublicLayout() {
           </div>
 
           <div className="mt-14 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-[12px]">
-            <p>© {new Date().getFullYear()} Dominion Intelligent Builders Academy. All rights reserved.</p>
-            {/* <p className="text-white/50">CAC RC-1234567 · Lagos State Ministry of Education Approved</p> */}
+            <p>Â© {new Date().getFullYear()} Dominion Intelligent Builders Academy. All rights reserved.</p>
+            {/* <p className="text-white/50">CAC RC-1234567 Â· Lagos State Ministry of Education Approved</p> */}
           </div>
         </div>
       </footer>
     </div>
   );
 }
+

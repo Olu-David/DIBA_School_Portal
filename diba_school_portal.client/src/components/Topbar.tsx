@@ -27,7 +27,6 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Page context — filled by page header, but this gives a little presence */}
         <div className="flex-1 min-w-0 flex items-center gap-3">
           <Badge variant={roleTone(role)}>{roleLabel(role)}</Badge>
           {user?.className && (
@@ -37,7 +36,6 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
           )}
         </div>
 
-        {/* Notifications bell */}
         <button
           type="button"
           onClick={() => setNotifOpen(true)}
@@ -47,7 +45,6 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
           <Bell className="w-4 h-4" />
         </button>
 
-        {/* User avatar */}
         <div className="flex items-center gap-2 pl-2 border-l border-slate-100">
           <div className="w-8 h-8 rounded-full bg-emerald-100 grid place-items-center text-[11px] font-semibold text-emerald-700">
             {(user?.firstName?.[0] ?? "") + (user?.lastName?.[0] ?? "")}

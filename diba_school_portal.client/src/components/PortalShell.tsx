@@ -51,8 +51,18 @@ export default function PortalShell({
           : "hidden lg:flex flex-col w-64 h-full bg-white border-r border-slate-100 shrink-0"
       }
     >
-      <div className="h-16 px-6 flex items-center border-b border-slate-100 shrink-0">
-        <p className="text-[13px] font-semibold text-slate-900">{brand}</p>
+      <div className="h-16 px-5 flex items-center border-b border-slate-100 shrink-0">
+        <img
+          src="/images/logo.png"
+          alt="DIBA"
+          className="w-9 h-9 object-contain mr-3 shrink-0"
+        />
+        <div className="min-w-0">
+          <p className="text-[12px] font-semibold text-slate-900 truncate leading-tight">
+            DIBA
+          </p>
+          <p className="text-[10px] text-slate-400 truncate">{brand}</p>
+        </div>
       </div>
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
@@ -131,8 +141,7 @@ export default function PortalShell({
             <Menu className="w-5 h-5" />
           </button>
           <p className="text-[13px] text-slate-600 truncate flex-1">
-            {userLine ??
-              `${user?.firstName ?? ""} ${user?.lastName ?? ""}`}
+            {userLine ?? `${user?.firstName ?? ""} ${user?.lastName ?? ""}`}
           </p>
           <button
             type="button"

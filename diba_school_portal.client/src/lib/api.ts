@@ -1,11 +1,11 @@
 ﻿import axios from "axios";
 
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: import.meta.env.VITE_API_URL ?? "/api",
   headers: { "Content-Type": "application/json" },
 });
 
-// Request interceptor — attach JWT if we have one
+// ---- Request: attach JWT ----
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("diba_token");
   if (token) {
@@ -14,25 +14,30 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor — pass errors through, don't redirect
+// ---- Response: NEVER redirect. Let the app handle it. ----
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Log every failure to the console for debugging
-    console.error(
-      "API ERROR:",
-      error.config?.method?.toUpperCase(),
-      error.config?.url,
-      "→",
-      error.response?.status ?? "NO RESPONSE",
-      error.response?.data ?? error.message
-    );
+    const status = error.response?.status;
+    const url: string = error.config?.url ?? "";
+    const isAuthEndpoint = url.includes("/auth/");
 
-    // 401 → clear stale token, but don't redirect (route guards handle that)
-    if (error.response?.status === 401) {
+    // On 401 for a real endpoint (not a login attempt), clear the token.
+    // Do NOT redirect — the app's route guards decide what to do next.
+    if (status === 401 && !isAuthEndpoint) {
       localStorage.removeItem("diba_token");
       localStorage.removeItem("diba_user");
     }
+
+    // Log every failure to the console so you can debug
+    console.error(
+      "API ERROR:",
+      error.config?.method?.toUpperCase(),
+      url,
+      "→",
+      status ?? "NO RESPONSE",
+      error.response?.data ?? error.message
+    );
 
     return Promise.reject(error);
   }
