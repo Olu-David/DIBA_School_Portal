@@ -1,7 +1,7 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import {
-  Menu, X, Phone, Mail, MapPin, Globe, BookOpen, Users, Send,
+  Menu, X, Phone, Mail, MapPin, Share2, Camera, AtSign, PlayCircle,
   ArrowRight,
 } from "lucide-react";
 import SchoolCrest from "../components/public/SchoolCrest";
@@ -12,13 +12,6 @@ const nav = [
   { to: "/academics", label: "Academics" },
   { to: "/admissions", label: "Admissions" },
   { to: "/contact", label: "Contact" },
-];
-
-const socialLinks = [
-  { href: "#", label: "Facebook", Icon: Globe },
-  { href: "#", label: "Instagram", Icon: BookOpen },
-  { href: "#", label: "Twitter", Icon: Users },
-  { href: "#", label: "YouTube", Icon: Send },
 ];
 
 export default function PublicLayout() {
@@ -32,18 +25,24 @@ export default function PublicLayout() {
         <div className="max-w-7xl mx-auto px-6 lg:px-12 h-10 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <span className="hidden sm:inline-flex items-center gap-1.5">
-              <Phone className="w-3 h-3" /> +234 (0) 812 345 6789
+              <Phone className="w-3 h-3" /> +234 803 000 0001
             </span>
             <span className="hidden md:inline-flex items-center gap-1.5">
               <Mail className="w-3 h-3" /> hello@diba.edu.ng
             </span>
           </div>
           <div className="flex items-center gap-4">
-            <Link to="/auth/student" className="hover:text-white transition">Student</Link>
-            <span className="text-white/20">Â·</span>
-            <Link to="/auth/parent" className="hover:text-white transition">Parent</Link>
-            <span className="text-white/20">Â·</span>
-            <Link to="/auth/staff" className="hover:text-white transition">Staff</Link>
+            <Link to="/auth/student" className="hover:text-white transition">
+              Student
+            </Link>
+            <span className="text-white/20">·</span>
+            <Link to="/auth/parent" className="hover:text-white transition">
+              Parent
+            </Link>
+            <span className="text-white/20">·</span>
+            <Link to="/auth/staff" className="hover:text-white transition">
+              Staff
+            </Link>
           </div>
         </div>
       </div>
@@ -58,7 +57,7 @@ export default function PublicLayout() {
                 Dominion Intelligent Builders
               </p>
               <p className="text-[10px] tracking-[0.3em] uppercase text-emerald-700 font-medium">
-                Academy Sokoto
+                Academy · Sokoto
               </p>
             </div>
           </Link>
@@ -140,30 +139,52 @@ export default function PublicLayout() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
             <div>
               <div className="flex items-center gap-3 mb-5">
-                <SchoolCrest className="w-12 h-12" tone="white" />
+                <SchoolCrest className="w-12 h-12" />
                 <div className="leading-tight">
-                  <p className="font-serif text-[15px] font-semibold text-white">
+                  <p className="font-serif text-[14px] font-semibold text-white">
                     Dominion Intelligent
                   </p>
-                  <p className="font-serif text-[15px] font-semibold text-white">
-                    Builders Academy
+                  <p className="font-serif text-[14px] font-semibold text-white">
+                    Builders' Academy
+                  </p>
+                  <p className="text-[10px] text-white/50 italic mt-1">
+                    Knowledge is Wealth
                   </p>
                 </div>
               </div>
               <p className="text-[13px] leading-relaxed">
-                Building intelligent leaders since 2010. Knowledge Â· Character Â· Service.
+                Building intelligent leaders in Sokoto since 2015. Nursery,
+                Primary, and Secondary education guided by faith and character.
               </p>
               <div className="mt-5 flex items-center gap-3">
-                {socialLinks.map(({ href, label, Icon }) => (
-                  <a
-                    key={label}
-                    href={href}
-                    aria-label={label}
-                    className="w-9 h-9 rounded-full border border-white/15 grid place-items-center hover:bg-white/10 transition"
-                  >
-                    <Icon className="w-4 h-4" />
-                  </a>
-                ))}
+                <a
+                  href="#"
+                  aria-label="Facebook"
+                  className="w-9 h-9 rounded-full border border-white/15 grid place-items-center hover:bg-white/10 transition"
+                >
+                  <Share2 className="w-4 h-4" />
+                </a>
+                <a
+                  href="#"
+                  aria-label="Instagram"
+                  className="w-9 h-9 rounded-full border border-white/15 grid place-items-center hover:bg-white/10 transition"
+                >
+                  <Camera className="w-4 h-4" />
+                </a>
+                <a
+                  href="#"
+                  aria-label="Twitter / X"
+                  className="w-9 h-9 rounded-full border border-white/15 grid place-items-center hover:bg-white/10 transition"
+                >
+                  <AtSign className="w-4 h-4" />
+                </a>
+                <a
+                  href="#"
+                  aria-label="YouTube"
+                  className="w-9 h-9 rounded-full border border-white/15 grid place-items-center hover:bg-white/10 transition"
+                >
+                  <PlayCircle className="w-4 h-4" />
+                </a>
               </div>
             </div>
 
@@ -172,10 +193,26 @@ export default function PublicLayout() {
                 Explore
               </h4>
               <ul className="space-y-3 text-[13px]">
-                <li><Link to="/about" className="hover:text-white">About the school</Link></li>
-                <li><Link to="/academics" className="hover:text-white">Academics</Link></li>
-                <li><Link to="/admissions" className="hover:text-white">Admissions</Link></li>
-                <li><Link to="/contact" className="hover:text-white">Contact us</Link></li>
+                <li>
+                  <Link to="/about" className="hover:text-white">
+                    About the school
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/academics" className="hover:text-white">
+                    Academics
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/admissions" className="hover:text-white">
+                    Admissions
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/contact" className="hover:text-white">
+                    Contact us
+                  </Link>
+                </li>
               </ul>
             </div>
 
@@ -184,9 +221,21 @@ export default function PublicLayout() {
                 Portals
               </h4>
               <ul className="space-y-3 text-[13px]">
-                <li><Link to="/auth/student" className="hover:text-white">Student portal</Link></li>
-                <li><Link to="/auth/parent" className="hover:text-white">Parent portal</Link></li>
-                <li><Link to="/auth/staff" className="hover:text-white">Staff portal</Link></li>
+                <li>
+                  <Link to="/auth/student" className="hover:text-white">
+                    Student portal
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/auth/parent" className="hover:text-white">
+                    Parent portal
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/auth/staff" className="hover:text-white">
+                    Staff portal
+                  </Link>
+                </li>
               </ul>
             </div>
 
@@ -207,7 +256,7 @@ export default function PublicLayout() {
                 </li>
                 <li className="flex gap-2">
                   <Phone className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>+234 (0) 812 345 6789</span>
+                  <span>+234 803 000 0001</span>
                 </li>
                 <li className="flex gap-2">
                   <Mail className="w-4 h-4 shrink-0 mt-0.5" />
@@ -218,12 +267,16 @@ export default function PublicLayout() {
           </div>
 
           <div className="mt-14 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-[12px]">
-            <p>Â© {new Date().getFullYear()} Dominion Intelligent Builders Academy. All rights reserved.</p>
-            {/* <p className="text-white/50">CAC RC-1234567 Â· Lagos State Ministry of Education Approved</p> */}
+            <p>
+              © {new Date().getFullYear()} Dominion Intelligent Builders'
+              Academy. All rights reserved.
+            </p>
+            <p className="text-white/50">
+              RC-2372959 · Established 6 November 2015 · Sokoto State, Nigeria
+            </p>
           </div>
         </div>
       </footer>
     </div>
   );
 }
-

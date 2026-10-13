@@ -5,6 +5,7 @@ using DIBA_School_Portal.Server.Database_Entities;
 using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace DIBA_School_Portal.Server.Repository.Services
 {
@@ -17,7 +18,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private readonly IHttpContextAccessor _http;
         private readonly ILogger<StudentService> _logger;
 
-        // Who can edit / delete student records
         private static readonly string[] StudentEditors =
             { "SuperAdmin", "Principal", "Registrar", "SchoolAdmin" };
         #endregion
@@ -42,7 +42,46 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // LIST (paginated + filterable)
+        // HELPER — Which classes can the current user see?
+        //   null   → every class (admin-tier)
+        //   list   → only these class IDs (teacher)
+        //   empty  → nothing (teacher with no assignments)
+        // ==========================================================
+        private async Task<List<Guid>?> GetAllowedClassIdsAsync()
+        {
+            var userId = _http.HttpContext?.User?
+                .FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userId)) return null;
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) return null;
+
+            var roles = await _userManager.GetRolesAsync(user);
+
+            var adminRoles = new[]
+            {
+                "SuperAdmin", "Principal", "Headmaster", "Headmistress",
+                "VicePrincipal", "SchoolAdmin", "Registrar", "Accountant",
+            };
+
+            if (roles.Any(r => adminRoles.Contains(r))) return null;
+
+            var teacher = await _context.Teachers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.UserId == userId);
+
+            if (teacher == null) return new List<Guid>();
+
+            return await _context.TeacherClasses
+                .AsNoTracking()
+                .Where(tc => tc.TeacherId == teacher.Id)
+                .Select(tc => tc.SchoolClassId)
+                .ToListAsync();
+        }
+
+        // ==========================================================
+        // LIST (paginated + filterable + role-scoped)
         // ==========================================================
         #region GetStudentsAsync
         public async Task<ServiceResponse<PaginatedViewModel<StudentListRowDto>>> GetStudentsAsync(
@@ -61,7 +100,14 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     .Include(s => s.SchoolClass)
                     .AsQueryable();
 
-                // ---- Filters ----
+                // ---- ROLE FILTER: teachers only see their classes ----
+                var allowed = await GetAllowedClassIdsAsync();
+                if (allowed != null)
+                {
+                    query = query.Where(s => allowed.Contains(s.SchoolClassId));
+                }
+
+                // ---- User-supplied filters ----
                 if (filter.ClassId.HasValue)
                     query = query.Where(s => s.SchoolClassId == filter.ClassId.Value);
 
@@ -141,7 +187,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     };
                 }).ToList();
 
-                // ---- Filter on outstanding AFTER mapping (needs computed value) ----
+                // ---- Filter on outstanding AFTER mapping ----
                 if (filter.HasOutstanding == true)
                     rows = rows.Where(r => r.OutstandingBalance > 0).ToList();
                 else if (filter.HasOutstanding == false)
@@ -173,17 +219,48 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // GET BY ID
+        // GET BY ID — scoped
         // ==========================================================
         #region GetStudentByIdAsync
         public async Task<ServiceResponse<StudentDto>> GetStudentByIdAsync(Guid id)
         {
+            var allowed = await GetAllowedClassIdsAsync();
+
+            if (allowed != null)
+            {
+                var classId = await _context.Students
+                    .AsNoTracking()
+                    .Where(s => s.Id == id)
+                    .Select(s => s.SchoolClassId)
+                    .FirstOrDefaultAsync();
+
+                if (classId == Guid.Empty)
+                {
+                    return new ServiceResponse<StudentDto>
+                    {
+                        Success = false,
+                        Message = "Student not found.",
+                        StatusCode = 404,
+                    };
+                }
+
+                if (!allowed.Contains(classId))
+                {
+                    return new ServiceResponse<StudentDto>
+                    {
+                        Success = false,
+                        Message = "You are not authorized to view this student.",
+                        StatusCode = 403,
+                    };
+                }
+            }
+
             return await LoadStudentDetailAsync(s => s.Id == id);
         }
         #endregion
 
         // ==========================================================
-        // GET BY ADMISSION NUMBER
+        // GET BY ADMISSION NUMBER — scoped
         // ==========================================================
         #region GetStudentByAdmissionNumberAsync
         public async Task<ServiceResponse<StudentDto>> GetStudentByAdmissionNumberAsync(string admissionNumber)
@@ -199,12 +276,44 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
 
             var trimmed = admissionNumber.Trim();
+
+            var allowed = await GetAllowedClassIdsAsync();
+
+            if (allowed != null)
+            {
+                var classId = await _context.Students
+                    .AsNoTracking()
+                    .Where(s => s.AdmissionNumber == trimmed)
+                    .Select(s => s.SchoolClassId)
+                    .FirstOrDefaultAsync();
+
+                if (classId == Guid.Empty)
+                {
+                    return new ServiceResponse<StudentDto>
+                    {
+                        Success = false,
+                        Message = "Student not found.",
+                        StatusCode = 404,
+                    };
+                }
+
+                if (!allowed.Contains(classId))
+                {
+                    return new ServiceResponse<StudentDto>
+                    {
+                        Success = false,
+                        Message = "You are not authorized to view this student.",
+                        StatusCode = 403,
+                    };
+                }
+            }
+
             return await LoadStudentDetailAsync(s => s.AdmissionNumber == trimmed);
         }
         #endregion
 
         // ==========================================================
-        // GET BY CLASS
+        // GET BY CLASS — scoped
         // ==========================================================
         #region GetStudentsByClassAsync
         public async Task<ServiceResponse<List<StudentListRowDto>>> GetStudentsByClassAsync(
@@ -214,6 +323,16 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             try
             {
+                // Teachers must be assigned to this class
+                var allowed = await GetAllowedClassIdsAsync();
+                if (allowed != null && !allowed.Contains(classId))
+                {
+                    response.Success = false;
+                    response.Message = "You are not assigned to this class.";
+                    response.StatusCode = 403;
+                    return response;
+                }
+
                 var query = _context.Students
                     .AsNoTracking()
                     .Include(s => s.User)
@@ -256,7 +375,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // UPDATE
+        // UPDATE — authorization already handled (editors only)
         // ==========================================================
         #region UpdateStudentAsync
         public async Task<ServiceResponse<StudentDto>> UpdateStudentAsync(
@@ -266,7 +385,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             try
             {
-                // ---- Authorization ----
                 var caller = await _userManager.FindByIdAsync(currentUserId);
                 if (caller == null)
                 {
@@ -289,7 +407,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---- Load ----
                 var student = await _context.Students
                     .Include(s => s.User)
                     .FirstOrDefaultAsync(s => s.Id == id);
@@ -302,7 +419,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---- Validate class exists ----
                 var targetClass = await _context.SchoolClasses
                     .FirstOrDefaultAsync(c => c.Id == request.SchoolClassId);
 
@@ -314,10 +430,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                bool isSenior = targetClass.AcademicSection == Enums.AcademicSection.SeniorSecondary;
-
-                // ---- Stream validation (both directions) ----
-                if (isSenior && request.Stream == null)
+                if (targetClass.AcademicSection == Enums.AcademicSection.SeniorSecondary
+                    && request.Stream == null)
                 {
                     response.Success = false;
                     response.Message = "A stream is required for Senior Secondary students.";
@@ -325,7 +439,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                if (!isSenior && request.Stream != null)
+                if (targetClass.AcademicSection != Enums.AcademicSection.SeniorSecondary
+                    && request.Stream != null)
                 {
                     response.Success = false;
                     response.Message = "Streams only apply to Senior Secondary students.";
@@ -333,17 +448,15 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---- Snapshot for audit ----
                 var oldName = $"{student.FirstName} {student.LastName}";
                 var oldClass = student.SchoolClassId;
                 var oldStream = student.Stream;
                 var oldActive = student.User?.IsActive ?? false;
 
-                // ---- Apply changes ----
                 student.FirstName = request.FirstName.Trim();
                 student.LastName = request.LastName.Trim();
                 student.SchoolClassId = request.SchoolClassId;
-                student.Stream = isSenior ? request.Stream : null;
+                student.Stream = request.Stream;
 
                 if (student.User != null)
                 {
@@ -359,7 +472,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 _context.Students.Update(student);
                 await _context.SaveChangesAsync();
 
-                // ---- Audit ----
                 await _auditLog.LogActivityAsync(
                     currentUserId, "Student Updated",
                     $"Student '{oldName}' ({student.AdmissionNumber}) updated. " +
@@ -368,7 +480,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     $"Active: {oldActive} → {request.IsActive}.",
                     ipAddress);
 
-                // ---- Return fresh detail ----
                 return await LoadStudentDetailAsync(s => s.Id == id);
             }
             catch (Exception ex)
@@ -550,7 +661,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---- Latest enrollment ----
                 var latestEnrollment = await _context.StudentEnrollments
                     .AsNoTracking()
                     .Include(e => e.Term)
@@ -558,7 +668,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     .OrderByDescending(e => e.Term!.StartDate)
                     .FirstOrDefaultAsync();
 
-                // ---- Latest term result ----
                 var latestResult = await _context.TermResults
                     .AsNoTracking()
                     .Include(tr => tr.Term)
@@ -566,7 +675,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     .OrderByDescending(tr => tr.Term!.StartDate)
                     .FirstOrDefaultAsync();
 
-                // ---- Parents ----
                 var parentLinks = await _context.ParentStudents
                     .AsNoTracking()
                     .Include(ps => ps.Parent)
