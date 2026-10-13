@@ -1,25 +1,25 @@
 ﻿import { Outlet } from "react-router-dom";
 import { BookOpen, Users, Wallet } from "lucide-react";
-import SchoolCrest from "../components/public/SchoolCrest";
 
 export default function AuthLayout() {
   return (
-    <div className="min-h-screen flex bg-slate-50">
-      {/* Brand panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-900 p-12 text-white relative overflow-hidden">
+    <div className="min-h-screen flex bg-surface-50">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-brand-700 via-brand-800 to-surface-950 p-12 text-white relative overflow-hidden">
         <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-white/5" />
         <div className="absolute bottom-0 -left-24 w-80 h-80 rounded-full bg-white/5" />
 
         <div className="relative z-10 flex flex-col justify-between w-full">
           <div className="flex items-center gap-3">
-            <SchoolCrest className="w-14 h-14" tone="white" />
+            <img
+               src="/images/logo1.png"
+              alt="Dominion Intelligent Builders Academy"
+              className="w-14 h-14 object-contain"
+            />
             <div className="leading-tight">
               <p className="text-[13px] font-semibold">
-                Dominion Intelligent Builders'
+                Dominion Intelligent Builders
               </p>
-              <p className="text-[11px] text-white/70">
-                Academy · Sokoto
-              </p>
+              <p className="text-[11px] text-white/70">Academy - Sokoto</p>
             </div>
           </div>
 
@@ -30,7 +30,7 @@ export default function AuthLayout() {
               men and women.
             </h1>
             <p className="mt-4 text-white/70 max-w-sm text-[14px] leading-relaxed">
-              One portal for students, staff, and parents — Sokoto's trusted
+              One portal for students, staff, and parents - Sokoto's trusted
               private school since 2015.
             </p>
 
@@ -42,12 +42,11 @@ export default function AuthLayout() {
           </div>
 
           <p className="text-[11px] text-white/50">
-            RC-2372959 · © {new Date().getFullYear()} DIBA · Knowledge is Wealth
+            RC-2372959 - DIBA - Knowledge is Wealth
           </p>
         </div>
       </div>
 
-      {/* Form panel */}
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
           <Outlet />
@@ -68,7 +67,7 @@ function Stat({
 }) {
   return (
     <div>
-      <Icon className="w-4 h-4 text-white/60 mb-2" />
+      <Icon className="w-4 h-4 text-brand-300 mb-2" />
       <p className="text-xl font-semibold">{value}</p>
       <p className="text-[11px] text-white/60 mt-0.5">{label}</p>
     </div>

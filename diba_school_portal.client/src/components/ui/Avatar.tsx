@@ -19,11 +19,17 @@ function initials(name: string) {
 
 export default function Avatar({ name, src, size = "md" }: Props) {
   if (src) {
-    return <img src={src} alt={name} className={`${s[size]} rounded-full object-cover border border-slate-200`} />;
+    return (
+      <img
+        src={src}
+        alt={name}
+        className={`${s[size]} rounded-full object-cover border border-surface-200`}
+      />
+    );
   }
   return (
-    <div className={`${s[size]} rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 grid place-items-center text-white font-semibold shrink-0`}>
-       {initials(name)}
-     </div>
+    <div className={`${s[size]} rounded-full bg-gradient-to-br from-brand-400 to-brand-600 grid place-items-center text-white font-semibold shrink-0`}>
+      {initials(name)}
+    </div>
   );
 }

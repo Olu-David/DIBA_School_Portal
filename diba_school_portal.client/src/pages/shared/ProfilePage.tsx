@@ -54,7 +54,7 @@ export default function ProfilePage() {
             />
             <button
               type="button"
-              className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-emerald-600 text-white grid place-items-center shadow-sm hover:bg-emerald-700"
+              className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-gold-600 text-white grid place-items-center shadow-sm hover:bg-gold-700"
             >
               <Camera className="w-3.5 h-3.5" />
             </button>
@@ -63,7 +63,7 @@ export default function ProfilePage() {
             <h2 className="text-[16px] font-semibold text-slate-900">
               {user?.firstName} {user?.lastName}
             </h2>
-            <p className="text-[12px] text-slate-400 mt-0.5">{user?.email ?? "—"}</p>
+            <p className="text-[12px] text-slate-400 mt-0.5">{user?.email ?? "-"}</p>
             <div className="mt-2">
               <Badge variant="emerald">{user?.role}</Badge>
             </div>

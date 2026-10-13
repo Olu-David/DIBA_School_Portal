@@ -1,4 +1,4 @@
-﻿import { useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
@@ -37,9 +37,9 @@ export default function StaffLogin() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-8">
-      <h2 className="text-xl font-semibold text-slate-900">Staff sign in</h2>
-      <p className="mt-1 text-[13px] text-slate-500 mb-6">
+    <div className="bg-white rounded-2xl shadow-soft border border-surface-100 p-8">
+      <h2 className="text-xl font-semibold text-surface-900">Staff sign in</h2>
+      <p className="mt-1 text-[13px] text-surface-500 mb-6">
         Use your school email to continue.
       </p>
 
@@ -50,7 +50,7 @@ export default function StaffLogin() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
           required
-          className="w-full px-4 py-2.5 text-sm rounded-xl bg-slate-50 outline-none"
+          className="w-full px-4 py-2.5 text-sm rounded-xl bg-surface-50 outline-none"
         />
         <input
           type="password"
@@ -58,31 +58,31 @@ export default function StaffLogin() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
           required
-          className="w-full px-4 py-2.5 text-sm rounded-xl bg-slate-50 outline-none"
+          className="w-full px-4 py-2.5 text-sm rounded-xl bg-surface-50 outline-none"
         />
-        {error && <p className="text-[12px] text-rose-600">{error}</p>}
+        {error && <p className="text-[12px] text-flame-600">{error}</p>}
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-3 rounded-xl bg-emerald-600 text-white font-medium disabled:opacity-60"
+          className="w-full py-3 rounded-xl bg-brand-600 text-white font-medium disabled:opacity-60 hover:bg-brand-700 transition-colors"
         >
-          {loading ? "Signing in…" : "Sign in"}
+          {loading ? "Signing in..." : "Sign in"}
         </button>
       </form>
 
-      <div className="mt-6 pt-6 border-t border-slate-100 text-center text-[12px] text-slate-400">
-        <Link to="/auth/student" className="text-emerald-600 font-medium">
+      <div className="mt-6 pt-6 border-t border-surface-100 text-center text-[12px] text-surface-400">
+        <Link to="/auth/student" className="text-brand-600 font-medium hover:text-brand-700">
           Student sign in
         </Link>
-        <span className="mx-2">·</span>
-        <Link to="/auth/parent" className="text-emerald-600 font-medium">
+        <span className="mx-2">-</span>
+        <Link to="/auth/parent" className="text-brand-600 font-medium hover:text-brand-700">
           Parent sign in
         </Link>
       </div>
 
       <div className="mt-4 text-center">
-        <Link to="/" className="text-[12px] text-slate-400 hover:text-slate-600">
-          ← Back to home
+        <Link to="/" className="text-[12px] text-surface-400 hover:text-surface-600">
+          Back to home
         </Link>
       </div>
     </div>

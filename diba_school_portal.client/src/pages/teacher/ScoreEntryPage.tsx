@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Save, Send, AlertCircle, ClipboardList } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
-  Button, Card, EmptyState, Input, Select, Skeleton, Avatar, FormField,
+  Button, Card, EmptyState, Input, Select, Skeleton, Avatar,
 } from "../../components/ui";
 import { useToast } from "../../hooks/useToast";
 import api from "../../lib/api";
@@ -132,7 +132,6 @@ export default function ScoreEntryPage() {
         }
       />
 
-      {/* Selectors */}
       <Card padding="sm">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <Select
@@ -164,7 +163,6 @@ export default function ScoreEntryPage() {
         </div>
       </Card>
 
-      {/* Sheet */}
       {!classId || !subjectId ? (
         <Card>
           <EmptyState
@@ -192,25 +190,25 @@ export default function ScoreEntryPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50">
-                  <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">
+                <tr className="border-b border-surface-100 bg-surface-50/50">
+                  <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">
                     Student
                   </th>
-                  <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3">
-                    Test 1 <span className="text-slate-400">/20</span>
+                  <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3">
+                    Test 1 <span className="text-surface-400">/20</span>
                   </th>
-                  <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3">
-                    Test 2 <span className="text-slate-400">/20</span>
+                  <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3">
+                    Test 2 <span className="text-surface-400">/20</span>
                   </th>
-                  <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-4 py-3">
-                    Exam <span className="text-slate-400">/60</span>
+                  <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3">
+                    Exam <span className="text-surface-400">/60</span>
                   </th>
-                  <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">
+                  <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">
                     Total
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-surface-100">
                 {rows.map((r) => {
                   const total = r.test1Score + r.test2Score + r.examScore;
                   const invalid =
@@ -219,13 +217,13 @@ export default function ScoreEntryPage() {
                     r.examScore < 0 || r.examScore > 60;
 
                   return (
-                    <tr key={r.studentId} className={invalid ? "bg-rose-50/30" : ""}>
+                    <tr key={r.studentId} className={invalid ? "bg-flame-50/30" : ""}>
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-3">
                           <Avatar name={r.studentName} size="sm" />
-                          <p className="text-[13px] font-medium text-slate-800">{r.studentName}</p>
+                          <p className="text-[13px] font-medium text-surface-800">{r.studentName}</p>
                           {invalid && (
-                            <span title="Score out of range" className="text-rose-500">
+                            <span title="Score out of range" className="text-flame-500">
                               <AlertCircle className="w-4 h-4" />
                             </span>
                           )}
@@ -256,7 +254,7 @@ export default function ScoreEntryPage() {
                         />
                       </td>
                       <td className="px-6 py-3 text-right">
-                        <span className={`text-[13px] font-semibold tabular-nums ${invalid ? "text-rose-600" : "text-slate-900"}`}>
+                        <span className={`text-[13px] font-semibold tabular-nums ${invalid ? "text-flame-600" : "text-surface-900"}`}>
                           {total}
                         </span>
                       </td>

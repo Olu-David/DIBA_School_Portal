@@ -31,7 +31,7 @@ export default function MyAssignmentsPage() {
         );
         if (data.success) setRows(data.data);
       } catch {
-        // endpoint may not exist yet — empty list
+        /* endpoint may not exist yet - empty list */
       } finally {
         setLoading(false);
       }
@@ -47,7 +47,7 @@ export default function MyAssignmentsPage() {
       />
 
       {loading ? (
-        <Card><div className="py-16 flex justify-center"><Spinner size="lg" label="Loading…" /></div></Card>
+        <Card><div className="py-16 flex justify-center"><Spinner size="lg" label="Loading..." /></div></Card>
       ) : rows.length === 0 ? (
         <Card>
           <EmptyState
@@ -67,24 +67,24 @@ export default function MyAssignmentsPage() {
                   `/admin/score-entry?classId=${a.classId}&subjectId=${a.subjectId}`
                 )
               }
-              className="text-left bg-white rounded-2xl border border-slate-100 p-5 shadow-soft hover:border-emerald-200 hover:shadow-md transition-all"
+              className="text-left bg-white rounded-2xl border border-surface-100 p-5 shadow-soft hover:border-brand-200 hover:shadow-md transition-all"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[15px] font-semibold text-slate-900 truncate">
+                  <p className="text-[15px] font-semibold text-surface-900 truncate">
                     {a.className}
                   </p>
-                  <p className="text-[12px] text-slate-500 mt-0.5 truncate">
-                    {a.subjectName} · <span className="font-mono text-slate-400">{a.subjectCode}</span>
+                  <p className="text-[12px] text-surface-500 mt-0.5 truncate">
+                    {a.subjectName} - <span className="font-mono text-surface-400">{a.subjectCode}</span>
                   </p>
                 </div>
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 grid place-items-center shrink-0">
-                  <ClipboardCheck className="w-4 h-4 text-emerald-600" />
+                <div className="w-9 h-9 rounded-xl bg-brand-50 grid place-items-center shrink-0">
+                  <ClipboardCheck className="w-4 h-4 text-brand-600" />
                 </div>
               </div>
 
               <div className="mt-5 flex items-center justify-between">
-                <span className="text-[12px] text-slate-500">
+                <span className="text-[12px] text-surface-500">
                   {a.scoredCount} / {a.studentCount} scored
                 </span>
                 <Badge

@@ -47,21 +47,21 @@ export default function PortalShell({
     <aside
       className={
         mobile
-          ? "w-72 flex flex-col h-full bg-white border-r border-slate-100"
-          : "hidden lg:flex flex-col w-64 h-full bg-white border-r border-slate-100 shrink-0"
+          ? "w-72 flex flex-col h-full bg-surface-950 border-r border-surface-800"
+          : "hidden lg:flex flex-col w-64 h-full bg-surface-950 border-r border-surface-800 shrink-0"
       }
     >
-      <div className="h-16 px-5 flex items-center border-b border-slate-100 shrink-0">
+      <div className="h-16 px-5 flex items-center border-b border-white/10 shrink-0">
         <img
           src="/images/logo.png"
           alt="DIBA"
           className="w-9 h-9 object-contain mr-3 shrink-0"
         />
         <div className="min-w-0">
-          <p className="text-[12px] font-semibold text-slate-900 truncate leading-tight">
+          <p className="text-[12px] font-semibold text-white truncate leading-tight">
             DIBA
           </p>
-          <p className="text-[10px] text-slate-400 truncate">{brand}</p>
+          <p className="text-[10px] text-surface-400 truncate">{brand}</p>
         </div>
       </div>
 
@@ -76,8 +76,8 @@ export default function PortalShell({
               [
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors",
                 isActive
-                  ? "bg-emerald-50 text-emerald-700"
-                  : "text-slate-600 hover:bg-slate-50",
+                  ? "bg-brand-600 text-white shadow-sm"
+                  : "text-surface-300 hover:bg-white/5 hover:text-white",
               ].join(" ")
             }
           >
@@ -87,16 +87,16 @@ export default function PortalShell({
         ))}
       </nav>
 
-      <div className="p-3 border-t border-slate-100 shrink-0">
+      <div className="p-3 border-t border-white/10 shrink-0">
         <div className="flex items-center gap-3 px-3 py-2 mb-2">
-          <div className="w-9 h-9 rounded-full bg-emerald-100 grid place-items-center text-[12px] font-semibold text-emerald-700 shrink-0">
+          <div className="w-9 h-9 rounded-full bg-brand-500 grid place-items-center text-[12px] font-semibold text-white shrink-0">
             {(user?.firstName?.[0] ?? "") + (user?.lastName?.[0] ?? "")}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-semibold text-slate-800 truncate">
+            <p className="text-[12px] font-semibold text-white truncate">
               {user?.firstName} {user?.lastName}
             </p>
-            <p className="text-[10px] text-slate-400 truncate">
+            <p className="text-[10px] text-surface-400 truncate">
               {roleLabel(user?.role)}
             </p>
           </div>
@@ -104,7 +104,7 @@ export default function PortalShell({
         <button
           type="button"
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] text-surface-300 hover:bg-flame-500/10 hover:text-flame-400 transition-colors"
         >
           <LogOut className="w-4 h-4" />
           Sign out
@@ -114,13 +114,13 @@ export default function PortalShell({
   );
 
   return (
-    <div className="min-h-screen flex bg-slate-50">
+    <div className="min-h-screen flex bg-surface-100">
       <SidebarContent />
 
       {open && (
         <>
           <div
-            className="fixed inset-0 bg-slate-900/40 z-40 lg:hidden"
+            className="fixed inset-0 bg-surface-950/50 z-40 lg:hidden"
             onClick={() => setOpen(false)}
             aria-hidden
           />
@@ -131,21 +131,21 @@ export default function PortalShell({
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-white border-b border-slate-100 px-4 lg:px-6 flex items-center gap-3 shrink-0">
+        <header className="h-16 bg-white border-b border-surface-200 px-4 lg:px-6 flex items-center gap-3 shrink-0 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="lg:hidden p-2 rounded-lg hover:bg-slate-100"
+            className="lg:hidden p-2 rounded-lg hover:bg-surface-100"
             aria-label="Open menu"
           >
             <Menu className="w-5 h-5" />
           </button>
-          <p className="text-[13px] text-slate-600 truncate flex-1">
+          <p className="text-[13px] text-surface-600 truncate flex-1">
             {userLine ?? `${user?.firstName ?? ""} ${user?.lastName ?? ""}`}
           </p>
           <button
             type="button"
-            className="relative p-2 rounded-lg hover:bg-slate-100 text-slate-500"
+            className="relative p-2 rounded-lg hover:bg-surface-100 text-surface-500"
             aria-label="Notifications"
           >
             <Bell className="w-4 h-4" />

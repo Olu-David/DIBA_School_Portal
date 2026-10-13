@@ -19,18 +19,16 @@ const Select = forwardRef<HTMLSelectElement, Props>(
       <select
         ref={ref}
         className={[
-          "w-full appearance-none px-4 py-2.5 pr-10 text-sm rounded-xl bg-slate-50 border transition-colors outline-none cursor-pointer",
+          "w-full appearance-none px-4 py-2.5 pr-10 text-sm rounded-xl bg-surface-50 border transition-colors outline-none cursor-pointer",
           error
-            ? "border-rose-200 focus:bg-white focus:border-rose-300 focus:ring-4 focus:ring-rose-50"
-            : "border-transparent focus:bg-white focus:border-slate-200 focus:ring-4 focus:ring-emerald-50",
+            ? "border-flame-200 focus:bg-white focus:border-flame-300 focus:ring-4 focus:ring-flame-50"
+            : "border-transparent focus:bg-white focus:border-surface-200 focus:ring-4 focus:ring-brand-50",
           className,
         ].join(" ")}
         {...rest}
       >
         {placeholder && (
-          <option value="" disabled hidden>
-            {placeholder}
-          </option>
+          <option value="" disabled hidden>{placeholder}</option>
         )}
         {options.map((o) => (
           <option key={o.value} value={o.value} disabled={o.disabled}>
@@ -38,7 +36,7 @@ const Select = forwardRef<HTMLSelectElement, Props>(
           </option>
         ))}
       </select>
-      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 pointer-events-none" />
     </div>
   )
 );

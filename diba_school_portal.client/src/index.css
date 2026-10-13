@@ -4,6 +4,45 @@
   --font-sans: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
   --font-serif: "Fraunces", Georgia, serif;
   --shadow-soft: 0 2px 12px -4px rgb(15 23 42 / 0.08);
+
+  /* Primary Blue — from logo ring */
+  --color-brand-50:  #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
+  --color-brand-950: #172554;
+
+  /* Dark Neutral / Surface — headers, sidebars, dark bands */
+  --color-surface-50:  #f8fafc;
+  --color-surface-100: #f1f5f9;
+  --color-surface-200: #e2e8f0;
+  --color-surface-300: #cbd5e1;
+  --color-surface-400: #94a3b8;
+  --color-surface-500: #64748b;
+  --color-surface-600: #475569;
+  --color-surface-700: #334155;
+  --color-surface-800: #1e293b;
+  --color-surface-900: #0f172a;
+  --color-surface-950: #020617;
+
+  /* Torch Flame Accent — alerts, highlights, motto ribbons */
+  --color-flame-50:  #fff7ed;
+  --color-flame-100: #ffedd5;
+  --color-flame-200: #fed7aa;
+  --color-flame-300: #fdba74;
+  --color-flame-400: #fb923c;
+  --color-flame-500: #f97316;
+  --color-flame-600: #ea580c;
+  --color-flame-700: #c2410c;
+  --color-flame-800: #9a3412;
+  --color-flame-900: #7c2d12;
+  --color-flame-950: #431407;
 }
 
 @layer base {
@@ -11,20 +50,13 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-
   body {
     margin: 0;
     min-height: 100vh;
-    background-color: #fafaf9;
-    color: #0f172a;
+    background-color: var(--color-surface-50);
+    color: var(--color-surface-900);
     font-family: var(--font-sans);
   }
-
-  #root {
-    min-height: 100vh;
-  }
-
-  h1, h2, h3, h4 {
-    font-family: var(--font-serif);
-  }
+  #root { min-height: 100vh; }
+  h1, h2, h3, h4 { font-family: var(--font-serif); }
 }

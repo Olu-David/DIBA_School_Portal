@@ -19,13 +19,13 @@ export default function AdminLayout() {
   }, [open]);
 
   return (
-    <div className="min-h-screen flex bg-slate-50">
+    <div className="min-h-screen flex bg-surface-100">
       <Sidebar />
 
       {open && (
         <>
           <div
-            className="fixed inset-0 bg-slate-900/40 z-40 lg:hidden"
+            className="fixed inset-0 bg-surface-950/50 z-40 lg:hidden"
             onClick={() => setOpen(false)}
             aria-hidden
           />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileText, Search, ArrowRight } from "lucide-react";
+import { FileText, ArrowRight } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import { Card, EmptyState, Skeleton, Avatar, SearchInput, Button } from "../../components/ui";
 import { useDebounce } from "../../hooks/useDebounce";
@@ -49,7 +49,7 @@ export default function ReportCardsPage() {
 
       <div className="max-w-md">
         <SearchInput
-          placeholder="Search by name or admission number…"
+          placeholder="Search by name or admission number..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -67,14 +67,14 @@ export default function ReportCardsPage() {
             description="Try a different search term."
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-surface-100">
             {students.map((s) => (
               <div key={s.id} className="px-6 py-4 flex items-center gap-4">
                 <Avatar name={s.fullName} src={s.profilePictureUrl} size="md" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold text-slate-900 truncate">{s.fullName}</p>
-                  <p className="text-[11px] text-slate-400 font-mono truncate">
-                    {s.admissionNumber} · {s.className}
+                  <p className="text-[13px] font-semibold text-surface-900 truncate">{s.fullName}</p>
+                  <p className="text-[11px] text-surface-400 font-mono truncate">
+                    {s.admissionNumber} - {s.className}
                   </p>
                 </div>
                 <Button

@@ -71,7 +71,7 @@ export default function TeachersPage() {
         <div className="flex flex-col lg:flex-row gap-3">
           <div className="flex-1">
             <SearchInput
-              placeholder="Search by name, staff ID, or email…"
+              placeholder="Search by name, staff ID, or email..."
               value={search}
               onChange={(e: ChangeEvent<HTMLInputElement>) => {
                 setSearch(e.target.value);
@@ -112,42 +112,42 @@ export default function TeachersPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/50">
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Staff</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Role</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Qualification</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Contact</th>
-                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Status</th>
+                  <tr className="border-b border-surface-100 bg-surface-50/50">
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Staff</th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Role</th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Qualification</th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Contact</th>
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-surface-100">
                   {rows.map((t) => (
                     <tr
                       key={t.id}
                       onClick={() => navigate(`/admin/teachers/${t.id}`)}
-                      className="hover:bg-slate-50/60 cursor-pointer"
+                      className="hover:bg-surface-50/60 cursor-pointer"
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <Avatar name={t.fullName} src={t.profilePictureUrl} size="md" />
                           <div>
-                            <p className="text-[13px] font-semibold text-slate-900">{t.fullName}</p>
-                            <p className="text-[11px] text-slate-400 font-mono">{t.staffId}</p>
+                            <p className="text-[13px] font-semibold text-surface-900">{t.fullName}</p>
+                            <p className="text-[11px] text-surface-400 font-mono">{t.staffId}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4"><Badge variant="violet">{t.primaryRole}</Badge></td>
-                      <td className="px-6 py-4 text-[12px] text-slate-600">{t.qualification || "—"}</td>
+                      <td className="px-6 py-4 text-[12px] text-surface-600">{t.qualification || "-"}</td>
                       <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1 text-[12px] text-slate-600">
+                        <div className="flex flex-col gap-1 text-[12px] text-surface-600">
                           {t.email && (
                             <span className="inline-flex items-center gap-1.5">
-                              <Mail className="w-3 h-3 text-slate-400" />{t.email}
+                              <Mail className="w-3 h-3 text-surface-400" />{t.email}
                             </span>
                           )}
                           {t.phoneNumber && (
                             <span className="inline-flex items-center gap-1.5">
-                              <Phone className="w-3 h-3 text-slate-400" />{t.phoneNumber}
+                              <Phone className="w-3 h-3 text-surface-400" />{t.phoneNumber}
                             </span>
                           )}
                         </div>

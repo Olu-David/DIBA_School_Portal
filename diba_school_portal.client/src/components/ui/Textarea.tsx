@@ -10,11 +10,11 @@ const Textarea = forwardRef<HTMLTextAreaElement, Props>(
       ref={ref}
       rows={rows}
       className={[
-        "w-full px-4 py-3 text-sm rounded-xl bg-slate-50 border transition-colors outline-none resize-none",
-        "placeholder:text-slate-400",
+        "w-full px-4 py-3 text-sm rounded-xl bg-surface-50 border transition-colors outline-none resize-none",
+        "placeholder:text-surface-400",
         error
-          ? "border-rose-200 focus:bg-white focus:border-rose-300 focus:ring-4 focus:ring-rose-50"
-          : "border-transparent focus:bg-white focus:border-slate-200 focus:ring-4 focus:ring-emerald-50",
+          ? "border-flame-200 focus:bg-white focus:border-flame-300 focus:ring-4 focus:ring-flame-50"
+          : "border-transparent focus:bg-white focus:border-surface-200 focus:ring-4 focus:ring-brand-50",
         className,
       ].join(" ")}
       {...rest}

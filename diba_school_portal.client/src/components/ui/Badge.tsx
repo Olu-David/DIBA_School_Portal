@@ -1,6 +1,6 @@
-﻿ import type { ReactNode } from "react";
+﻿import type { ReactNode } from "react";
 
-type Variant = "neutral" | "emerald" | "amber" | "rose" | "sky" | "violet";
+type Variant = "neutral" | "brand" | "flame" | "emerald" | "amber" | "rose" | "sky" | "violet";
 
 interface Props {
   children: ReactNode;
@@ -8,12 +8,14 @@ interface Props {
 }
 
 const v: Record<Variant, string> = {
-  neutral: "bg-slate-100 text-slate-600",
-  emerald: "bg-emerald-50 text-emerald-600",
-  amber: "bg-amber-50 text-amber-600",
-  rose: "bg-rose-50 text-rose-600",
-  sky: "bg-sky-50 text-sky-600",
-  violet: "bg-violet-50 text-violet-600",
+  neutral: "bg-surface-100 text-surface-600",
+  brand:   "bg-brand-50 text-brand-700",
+  flame:   "bg-flame-50 text-flame-600",
+  emerald: "bg-brand-50 text-brand-700",
+  amber:   "bg-flame-50 text-flame-600",
+  rose:    "bg-flame-50 text-flame-600",
+  sky:     "bg-brand-50 text-brand-700",
+  violet:  "bg-brand-50 text-brand-700",
 };
 
 export default function Badge({ children, variant = "neutral" }: Props) {

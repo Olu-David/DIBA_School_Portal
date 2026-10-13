@@ -4,7 +4,6 @@ import {
   Building2, Microscope, Library, Trees, Trophy, BookMarked,
   Quote, Church,
 } from "lucide-react";
-import SchoolCrest from "../../components/public/SchoolCrest";
 
 const timeline = [
   {
@@ -25,7 +24,7 @@ const timeline = [
   {
     year: "2021",
     title: "Senior Secondary opens",
-    body: "DIBA became a full Nursery–SS institution. The first SS1 stream of twenty-two pupils began the Science pathway.",
+    body: "DIBA became a full Nursery to SS institution. The first SS1 stream of twenty-two pupils began the Science pathway.",
   },
   {
     year: "2023",
@@ -43,7 +42,7 @@ const values = [
   {
     icon: Heart,
     title: "Faith",
-    body: "We are a school founded by the Evangelical Church International. Weekly devotion, moral instruction, and pastoral care shape the character of every pupil — Christian and Muslim alike.",
+    body: "We are a school founded by the Evangelical Church International. Weekly devotion, moral instruction, and pastoral care shape the character of every pupil - Christian and Muslim alike.",
   },
   {
     icon: BookMarked,
@@ -53,7 +52,7 @@ const values = [
   {
     icon: Users,
     title: "Service",
-    body: "Every senior pupil completes community service hours before graduation. Leadership is not a title — it is what you give away.",
+    body: "Every senior pupil completes community service hours before graduation. Leadership is not a title - it is what you give away.",
   },
 ];
 
@@ -77,35 +76,34 @@ const leadership = [
     name: "[Principal's Name]",
     role: "Principal",
     initials: "PN",
-    bio: "Academic leadership across all four sections. Placeholder — to be updated.",
+    bio: "Academic leadership across all four sections. Placeholder - to be updated.",
   },
   {
     name: "[VP Academics' Name]",
     role: "Vice Principal (Academics)",
     initials: "VP",
-    bio: "Curriculum, examinations, and teacher development. Placeholder — to be updated.",
+    bio: "Curriculum, examinations, and teacher development. Placeholder - to be updated.",
   },
   {
     name: "[Head Primary's Name]",
     role: "Head, Nursery & Primary",
     initials: "HP",
-    bio: "Leads the foundational years and the early literacy programme. Placeholder — to be updated.",
+    bio: "Leads the foundational years and the early literacy programme. Placeholder - to be updated.",
   },
 ];
 
 export default function AboutPage() {
   return (
     <>
-      {/* Hero */}
-      <section className="bg-emerald-950 text-white">
+      <section className="bg-surface-950 text-white">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-28 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
           <div className="lg:col-span-7">
-            <p className="text-[12px] tracking-[0.25em] uppercase text-amber-300 font-semibold mb-4">
+            <p className="text-[12px] tracking-[0.25em] uppercase text-flame-300 font-semibold mb-4">
               About us
             </p>
             <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-[1.05] tracking-tight">
               Ten years of building{" "}
-              <span className="italic text-amber-300">intelligent</span> men and women.
+              <span className="italic text-flame-300">intelligent</span> men and women.
             </h1>
             <p className="mt-6 text-white/75 text-[16px] leading-relaxed max-w-2xl">
               Founded in Sokoto in November 2015 by the Evangelical Church
@@ -115,23 +113,25 @@ export default function AboutPage() {
             </p>
           </div>
           <div className="lg:col-span-5 flex justify-center lg:justify-end">
-            <div className="w-52 h-52 rounded-full bg-white/5 backdrop-blur grid place-items-center border border-white/10">
-              <SchoolCrest className="w-32 h-32" tone="gold" />
+            <div className="w-52 h-52 rounded-full bg-white/5 backdrop-blur grid place-items-center border border-white/10 overflow-hidden">
+              <img  
+                src="/images/logo1.png"  
+                alt="Dominion Intelligent Builders' Academy"
+                className="w-32 h-32 object-contain"
+              />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Motto band */}
-      <section className="bg-amber-400">
+      <section className="bg-flame-400">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-4 flex items-center justify-center">
-          <p className="text-emerald-950 font-serif text-[15px] sm:text-base tracking-wide text-center">
+          <p className="text-surface-950 font-serif text-[15px] sm:text-base tracking-wide text-center">
             Knowledge is Wealth
           </p>
         </div>
       </section>
 
-      {/* Registration facts */}
       <section className="max-w-7xl mx-auto px-6 lg:px-12 py-16">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Fact label="Registered" value="RC-2372959" />
@@ -141,39 +141,38 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Mission & Vision */}
       <section className="max-w-7xl mx-auto px-6 lg:px-12 pb-20 lg:pb-24">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-white rounded-3xl border border-stone-200 p-8 lg:p-10">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 grid place-items-center mb-6">
-              <Target className="w-5 h-5 text-emerald-700" strokeWidth={1.8} />
+          <div className="bg-white rounded-3xl border border-surface-200 p-8 lg:p-10">
+            <div className="w-12 h-12 rounded-2xl bg-brand-50 grid place-items-center mb-6">
+              <Target className="w-5 h-5 text-brand-700" strokeWidth={1.8} />
             </div>
-            <p className="text-[11px] tracking-[0.25em] uppercase text-slate-500 font-semibold mb-3">
+            <p className="text-[11px] tracking-[0.25em] uppercase text-surface-500 font-semibold mb-3">
               Our mission
             </p>
-            <h2 className="font-serif text-2xl text-emerald-950 leading-snug">
+            <h2 className="font-serif text-2xl text-surface-950 leading-snug">
               To develop intelligent, disciplined, and God-fearing young people
               equipped for lifelong learning.
             </h2>
-            <p className="mt-5 text-[14px] text-slate-600 leading-relaxed">
+            <p className="mt-5 text-[14px] text-surface-600 leading-relaxed">
               We provide a rigorous, balanced education that honours both the mind
-              and the character — preparing each pupil for the examinations of
+              and the character - preparing each pupil for the examinations of
               life, not just the examinations of the term.
             </p>
           </div>
 
-          <div className="bg-white rounded-3xl border border-stone-200 p-8 lg:p-10">
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 grid place-items-center mb-6">
-              <Eye className="w-5 h-5 text-amber-700" strokeWidth={1.8} />
+          <div className="bg-white rounded-3xl border border-surface-200 p-8 lg:p-10">
+            <div className="w-12 h-12 rounded-2xl bg-flame-50 grid place-items-center mb-6">
+              <Eye className="w-5 h-5 text-flame-700" strokeWidth={1.8} />
             </div>
-            <p className="text-[11px] tracking-[0.25em] uppercase text-slate-500 font-semibold mb-3">
+            <p className="text-[11px] tracking-[0.25em] uppercase text-surface-500 font-semibold mb-3">
               Our vision
             </p>
-            <h2 className="font-serif text-2xl text-emerald-950 leading-snug">
+            <h2 className="font-serif text-2xl text-surface-950 leading-snug">
               To be Sokoto State's most trusted school for building intelligent
               leaders.
             </h2>
-            <p className="mt-5 text-[14px] text-slate-600 leading-relaxed">
+            <p className="mt-5 text-[14px] text-surface-600 leading-relaxed">
               A school where admissions are earned, not bought. Where every
               graduate leaves knowing how to think, how to work, and how to serve
               their community.
@@ -182,14 +181,13 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Core values */}
-      <section className="bg-stone-100/70 border-y border-stone-200">
+      <section className="bg-surface-100/70 border-y border-surface-200">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-24">
           <div className="mb-12 max-w-2xl">
-            <p className="text-[12px] tracking-[0.25em] uppercase text-emerald-700 font-semibold mb-3">
+            <p className="text-[12px] tracking-[0.25em] uppercase text-brand-600 font-semibold mb-3">
               What we stand for
             </p>
-            <h2 className="font-serif text-3xl sm:text-4xl text-emerald-950 tracking-tight">
+            <h2 className="font-serif text-3xl sm:text-4xl text-surface-950 tracking-tight">
               Three words we live by.
             </h2>
           </div>
@@ -198,12 +196,12 @@ export default function AboutPage() {
             {values.map((v) => {
               const Icon = v.icon;
               return (
-                <div key={v.title} className="bg-white rounded-3xl border border-stone-200 p-8">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 grid place-items-center mb-6">
-                    <Icon className="w-5 h-5 text-emerald-700" strokeWidth={1.8} />
+                <div key={v.title} className="bg-white rounded-3xl border border-surface-200 p-8">
+                  <div className="w-12 h-12 rounded-2xl bg-brand-50 grid place-items-center mb-6">
+                    <Icon className="w-5 h-5 text-brand-700" strokeWidth={1.8} />
                   </div>
-                  <h3 className="font-serif text-2xl text-emerald-950">{v.title}</h3>
-                  <p className="mt-4 text-[14px] text-slate-600 leading-relaxed">{v.body}</p>
+                  <h3 className="font-serif text-2xl text-surface-950">{v.title}</h3>
+                  <p className="mt-4 text-[14px] text-surface-600 leading-relaxed">{v.body}</p>
                 </div>
               );
             })}
@@ -211,28 +209,27 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Timeline */}
       <section className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-28">
         <div className="mb-12 max-w-2xl">
-          <p className="text-[12px] tracking-[0.25em] uppercase text-emerald-700 font-semibold mb-3">
+          <p className="text-[12px] tracking-[0.25em] uppercase text-brand-600 font-semibold mb-3">
             Our story
           </p>
-          <h2 className="font-serif text-3xl sm:text-4xl text-emerald-950 tracking-tight">
+          <h2 className="font-serif text-3xl sm:text-4xl text-surface-950 tracking-tight">
             Ten years, one direction.
           </h2>
         </div>
 
         <div className="relative">
-          <div className="absolute left-[7px] sm:left-[9px] top-3 bottom-3 w-px bg-stone-300" />
+          <div className="absolute left-[7px] sm:left-[9px] top-3 bottom-3 w-px bg-surface-300" />
           <div className="space-y-12">
             {timeline.map((t) => (
               <div key={t.year} className="relative pl-10 sm:pl-14">
-                <div className="absolute left-0 top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-amber-400 border-4 border-stone-50" />
-                <p className="font-serif text-[22px] text-emerald-800">{t.year}</p>
-                <h3 className="mt-1 font-serif text-[22px] text-emerald-950 leading-snug">
+                <div className="absolute left-0 top-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-flame-400 border-4 border-surface-50" />
+                <p className="font-serif text-[22px] text-flame-600">{t.year}</p>
+                <h3 className="mt-1 font-serif text-[22px] text-surface-950 leading-snug">
                   {t.title}
                 </h3>
-                <p className="mt-3 text-[14px] text-slate-600 leading-relaxed max-w-2xl">
+                <p className="mt-3 text-[14px] text-surface-600 leading-relaxed max-w-2xl">
                   {t.body}
                 </p>
               </div>
@@ -241,14 +238,13 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Facilities */}
-      <section className="bg-stone-100/70 border-y border-stone-200">
+      <section className="bg-surface-100/70 border-y border-surface-200">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-24">
           <div className="mb-12 max-w-2xl">
-            <p className="text-[12px] tracking-[0.25em] uppercase text-emerald-700 font-semibold mb-3">
+            <p className="text-[12px] tracking-[0.25em] uppercase text-brand-600 font-semibold mb-3">
               Campus
             </p>
-            <h2 className="font-serif text-3xl sm:text-4xl text-emerald-950 tracking-tight">
+            <h2 className="font-serif text-3xl sm:text-4xl text-surface-950 tracking-tight">
               A campus built for learning.
             </h2>
           </div>
@@ -257,14 +253,14 @@ export default function AboutPage() {
             {facilities.map((f) => {
               const Icon = f.icon;
               return (
-                <div key={f.name} className="bg-white rounded-2xl border border-stone-200 p-6">
-                  <div className="w-11 h-11 rounded-xl bg-emerald-50 grid place-items-center mb-5">
-                    <Icon className="w-5 h-5 text-emerald-700" strokeWidth={1.8} />
+                <div key={f.name} className="bg-white rounded-2xl border border-surface-200 p-6">
+                  <div className="w-11 h-11 rounded-xl bg-brand-50 grid place-items-center mb-5">
+                    <Icon className="w-5 h-5 text-brand-700" strokeWidth={1.8} />
                   </div>
-                  <h3 className="font-serif text-[18px] text-emerald-950 leading-snug">
+                  <h3 className="font-serif text-[18px] text-surface-950 leading-snug">
                     {f.name}
                   </h3>
-                  <p className="mt-2 text-[13px] text-slate-600 leading-relaxed">{f.body}</p>
+                  <p className="mt-2 text-[13px] text-surface-600 leading-relaxed">{f.body}</p>
                 </div>
               );
             })}
@@ -272,68 +268,65 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Leadership */}
       <section className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-28">
         <div className="mb-12 max-w-2xl">
-          <p className="text-[12px] tracking-[0.25em] uppercase text-emerald-700 font-semibold mb-3">
+          <p className="text-[12px] tracking-[0.25em] uppercase text-brand-600 font-semibold mb-3">
             Leadership
           </p>
-          <h2 className="font-serif text-3xl sm:text-4xl text-emerald-950 tracking-tight">
+          <h2 className="font-serif text-3xl sm:text-4xl text-surface-950 tracking-tight">
             The people in charge.
           </h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {leadership.map((p) => (
-            <div key={p.name} className="bg-white rounded-2xl border border-stone-200 p-6">
-              <div className="w-16 h-16 rounded-2xl bg-emerald-950 text-white grid place-items-center mb-5">
+            <div key={p.name} className="bg-white rounded-2xl border border-surface-200 p-6">
+              <div className="w-16 h-16 rounded-2xl bg-surface-950 text-white grid place-items-center mb-5">
                 <span className="font-serif text-[20px]">{p.initials}</span>
               </div>
-              <h3 className="font-serif text-[17px] text-emerald-950 leading-snug">{p.name}</h3>
-              <p className="mt-1 text-[11px] tracking-wider uppercase text-amber-700 font-semibold">
+              <h3 className="font-serif text-[17px] text-surface-950 leading-snug">{p.name}</h3>
+              <p className="mt-1 text-[11px] tracking-wider uppercase text-flame-700 font-semibold">
                 {p.role}
               </p>
-              <p className="mt-4 text-[12px] text-slate-600 leading-relaxed">{p.bio}</p>
+              <p className="mt-4 text-[12px] text-surface-600 leading-relaxed">{p.bio}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Quote band */}
-      <section className="bg-emerald-950 text-white">
+      <section className="bg-surface-950 text-white">
         <div className="max-w-5xl mx-auto px-6 lg:px-12 py-20 lg:py-28 text-center">
-          <Quote className="w-10 h-10 text-amber-400 mx-auto mb-8 opacity-60" />
+          <Quote className="w-10 h-10 text-flame-400 mx-auto mb-8 opacity-60" />
           <blockquote className="font-serif text-2xl sm:text-3xl lg:text-4xl leading-snug tracking-tight">
             "A child educated only at school is an uneducated child. At DIBA, we
             partner with the home to build the whole person."
           </blockquote>
           <p className="mt-8 text-white/60 text-[12px] tracking-[0.25em] uppercase font-medium">
-            The Management · Dominion Intelligent Builders' Academy
+            The Management - Dominion Intelligent Builders' Academy
           </p>
         </div>
       </section>
 
-      {/* CTA */}
       <section className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-24">
         <div className="text-center max-w-2xl mx-auto">
-          <h2 className="font-serif text-3xl sm:text-4xl text-emerald-950 tracking-tight leading-tight">
+          <h2 className="font-serif text-3xl sm:text-4xl text-surface-950 tracking-tight leading-tight">
             Come and see for yourself.
           </h2>
-          <p className="mt-4 text-[15px] text-slate-600 leading-relaxed">
+          <p className="mt-4 text-[15px] text-surface-600 leading-relaxed">
             Nothing beats walking the corridors, meeting our teachers, and watching
             a class in session. Tours run every weekday at 10am.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               to="/admissions"
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-emerald-800 text-white font-semibold text-[14px] hover:bg-emerald-900 transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-brand-600 text-white font-semibold text-[14px] hover:bg-brand-700 transition-colors"
             >
               Begin application
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               to="/contact"
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full border border-emerald-900/20 text-emerald-900 font-medium text-[14px] hover:bg-emerald-50 transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full border border-surface-900/20 text-surface-900 font-medium text-[14px] hover:bg-surface-50 transition-colors"
             >
               Book a tour
             </Link>
@@ -346,11 +339,11 @@ export default function AboutPage() {
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white rounded-2xl border border-stone-200 p-5">
-      <p className="text-[11px] tracking-[0.2em] uppercase text-slate-400 font-semibold">
+    <div className="bg-white rounded-2xl border border-surface-200 p-5">
+      <p className="text-[11px] tracking-[0.2em] uppercase text-surface-400 font-semibold">
         {label}
       </p>
-      <p className="mt-2 text-[14px] font-medium text-emerald-950 leading-snug">
+      <p className="mt-2 text-[14px] font-medium text-surface-950 leading-snug">
         {value}
       </p>
     </div>

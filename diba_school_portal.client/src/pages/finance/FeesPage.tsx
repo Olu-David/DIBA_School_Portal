@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { BookOpen, Plus, Hash, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
-  Button, Card, EmptyState, FormField, Input, Select, Badge, Skeleton,
+  Button, Card, FormField, Input, Select,
 } from "../../components/ui";
 import { useToast } from "../../hooks/useToast";
 import { formatNaira } from "../../lib/format";
@@ -10,13 +10,6 @@ import api from "../../lib/api";
 import type { ApiResponse } from "../../types/common";
 
 interface ClassPrice { schoolClassId: string; amount: number; minimumAmountToPay: number; }
-interface Fee {
-  id: string;
-  feeName: string;
-  description: string;
-  section: string;
-  stream: string;
-}
 
 export default function FeesPage() {
   const { toast } = useToast();
@@ -24,9 +17,7 @@ export default function FeesPage() {
   const [classes, setClasses] = useState<any[]>([]);
   const [sessionId, setSessionId] = useState("");
   const [termId, setTermId] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  // Form
   const [feeName, setFeeName] = useState("");
   const [description, setDescription] = useState("");
   const [prices, setPrices] = useState<ClassPrice[]>([]);
@@ -48,7 +39,6 @@ export default function FeesPage() {
     })();
   }, []);
 
-  // Prefill prices when class list changes
   useEffect(() => {
     setPrices(classes.map((c) => ({
       schoolClassId: c.id,
@@ -69,8 +59,8 @@ export default function FeesPage() {
       description,
       academicSessionId: sessionId,
       termId,
-      schoolClassId: classes[0]?.id, // legacy field
-      section: 1,                    // "Primary" — server ignores on non-required paths
+      schoolClassId: classes[0]?.id,
+      section: 1,
       stream: 0,
       classPrices: prices.filter((p) => p.amount > 0),
     };
@@ -105,10 +95,9 @@ export default function FeesPage() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left — form */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
-            <h3 className="text-[15px] font-semibold text-slate-900 mb-5">
+            <h3 className="text-[15px] font-semibold text-surface-900 mb-5">
               New fee
             </h3>
 
@@ -152,23 +141,22 @@ export default function FeesPage() {
             </div>
           </Card>
 
-          {/* Class prices */}
           <Card padding="none">
             <div className="p-6 pb-4">
-              <h3 className="text-[15px] font-semibold text-slate-900">
+              <h3 className="text-[15px] font-semibold text-surface-900">
                 Class prices
               </h3>
-              <p className="text-[12px] text-slate-400 mt-0.5">
-                Leave a class at ₦0 to skip it.
+              <p className="text-[12px] text-surface-400 mt-0.5">
+                Leave a class at NGN 0 to skip it.
               </p>
             </div>
 
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-surface-100">
               {prices.map((p, idx) => {
                 const cls = classes.find((c) => c.id === p.schoolClassId);
                 return (
                   <div key={p.schoolClassId} className="px-6 py-3 grid grid-cols-1 sm:grid-cols-[1fr_160px_160px] gap-3 items-center">
-                    <p className="text-[13px] font-medium text-slate-800">
+                    <p className="text-[13px] font-medium text-surface-800">
                       {cls?.name ?? "Unknown"}
                     </p>
                     <Input
@@ -190,14 +178,13 @@ export default function FeesPage() {
           </Card>
         </div>
 
-        {/* Right — summary */}
         <div>
           <Card className="sticky top-24">
-            <h3 className="text-[15px] font-semibold text-slate-900 mb-4">Summary</h3>
+            <h3 className="text-[15px] font-semibold text-surface-900 mb-4">Summary</h3>
             <div className="space-y-3">
-              <Row label="Fee name" value={feeName || "—"} />
+              <Row label="Fee name" value={feeName || "-"} />
               <Row label="Classes priced" value={String(prices.filter((p) => p.amount > 0).length)} />
-              <div className="pt-3 border-t border-slate-100" />
+              <div className="pt-3 border-t border-surface-100" />
               <Row label="Total catalogue" value={formatNaira(prices.reduce((s, p) => s + p.amount, 0))} highlight />
             </div>
 
@@ -212,7 +199,7 @@ export default function FeesPage() {
             >
               Create fee
             </Button>
-            <p className="mt-3 text-[11px] text-slate-400 text-center">
+            <p className="mt-3 text-[11px] text-surface-400 text-center">
               Creates one Fee and one price row per class.
             </p>
           </Card>
@@ -225,8 +212,8 @@ export default function FeesPage() {
 function Row({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-[12px] text-slate-500">{label}</span>
-      <span className={highlight ? "text-[14px] font-semibold text-emerald-600" : "text-[13px] font-medium text-slate-800"}>
+      <span className="text-[12px] text-surface-500">{label}</span>
+      <span className={highlight ? "text-[14px] font-semibold text-brand-600" : "text-[13px] font-medium text-surface-800"}>
         {value}
       </span>
     </div>

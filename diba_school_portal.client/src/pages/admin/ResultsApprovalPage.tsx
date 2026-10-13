@@ -92,7 +92,7 @@ export default function ResultsApprovalPage() {
         toast({ variant: "error", title: data.message ?? "Failed" });
       }
     } catch {
-      toast({ variant: "error", title: "Could not publish — endpoint may not exist yet" });
+      toast({ variant: "error", title: "Could not publish - endpoint may not exist yet" });
     } finally {
       setBusy(null);
     }
@@ -139,21 +139,21 @@ export default function ResultsApprovalPage() {
             description="No pending results for this term."
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-surface-100">
             {rows.map((r) => (
               <div key={r.termResultId} className="px-6 py-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 grid place-items-center shrink-0">
-                  <ClipboardCheck className="w-4 h-4 text-amber-600" />
+                <div className="w-10 h-10 rounded-xl bg-flame-50 grid place-items-center shrink-0">
+                  <ClipboardCheck className="w-4 h-4 text-flame-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold text-slate-900">{r.studentName}</p>
-                  <p className="text-[11px] text-slate-400 font-mono">{r.admissionNumber} · {r.className}</p>
+                  <p className="text-[13px] font-semibold text-surface-900">{r.studentName}</p>
+                  <p className="text-[11px] text-surface-400 font-mono">{r.admissionNumber} - {r.className}</p>
                 </div>
                 <div className="text-right hidden sm:block">
-                  <p className="text-[13px] font-semibold text-slate-900 tabular-nums">
+                  <p className="text-[13px] font-semibold text-surface-900 tabular-nums">
                     {r.averageScore.toFixed(1)}%
                   </p>
-                  <p className="text-[11px] text-slate-400">Grade {r.overallGrade}</p>
+                  <p className="text-[11px] text-surface-400">Grade {r.overallGrade}</p>
                 </div>
                 <Badge variant="amber">Pending</Badge>
                 <Button

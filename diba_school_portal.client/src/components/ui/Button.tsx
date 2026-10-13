@@ -14,17 +14,17 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants: Record<Variant, string> = {
-  primary: "bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-300",
-  secondary: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-60",
-  ghost: "text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-60",
-  danger: "bg-rose-600 text-white hover:bg-rose-700 disabled:bg-rose-300",
+  primary:   "bg-brand-600 text-white hover:bg-brand-700 disabled:bg-brand-300",
+  secondary: "bg-white text-surface-700 border border-surface-200 hover:bg-surface-50 disabled:opacity-60",
+  ghost:     "text-surface-600 hover:bg-surface-100 hover:text-surface-900 disabled:opacity-60",
+  danger:    "bg-flame-600 text-white hover:bg-flame-700 disabled:bg-flame-300",
 };
 
 const rings: Record<Variant, string> = {
-  primary: "focus:ring-emerald-100",
-  secondary: "focus:ring-slate-100",
-  ghost: "focus:ring-slate-100",
-  danger: "focus:ring-rose-100",
+  primary:   "focus:ring-brand-100",
+  secondary: "focus:ring-surface-100",
+  ghost:     "focus:ring-surface-100",
+  danger:    "focus:ring-flame-100",
 };
 
 const sizes: Record<Size, string> = {

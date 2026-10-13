@@ -17,33 +17,40 @@ interface SchoolClass {
   studentCount?: number;
 }
 
-// Section → unique school colours (not generic!)
 const SECTION_STYLE: Record<Section, {
-  badge: "rose" | "sky" | "violet" | "emerald";
+  badge: "rose" | "sky" | "violet" | "brand";
   ring: string;
   bar: string;
   icon: typeof Baby;
   label: string;
 }> = {
   Nursery: {
-    badge: "rose", ring: "hover:border-pink-200",
+    badge: "rose",
+    ring: "hover:border-pink-200",
     bar: "from-pink-400 to-pink-600",
-    icon: Baby, label: "Nursery",
+    icon: Baby,
+    label: "Nursery",
   },
   Primary: {
-    badge: "sky", ring: "hover:border-sky-200",
+    badge: "sky",
+    ring: "hover:border-sky-200",
     bar: "from-sky-400 to-sky-600",
-    icon: Sparkles, label: "Primary",
+    icon: Sparkles,
+    label: "Primary",
   },
   JuniorSecondary: {
-    badge: "violet", ring: "hover:border-violet-200",
+    badge: "violet",
+    ring: "hover:border-violet-200",
     bar: "from-violet-400 to-violet-600",
-    icon: BookOpen, label: "Junior Secondary",
+    icon: BookOpen,
+    label: "Junior Secondary",
   },
   SeniorSecondary: {
-    badge: "emerald", ring: "hover:border-emerald-200",
-    bar: "from-emerald-400 to-emerald-600",
-    icon: Trophy, label: "Senior Secondary",
+    badge: "brand",
+    ring: "hover:border-brand-200",
+    bar: "from-brand-400 to-brand-600",
+    icon: Trophy,
+    label: "Senior Secondary",
   },
 };
 
@@ -119,10 +126,10 @@ export default function ClassesPage() {
                   <Icon className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-[15px] font-semibold text-slate-900">
+                  <h2 className="text-[15px] font-semibold text-surface-900">
                     {style.label}
                   </h2>
-                  <p className="text-[12px] text-slate-400">
+                  <p className="text-[12px] text-surface-400">
                     {list.length} class{list.length !== 1 ? "es" : ""}
                   </p>
                 </div>
@@ -134,16 +141,16 @@ export default function ClassesPage() {
                     key={c.id}
                     type="button"
                     onClick={() => navigate(`/admin/classes/${c.id}`)}
-                    className={`text-left bg-white rounded-2xl border border-slate-100 p-5 shadow-soft transition-all ${style.ring} hover:shadow-md`}
+                    className={`text-left bg-white rounded-2xl border border-surface-100 p-5 shadow-soft transition-all ${style.ring} hover:shadow-md`}
                   >
                     <div className={`h-1 w-12 rounded-full bg-gradient-to-r ${style.bar} mb-4`} />
 
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-[15px] font-semibold text-slate-900">
+                        <p className="text-[15px] font-semibold text-surface-900">
                           {c.name}
                         </p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
+                        <p className="text-[11px] text-surface-400 mt-0.5">
                           {style.label}
                         </p>
                       </div>
@@ -151,11 +158,11 @@ export default function ClassesPage() {
                     </div>
 
                     <div className="mt-5 flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1.5 text-[12px] text-slate-500">
+                      <span className="inline-flex items-center gap-1.5 text-[12px] text-surface-500">
                         <Users className="w-3.5 h-3.5" />
                         {c.studentCount ?? 0} students
                       </span>
-                      <Settings2 className="w-3.5 h-3.5 text-slate-300" />
+                      <Settings2 className="w-3.5 h-3.5 text-surface-300" />
                     </div>
                   </button>
                 ))}

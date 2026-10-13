@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from "react";
-import { Receipt, Filter, Download, TrendingUp } from "lucide-react";
+import { Receipt, Filter, Download } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
   Button, Card, EmptyState, Pagination, SearchInput,
@@ -9,7 +9,7 @@ import { useDebounce } from "../../hooks/useDebounce";
 import { formatNaira, formatDateTime } from "../../lib/format";
 import api from "../../lib/api";
 import type { ApiResponse, Paginated } from "../../types/common";
-import type { FinancePaymentRow } from "../../types/finance";
+import type { FinancePaymentRow } from "../../types/Finance";
 
 const STATUS_TONE: Record<string, "emerald" | "amber" | "rose" | "neutral"> = {
   Successful: "emerald",
@@ -70,40 +70,38 @@ export default function PaymentsListPage() {
         }
       />
 
-      {/* Summary strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card padding="sm">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-surface-400">
             Transactions found
           </p>
-          <p className="mt-1 text-xl font-semibold text-slate-900 tabular-nums">
+          <p className="mt-1 text-xl font-semibold text-surface-900 tabular-nums">
             {total.toLocaleString()}
           </p>
         </Card>
         <Card padding="sm">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-surface-400">
             Total on this page
           </p>
-          <p className="mt-1 text-xl font-semibold text-emerald-600 tabular-nums">
+          <p className="mt-1 text-xl font-semibold text-brand-600 tabular-nums">
             {formatNaira(totalOnPage)}
           </p>
         </Card>
         <Card padding="sm">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-surface-400">
             Awaiting confirmation
           </p>
-          <p className="mt-1 text-xl font-semibold text-amber-600 tabular-nums">
+          <p className="mt-1 text-xl font-semibold text-flame-600 tabular-nums">
             {rows.filter((r) => r.status === "Pending").length}
           </p>
         </Card>
       </div>
 
-      {/* Filters */}
       <Card padding="sm">
         <div className="flex flex-col lg:flex-row gap-3">
           <div className="flex-1">
             <SearchInput
-              placeholder="Search by reference, student, or admission no…"
+              placeholder="Search by reference, student, or admission no..."
               value={search}
               onChange={(e: ChangeEvent<HTMLInputElement>) => {
                 setSearch(e.target.value);
@@ -146,7 +144,6 @@ export default function PaymentsListPage() {
         </div>
       </Card>
 
-      {/* Table */}
       <Card padding="none">
         {loading ? (
           <div className="p-6 space-y-3">
@@ -162,33 +159,32 @@ export default function PaymentsListPage() {
           />
         ) : (
           <>
-            {/* Desktop */}
             <div className="hidden lg:block overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/50">
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Student</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Reference</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Method</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Status</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Date</th>
-                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Amount</th>
+                  <tr className="border-b border-surface-100 bg-surface-50/50">
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Student</th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Reference</th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Method</th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Status</th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Date</th>
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Amount</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-surface-100">
                   {rows.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                    <tr key={r.id} className="hover:bg-surface-50/50 transition-colors">
                       <td className="px-6 py-3.5">
                         <div className="flex items-center gap-3">
                           <Avatar name={r.studentName} size="sm" />
                           <div>
-                            <p className="text-[13px] font-medium text-slate-800">{r.studentName}</p>
-                            <p className="text-[11px] text-slate-400 font-mono">{r.admissionNumber}</p>
+                            <p className="text-[13px] font-medium text-surface-800">{r.studentName}</p>
+                            <p className="text-[11px] text-surface-400 font-mono">{r.admissionNumber}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-3.5">
-                        <span className="text-[12px] font-mono text-slate-600">{r.referenceNumber}</span>
+                        <span className="text-[12px] font-mono text-surface-600">{r.referenceNumber}</span>
                       </td>
                       <td className="px-6 py-3.5">
                         <Badge variant="neutral">{r.gatewayName ?? r.gateway}</Badge>
@@ -199,10 +195,10 @@ export default function PaymentsListPage() {
                         </Badge>
                       </td>
                       <td className="px-6 py-3.5">
-                        <span className="text-[12px] text-slate-500">{formatDateTime(r.paymentDate)}</span>
+                        <span className="text-[12px] text-surface-500">{formatDateTime(r.paymentDate)}</span>
                       </td>
                       <td className="px-6 py-3.5 text-right">
-                        <span className="text-[13px] font-semibold text-slate-900 tabular-nums">
+                        <span className="text-[13px] font-semibold text-surface-900 tabular-nums">
                           {formatNaira(r.amountPaid)}
                         </span>
                       </td>
@@ -212,24 +208,23 @@ export default function PaymentsListPage() {
               </table>
             </div>
 
-            {/* Mobile */}
-            <div className="lg:hidden divide-y divide-slate-100">
+            <div className="lg:hidden divide-y divide-surface-100">
               {rows.map((r) => (
                 <div key={r.id} className="p-4 flex items-center gap-3">
                   <Avatar name={r.studentName} size="md" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium text-slate-800 truncate">{r.studentName}</p>
-                    <p className="text-[11px] text-slate-400 font-mono truncate">{r.referenceNumber}</p>
+                    <p className="text-[13px] font-medium text-surface-800 truncate">{r.studentName}</p>
+                    <p className="text-[11px] text-surface-400 font-mono truncate">{r.referenceNumber}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge variant={STATUS_TONE[r.statusName ?? r.status] ?? "neutral"}>
                         {r.statusName ?? r.status}
                       </Badge>
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-[11px] text-surface-400">
                         {formatDateTime(r.paymentDate)}
                       </span>
                     </div>
                   </div>
-                  <p className="text-[13px] font-semibold text-slate-900 tabular-nums">
+                  <p className="text-[13px] font-semibold text-surface-900 tabular-nums">
                     {formatNaira(r.amountPaid)}
                   </p>
                 </div>

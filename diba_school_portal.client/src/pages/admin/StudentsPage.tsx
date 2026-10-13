@@ -15,14 +15,7 @@ import api from "../../lib/api";
 import type { ApiResponse, Paginated } from "../../types/common";
 import type { StudentRow } from "../../types/student";
 
-const SECTION_TONE: Record<string, "rose" | "sky" | "violet" | "emerald"> = {
-  Nursery: "rose",
-  Primary: "sky",
-  JuniorSecondary: "violet",
-  SeniorSecondary: "emerald",
-};
-
-const STREAM_TONE: Record<string, "rose" | "sky" | "violet" | "emerald" | "amber"> = {
+const STREAM_TONE: Record<string, "rose" | "sky" | "violet" | "brand" | "amber"> = {
   Science: "sky",
   Arts: "violet",
   Commercial: "amber",
@@ -45,7 +38,6 @@ export default function StudentsPage() {
   const [hasOutstanding, setHasOutstanding] = useState("");
   const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
 
-  // Load classes for the filter
   useEffect(() => {
     (async () => {
       try {
@@ -59,7 +51,6 @@ export default function StudentsPage() {
     })();
   }, []);
 
-  // Load students
   useEffect(() => {
     setLoading(true);
     (async () => {
@@ -108,12 +99,11 @@ export default function StudentsPage() {
         }
       />
 
-      {/* Filters */}
       <Card padding="sm">
         <div className="flex flex-col lg:flex-row gap-3">
           <div className="flex-1">
             <SearchInput
-              placeholder="Search by name or admission number…"
+              placeholder="Search by name or admission number..."
               value={search}
               onChange={onSearchChange}
             />
@@ -151,7 +141,6 @@ export default function StudentsPage() {
         </div>
       </Card>
 
-      {/* List */}
       <Card padding="none">
         {loading ? (
           <div className="p-6 space-y-3">
@@ -179,47 +168,46 @@ export default function StudentsPage() {
           />
         ) : (
           <>
-            {/* Desktop table */}
             <div className="hidden lg:block overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/50">
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">
+                  <tr className="border-b border-surface-100 bg-surface-50/50">
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">
                       Student
                     </th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">
                       Class
                     </th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">
                       Stream
                     </th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">
                       Guardian
                     </th>
-                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">
                       Balance
                     </th>
-                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">
                       Status
                     </th>
                     <th className="w-12"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-surface-100">
                   {students.map((s) => (
                     <tr
                       key={s.id}
                       onClick={() => navigate(`/admin/students/${s.id}`)}
-                      className="hover:bg-slate-50/60 cursor-pointer transition-colors"
+                      className="hover:bg-surface-50/60 cursor-pointer transition-colors"
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <Avatar name={s.fullName} src={s.profilePictureUrl} size="md" />
                           <div>
-                            <p className="text-[13px] font-semibold text-slate-900">
+                            <p className="text-[13px] font-semibold text-surface-900">
                               {s.fullName}
                             </p>
-                            <p className="text-[11px] text-slate-400 font-mono">
+                            <p className="text-[11px] text-surface-400 font-mono">
                               {s.admissionNumber}
                             </p>
                           </div>
@@ -237,26 +225,26 @@ export default function StudentsPage() {
                             {s.stream}
                           </Badge>
                         ) : (
-                          <span className="text-[12px] text-slate-400">—</span>
+                          <span className="text-[12px] text-surface-400">-</span>
                         )}
                       </td>
                       <td className="px-6 py-4">
                         {s.primaryGuardianPhone ? (
-                          <span className="inline-flex items-center gap-1.5 text-[12px] text-slate-600">
-                            <Phone className="w-3 h-3 text-slate-400" />
+                          <span className="inline-flex items-center gap-1.5 text-[12px] text-surface-600">
+                            <Phone className="w-3 h-3 text-surface-400" />
                             {s.primaryGuardianPhone}
                           </span>
                         ) : (
-                          <span className="text-[12px] text-slate-400">—</span>
+                          <span className="text-[12px] text-surface-400">-</span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
                         {s.outstandingBalance > 0 ? (
-                          <span className="text-[13px] font-semibold text-rose-600">
+                          <span className="text-[13px] font-semibold text-flame-600">
                             {formatNaira(s.outstandingBalance)}
                           </span>
                         ) : (
-                          <span className="text-[13px] font-medium text-emerald-600">
+                          <span className="text-[13px] font-medium text-brand-600">
                             Fully paid
                           </span>
                         )}
@@ -274,7 +262,7 @@ export default function StudentsPage() {
                           onClick={(e) => {
                             e.stopPropagation();
                           }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"
+                          className="p-1.5 rounded-lg text-surface-400 hover:bg-surface-100"
                         >
                           <MoreHorizontal className="w-4 h-4" />
                         </button>
@@ -285,19 +273,18 @@ export default function StudentsPage() {
               </table>
             </div>
 
-            {/* Mobile cards */}
-            <div className="lg:hidden divide-y divide-slate-100">
+            <div className="lg:hidden divide-y divide-surface-100">
               {students.map((s) => (
                 <button
                   key={s.id}
                   type="button"
                   onClick={() => navigate(`/admin/students/${s.id}`)}
-                  className="w-full text-left p-4 hover:bg-slate-50 flex items-center gap-3"
+                  className="w-full text-left p-4 hover:bg-surface-50 flex items-center gap-3"
                 >
                   <Avatar name={s.fullName} src={s.profilePictureUrl} size="lg" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-[14px] font-semibold text-slate-900 truncate">
+                      <p className="text-[14px] font-semibold text-surface-900 truncate">
                         {s.fullName}
                       </p>
                       {s.stream && (
@@ -306,11 +293,11 @@ export default function StudentsPage() {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                      {s.admissionNumber} · {s.className}
+                    <p className="text-[11px] text-surface-400 font-mono mt-0.5">
+                      {s.admissionNumber} - {s.className}
                     </p>
                     {s.outstandingBalance > 0 && (
-                      <p className="text-[12px] text-rose-600 font-medium mt-1">
+                      <p className="text-[12px] text-flame-600 font-medium mt-1">
                         Outstanding: {formatNaira(s.outstandingBalance)}
                       </p>
                     )}
@@ -319,7 +306,6 @@ export default function StudentsPage() {
               ))}
             </div>
 
-            {/* Pagination */}
             <div className="px-6">
               <Pagination
                 pageNumber={page}
@@ -332,17 +318,16 @@ export default function StudentsPage() {
         )}
       </Card>
 
-      {/* Amber banner — school-specific alert */}
       {!loading && students.some((s) => s.outstandingBalance > 0) && (
-        <div className="bg-gradient-to-br from-amber-50 to-amber-100/40 border border-amber-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="bg-gradient-to-br from-flame-50 to-flame-100/40 border border-flame-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <div className="w-11 h-11 rounded-xl bg-white grid place-items-center shadow-sm shrink-0">
-            <AlertCircle className="w-5 h-5 text-amber-600" />
+            <AlertCircle className="w-5 h-5 text-flame-600" />
           </div>
           <div className="flex-1">
-            <p className="text-[14px] font-semibold text-slate-900">
+            <p className="text-[14px] font-semibold text-surface-900">
               Outstanding fees detected
             </p>
-            <p className="text-[12px] text-slate-600 mt-0.5">
+            <p className="text-[12px] text-surface-600 mt-0.5">
               {students.filter((s) => s.outstandingBalance > 0).length} student(s) on
               this page have unpaid balances.
             </p>

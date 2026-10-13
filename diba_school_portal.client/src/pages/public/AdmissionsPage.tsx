@@ -100,7 +100,7 @@ export default function AdmissionsPage() {
       await api.post("/enquiries", form);
       setSent(true);
     } catch {
-      console.warn("Enquiry endpoint not available — submission held in browser only.");
+      console.warn("Enquiry endpoint not available - submission held in browser only.");
       setSent(true);
     } finally {
       setSubmitting(false);
@@ -109,11 +109,10 @@ export default function AdmissionsPage() {
 
   return (
     <>
-      {/* Hero */}
-      <section className="bg-emerald-950 text-white">
+      <section className="bg-surface-950 text-white">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-28 grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
           <div className="lg:col-span-8">
-            <p className="text-[12px] tracking-[0.25em] uppercase text-amber-300 font-semibold mb-4">
+            <p className="text-[12px] tracking-[0.25em] uppercase text-flame-300 font-semibold mb-4">
               2025 / 2026 admissions
             </p>
             <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-[1.05] tracking-tight">
@@ -121,14 +120,14 @@ export default function AdmissionsPage() {
             </h1>
             <p className="mt-6 text-white/75 text-[16px] leading-relaxed max-w-2xl">
               Admission into DIBA is selective and rolling. Applications are
-              reviewed as they arrive — early applicants have the best chance of
+              reviewed as they arrive - early applicants have the best chance of
               securing a place.
             </p>
           </div>
           <div className="lg:col-span-4 flex lg:justify-end">
             <a
               href="#apply"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-amber-400 text-emerald-950 font-semibold text-[14px] hover:bg-amber-300 transition-colors"
+              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-flame-400 text-surface-950 font-semibold text-[14px] hover:bg-flame-300 transition-colors"
             >
               Apply now
               <ArrowRight className="w-4 h-4" />
@@ -137,22 +136,20 @@ export default function AdmissionsPage() {
         </div>
       </section>
 
-      {/* Motto band */}
-      <section className="bg-amber-400">
+      <section className="bg-flame-400">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-4 flex items-center justify-center">
-          <p className="text-emerald-950 font-serif text-[15px] sm:text-base tracking-wide text-center">
+          <p className="text-surface-950 font-serif text-[15px] sm:text-base tracking-wide text-center">
             Knowledge is Wealth
           </p>
         </div>
       </section>
 
-      {/* Process */}
       <section className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-24">
         <div className="mb-12 max-w-2xl">
-          <p className="text-[12px] tracking-[0.25em] uppercase text-emerald-700 font-semibold mb-3">
+          <p className="text-[12px] tracking-[0.25em] uppercase text-brand-600 font-semibold mb-3">
             How it works
           </p>
-          <h2 className="font-serif text-3xl sm:text-4xl text-emerald-950 tracking-tight">
+          <h2 className="font-serif text-3xl sm:text-4xl text-surface-950 tracking-tight">
             Five steps to a place.
           </h2>
         </div>
@@ -163,18 +160,18 @@ export default function AdmissionsPage() {
             return (
               <div
                 key={s.title}
-                className="relative bg-white rounded-2xl border border-stone-200 p-6"
+                className="relative bg-white rounded-2xl border border-surface-200 p-6"
               >
-                <p className="font-serif text-3xl text-amber-500 leading-none mb-4">
+                <p className="font-serif text-3xl text-flame-500 leading-none mb-4">
                   {String(i + 1).padStart(2, "0")}
                 </p>
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 grid place-items-center mb-4">
-                  <Icon className="w-4 h-4 text-emerald-700" strokeWidth={1.8} />
+                <div className="w-10 h-10 rounded-xl bg-brand-50 grid place-items-center mb-4">
+                  <Icon className="w-4 h-4 text-brand-700" strokeWidth={1.8} />
                 </div>
-                <h3 className="font-serif text-[16px] text-emerald-950 leading-snug">
+                <h3 className="font-serif text-[16px] text-surface-950 leading-snug">
                   {s.title}
                 </h3>
-                <p className="mt-2 text-[12px] text-slate-600 leading-relaxed">
+                <p className="mt-2 text-[12px] text-surface-600 leading-relaxed">
                   {s.body}
                 </p>
               </div>
@@ -183,45 +180,44 @@ export default function AdmissionsPage() {
         </div>
       </section>
 
-      {/* Fees strip */}
-      <section className="bg-stone-100/70 border-y border-stone-200">
+      <section className="bg-surface-100/70 border-y border-surface-200">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-16">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white rounded-2xl border border-stone-200 p-6">
-              <div className="w-11 h-11 rounded-xl bg-emerald-50 grid place-items-center mb-5">
-                <FileText className="w-5 h-5 text-emerald-700" strokeWidth={1.8} />
+            <div className="bg-white rounded-2xl border border-surface-200 p-6">
+              <div className="w-11 h-11 rounded-xl bg-brand-50 grid place-items-center mb-5">
+                <FileText className="w-5 h-5 text-brand-700" strokeWidth={1.8} />
               </div>
-              <h3 className="font-serif text-[18px] text-emerald-950">
+              <h3 className="font-serif text-[18px] text-surface-950">
                 Application form
               </h3>
-              <p className="mt-2 text-[13px] text-slate-600 leading-relaxed">
+              <p className="mt-2 text-[13px] text-surface-600 leading-relaxed">
                 Free. Fill the form below or pick one up at the school office.
               </p>
             </div>
-            <div className="bg-white rounded-2xl border border-stone-200 p-6">
-              <div className="w-11 h-11 rounded-xl bg-emerald-50 grid place-items-center mb-5">
-                <Calendar className="w-5 h-5 text-emerald-700" strokeWidth={1.8} />
+            <div className="bg-white rounded-2xl border border-surface-200 p-6">
+              <div className="w-11 h-11 rounded-xl bg-brand-50 grid place-items-center mb-5">
+                <Calendar className="w-5 h-5 text-brand-700" strokeWidth={1.8} />
               </div>
-              <h3 className="font-serif text-[18px] text-emerald-950">
+              <h3 className="font-serif text-[18px] text-surface-950">
                 Entrance assessment
               </h3>
-              <p className="mt-2 text-[13px] text-slate-600 leading-relaxed">
-                ₦5,000 for Primary and above. Free for Nursery and Reception.
+              <p className="mt-2 text-[13px] text-surface-600 leading-relaxed">
+                NGN 5,000 for Primary and above. Free for Nursery and Reception.
               </p>
             </div>
-            <div className="bg-white rounded-2xl border border-stone-200 p-6">
-              <div className="w-11 h-11 rounded-xl bg-emerald-50 grid place-items-center mb-5">
-                <CreditCard className="w-5 h-5 text-emerald-700" strokeWidth={1.8} />
+            <div className="bg-white rounded-2xl border border-surface-200 p-6">
+              <div className="w-11 h-11 rounded-xl bg-brand-50 grid place-items-center mb-5">
+                <CreditCard className="w-5 h-5 text-brand-700" strokeWidth={1.8} />
               </div>
-              <h3 className="font-serif text-[18px] text-emerald-950">
+              <h3 className="font-serif text-[18px] text-surface-950">
                 Prospectus & fee schedule
               </h3>
-              <p className="mt-2 text-[13px] text-slate-600 leading-relaxed">
+              <p className="mt-2 text-[13px] text-surface-600 leading-relaxed">
                 Full fee breakdown is included in our downloadable prospectus.
               </p>
               <button
                 type="button"
-                className="mt-4 inline-flex items-center gap-2 text-[13px] font-semibold text-emerald-800 hover:text-emerald-900"
+                className="mt-4 inline-flex items-center gap-2 text-[13px] font-semibold text-brand-600 hover:text-brand-700"
               >
                 <Download className="w-3.5 h-3.5" />
                 Download PDF
@@ -231,22 +227,21 @@ export default function AdmissionsPage() {
         </div>
       </section>
 
-      {/* Application form */}
       <section id="apply" className="max-w-4xl mx-auto px-6 lg:px-12 py-20 lg:py-24">
         {sent ? (
-          <div className="bg-white rounded-3xl border border-stone-200 p-10 lg:p-14 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-50 grid place-items-center mx-auto mb-6">
-              <CheckCircle2 className="w-8 h-8 text-emerald-600" strokeWidth={1.8} />
+          <div className="bg-white rounded-3xl border border-surface-200 p-10 lg:p-14 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-brand-50 grid place-items-center mx-auto mb-6">
+              <CheckCircle2 className="w-8 h-8 text-brand-600" strokeWidth={1.8} />
             </div>
-            <h2 className="font-serif text-3xl text-emerald-950">Application received</h2>
-            <p className="mt-4 text-[15px] text-slate-600 leading-relaxed max-w-lg mx-auto">
+            <h2 className="font-serif text-3xl text-surface-950">Application received</h2>
+            <p className="mt-4 text-[15px] text-surface-600 leading-relaxed max-w-lg mx-auto">
               Thank you, {form.parentName}. Our admissions team will contact you within one
               working day to arrange {form.childFirstName}'s assessment.
             </p>
             <div className="mt-8 inline-flex flex-col sm:flex-row gap-3">
               <Link
                 to="/"
-                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-emerald-800 text-white font-semibold text-[14px] hover:bg-emerald-900 transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-brand-600 text-white font-semibold text-[14px] hover:bg-brand-700 transition-colors"
               >
                 Back to home
                 <ArrowRight className="w-4 h-4" />
@@ -256,29 +251,28 @@ export default function AdmissionsPage() {
         ) : (
           <>
             <div className="mb-10 max-w-2xl">
-              <p className="text-[12px] tracking-[0.25em] uppercase text-emerald-700 font-semibold mb-3">
+              <p className="text-[12px] tracking-[0.25em] uppercase text-brand-600 font-semibold mb-3">
                 Begin here
               </p>
-              <h2 className="font-serif text-3xl sm:text-4xl text-emerald-950 tracking-tight">
+              <h2 className="font-serif text-3xl sm:text-4xl text-surface-950 tracking-tight">
                 Submit an enquiry.
               </h2>
-              <p className="mt-5 text-[15px] text-slate-600 leading-relaxed">
-                All fields marked with <span className="text-rose-500">*</span> are
-                required. Your data stays with us — we never share it.
+              <p className="mt-5 text-[15px] text-surface-600 leading-relaxed">
+                All fields marked with <span className="text-flame-500">*</span> are
+                required. Your data stays with us - we never share it.
               </p>
             </div>
 
             <form
               onSubmit={submit}
-              className="bg-white rounded-3xl border border-stone-200 p-8 lg:p-10 space-y-8"
+              className="bg-white rounded-3xl border border-surface-200 p-8 lg:p-10 space-y-8"
             >
-              {/* Child details */}
               <div>
                 <div className="flex items-center gap-3 mb-5">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-50 grid place-items-center">
-                    <Users className="w-4 h-4 text-emerald-700" strokeWidth={2} />
+                  <div className="w-9 h-9 rounded-xl bg-brand-50 grid place-items-center">
+                    <Users className="w-4 h-4 text-brand-700" strokeWidth={2} />
                   </div>
-                  <h3 className="font-serif text-[19px] text-emerald-950">
+                  <h3 className="font-serif text-[19px] text-surface-950">
                     About the child
                   </h3>
                 </div>
@@ -288,7 +282,7 @@ export default function AdmissionsPage() {
                       type="text"
                       value={form.childFirstName}
                       onChange={change("childFirstName")}
-                      className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors"
+                      className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors"
                     />
                   </Field>
                   <Field label="Last name" required>
@@ -296,7 +290,7 @@ export default function AdmissionsPage() {
                       type="text"
                       value={form.childLastName}
                       onChange={change("childLastName")}
-                      className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors"
+                      className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors"
                     />
                   </Field>
                   <Field label="Date of birth">
@@ -304,14 +298,14 @@ export default function AdmissionsPage() {
                       type="date"
                       value={form.childDateOfBirth}
                       onChange={change("childDateOfBirth")}
-                      className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors"
+                      className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors"
                     />
                   </Field>
                   <Field label="Gender">
                     <select
                       value={form.childGender}
                       onChange={change("childGender")}
-                      className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors"
+                      className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors"
                     >
                       <option value="">Select</option>
                       <option value="Male">Male</option>
@@ -322,7 +316,7 @@ export default function AdmissionsPage() {
                     <select
                       value={form.section}
                       onChange={change("section")}
-                      className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors"
+                      className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors"
                     >
                       <option value="">Select a section</option>
                       {sectionOptions.map((s) => (
@@ -334,7 +328,7 @@ export default function AdmissionsPage() {
                     <select
                       value={form.preferredStartTerm}
                       onChange={change("preferredStartTerm")}
-                      className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors"
+                      className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors"
                     >
                       <option value="">Select a term</option>
                       {termOptions.map((t) => (
@@ -349,20 +343,19 @@ export default function AdmissionsPage() {
                         value={form.previousSchool}
                         onChange={change("previousSchool")}
                         placeholder="Name of current or last school attended"
-                        className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors"
+                        className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors"
                       />
                     </Field>
                   </div>
                 </div>
               </div>
 
-              {/* Parent details */}
-              <div className="pt-8 border-t border-stone-200">
+              <div className="pt-8 border-t border-surface-200">
                 <div className="flex items-center gap-3 mb-5">
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 grid place-items-center">
-                    <Users className="w-4 h-4 text-amber-700" strokeWidth={2} />
+                  <div className="w-9 h-9 rounded-xl bg-flame-50 grid place-items-center">
+                    <Users className="w-4 h-4 text-flame-700" strokeWidth={2} />
                   </div>
-                  <h3 className="font-serif text-[19px] text-emerald-950">
+                  <h3 className="font-serif text-[19px] text-surface-950">
                     About you
                   </h3>
                 </div>
@@ -373,7 +366,7 @@ export default function AdmissionsPage() {
                         type="text"
                         value={form.parentName}
                         onChange={change("parentName")}
-                        className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors"
+                        className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors"
                       />
                     </Field>
                   </div>
@@ -382,7 +375,7 @@ export default function AdmissionsPage() {
                       type="email"
                       value={form.parentEmail}
                       onChange={change("parentEmail")}
-                      className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors"
+                      className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors"
                     />
                   </Field>
                   <Field label="Phone number" required>
@@ -390,8 +383,8 @@ export default function AdmissionsPage() {
                       type="tel"
                       value={form.parentPhone}
                       onChange={change("parentPhone")}
-                      placeholder="080…"
-                      className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors"
+                      placeholder="080..."
+                      className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors"
                     />
                   </Field>
                   <div className="sm:col-span-2">
@@ -400,8 +393,8 @@ export default function AdmissionsPage() {
                         rows={4}
                         value={form.message}
                         onChange={change("message")}
-                        placeholder="Special learning needs, siblings at the school, preferred assessment date…"
-                        className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors resize-none"
+                        placeholder="Special learning needs, siblings at the school, preferred assessment date..."
+                        className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors resize-none"
                       />
                     </Field>
                   </div>
@@ -409,9 +402,9 @@ export default function AdmissionsPage() {
               </div>
 
               {error && (
-                <div className="flex items-start gap-3 p-4 rounded-xl bg-rose-50 border border-rose-100">
-                  <AlertCircle className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
-                  <p className="text-[13px] text-rose-800">{error}</p>
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-flame-50 border border-flame-100">
+                  <AlertCircle className="w-4 h-4 text-flame-600 mt-0.5 shrink-0" />
+                  <p className="text-[13px] text-flame-800">{error}</p>
                 </div>
               )}
 
@@ -419,12 +412,12 @@ export default function AdmissionsPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-emerald-800 text-white font-semibold text-[14px] hover:bg-emerald-900 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-brand-600 text-white font-semibold text-[14px] hover:bg-brand-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {submitting ? "Submitting…" : "Submit application"}
+                  {submitting ? "Submitting..." : "Submit application"}
                   {!submitting && <ArrowRight className="w-4 h-4" />}
                 </button>
-                <p className="text-[12px] text-slate-500">
+                <p className="text-[12px] text-surface-500">
                   We respond within one working day.
                 </p>
               </div>
@@ -447,9 +440,9 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="block text-[12px] font-medium text-slate-700 mb-1.5">
+      <span className="block text-[12px] font-medium text-surface-700 mb-1.5">
         {label}
-        {required && <span className="text-rose-500 ml-0.5">*</span>}
+        {required && <span className="text-flame-500 ml-0.5">*</span>}
       </span>
       {children}
     </label>

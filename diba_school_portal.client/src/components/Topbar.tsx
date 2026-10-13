@@ -17,11 +17,11 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
 
   return (
     <>
-      <header className="h-16 bg-white border-b border-slate-100 px-4 lg:px-6 flex items-center gap-3 shrink-0">
+      <header className="h-16 bg-white border-b border-surface-200 px-4 lg:px-6 flex items-center gap-3 shrink-0 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
         <button
           type="button"
           onClick={onOpenSidebar}
-          className="lg:hidden p-2 rounded-lg hover:bg-slate-100"
+          className="lg:hidden p-2 rounded-lg hover:bg-surface-100"
           aria-label="Open menu"
         >
           <Menu className="w-5 h-5" />
@@ -30,7 +30,7 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
         <div className="flex-1 min-w-0 flex items-center gap-3">
           <Badge variant={roleTone(role)}>{roleLabel(role)}</Badge>
           {user?.className && (
-            <span className="text-[12px] text-slate-500 hidden sm:inline">
+            <span className="text-[12px] text-surface-500 hidden sm:inline">
               {user.className}
             </span>
           )}
@@ -39,14 +39,14 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
         <button
           type="button"
           onClick={() => setNotifOpen(true)}
-          className="relative p-2 rounded-lg hover:bg-slate-100 text-slate-500"
+          className="relative p-2 rounded-lg hover:bg-surface-100 text-surface-500"
           aria-label="Notifications"
         >
           <Bell className="w-4 h-4" />
         </button>
 
-        <div className="flex items-center gap-2 pl-2 border-l border-slate-100">
-          <div className="w-8 h-8 rounded-full bg-emerald-100 grid place-items-center text-[11px] font-semibold text-emerald-700">
+        <div className="flex items-center gap-2 pl-3 ml-1 border-l border-surface-200">
+          <div className="w-8 h-8 rounded-full bg-brand-500 grid place-items-center text-[11px] font-semibold text-white">
             {(user?.firstName?.[0] ?? "") + (user?.lastName?.[0] ?? "")}
           </div>
         </div>

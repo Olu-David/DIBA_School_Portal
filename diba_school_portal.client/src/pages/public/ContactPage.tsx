@@ -41,7 +41,7 @@ const departments = [
     name: "General enquiries",
     email: "hello@diba.edu.ng",
     phone: "+234 803 000 0001",
-    body: "Anything else — we'll route you to the right desk.",
+    body: "Anything else - we'll route you to the right desk.",
   },
 ];
 
@@ -70,7 +70,7 @@ export default function ContactPage() {
       await api.post("/enquiries/contact", form);
       setSent(true);
     } catch {
-      console.warn("Contact endpoint not available — held in browser only.");
+      console.warn("Contact endpoint not available - held in browser only.");
       setSent(true);
     } finally {
       setSubmitting(false);
@@ -79,10 +79,9 @@ export default function ContactPage() {
 
   return (
     <>
-      {/* Hero */}
-      <section className="bg-emerald-950 text-white">
+      <section className="bg-surface-950 text-white">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-28">
-          <p className="text-[12px] tracking-[0.25em] uppercase text-amber-300 font-semibold mb-4">
+          <p className="text-[12px] tracking-[0.25em] uppercase text-flame-300 font-semibold mb-4">
             Contact
           </p>
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-[1.05] tracking-tight max-w-3xl">
@@ -90,31 +89,31 @@ export default function ContactPage() {
           </h1>
           <p className="mt-6 text-white/75 text-[16px] leading-relaxed max-w-2xl">
             Our campus sits just off the Trade Fair Complex at Old Airport Area,
-            Sokoto. Walk in, call, or send a message — we respond to every
+            Sokoto. Walk in, call, or send a message - we respond to every
             enquiry personally.
           </p>
         </div>
       </section>
 
-      {/* Motto band */}
-      <section className="bg-amber-400">
+      <section className="bg-flame-400">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-4 flex items-center justify-center">
-          <p className="text-emerald-950 font-serif text-[15px] sm:text-base tracking-wide text-center">
+          <p className="text-surface-950 font-serif text-[15px] sm:text-base tracking-wide text-center">
             Knowledge is Wealth
           </p>
         </div>
       </section>
 
-      {/* Quick contact cards */}
       <section className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-24">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className="bg-white rounded-2xl border border-stone-200 p-7">
-            <div className="w-11 h-11 rounded-xl bg-emerald-50 grid place-items-center mb-5">
-              <MapPin className="w-5 h-5 text-emerald-700" strokeWidth={1.8} />
+          <div className="bg-white rounded-2xl border border-surface-200 p-7">
+            <div className="w-11 h-11 rounded-xl bg-brand-50 grid place-items-center mb-5">
+              <MapPin className="w-5 h-5 text-brand-700" strokeWidth={1.8} />
             </div>
-            <h3 className="font-serif text-[19px] text-emerald-950">Visit</h3>
-            <p className="mt-3 text-[14px] text-slate-600 leading-relaxed">
-              Off Trade Fair Complex, beside RCCG Headquarters
+            <h3 className="font-serif text-[19px] text-surface-950">Visit</h3>
+            <p className="mt-3 text-[14px] text-surface-600 leading-relaxed">
+              Off Trade Fair Complex
+              <br />
+              Beside RCCG Headquarters
               <br />
               Old Airport Area, Sokoto
               <br />
@@ -124,29 +123,35 @@ export default function ContactPage() {
             </p>
           </div>
 
-          <div className="bg-white rounded-2xl border border-stone-200 p-7">
-            <div className="w-11 h-11 rounded-xl bg-amber-50 grid place-items-center mb-5">
-              <Phone className="w-5 h-5 text-amber-700" strokeWidth={1.8} />
+          <div className="bg-white rounded-2xl border border-surface-200 p-7">
+            <div className="w-11 h-11 rounded-xl bg-flame-50 grid place-items-center mb-5">
+              <Phone className="w-5 h-5 text-flame-700" strokeWidth={1.8} />
             </div>
-            <h3 className="font-serif text-[19px] text-emerald-950">Call</h3>
-            <p className="mt-3 text-[14px] text-slate-600 leading-relaxed">
-              Main office: <a href="tel:+2348030000001" className="text-emerald-800 hover:underline">+234 803 000 0001</a>
+            <h3 className="font-serif text-[19px] text-surface-950">Call</h3>
+            <p className="mt-3 text-[14px] text-surface-600 leading-relaxed">
+              Main office:{" "}
+              <a href="tel:+2348030000001" className="text-brand-700 hover:underline">
+                +234 803 000 0001
+              </a>
               <br />
-              Bursary: <a href="tel:+2348030000002" className="text-emerald-800 hover:underline">+234 803 000 0002</a>
+              Bursary:{" "}
+              <a href="tel:+2348030000002" className="text-brand-700 hover:underline">
+                +234 803 000 0002
+              </a>
               <br />
               WhatsApp: same numbers
             </p>
           </div>
 
-          <div className="bg-white rounded-2xl border border-stone-200 p-7">
+          <div className="bg-white rounded-2xl border border-surface-200 p-7">
             <div className="w-11 h-11 rounded-xl bg-violet-50 grid place-items-center mb-5">
               <Clock className="w-5 h-5 text-violet-700" strokeWidth={1.8} />
             </div>
-            <h3 className="font-serif text-[19px] text-emerald-950">Office hours</h3>
-            <p className="mt-3 text-[14px] text-slate-600 leading-relaxed">
-              Monday – Friday: 8:00 – 16:30
+            <h3 className="font-serif text-[19px] text-surface-950">Office hours</h3>
+            <p className="mt-3 text-[14px] text-surface-600 leading-relaxed">
+              Monday to Friday: 8:00 to 16:30
               <br />
-              Saturday: 9:00 – 13:00 (assessments)
+              Saturday: 9:00 to 13:00 (assessments)
               <br />
               Public holidays: closed
             </p>
@@ -154,35 +159,33 @@ export default function ContactPage() {
         </div>
       </section>
 
-      {/* Form + Map */}
-      <section className="bg-stone-100/70 border-y border-stone-200">
+      <section className="bg-surface-100/70 border-y border-surface-200">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-24">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            {/* Form */}
             <div>
-              <p className="text-[12px] tracking-[0.25em] uppercase text-emerald-700 font-semibold mb-3">
+              <p className="text-[12px] tracking-[0.25em] uppercase text-brand-600 font-semibold mb-3">
                 Send a message
               </p>
-              <h2 className="font-serif text-3xl text-emerald-950 tracking-tight mb-8">
+              <h2 className="font-serif text-3xl text-surface-950 tracking-tight mb-8">
                 What can we help with?
               </h2>
 
               {sent ? (
-                <div className="bg-white rounded-2xl border border-stone-200 p-10 text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-emerald-50 grid place-items-center mx-auto mb-5">
-                    <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                <div className="bg-white rounded-2xl border border-surface-200 p-10 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-brand-50 grid place-items-center mx-auto mb-5">
+                    <CheckCircle2 className="w-6 h-6 text-brand-600" />
                   </div>
-                  <h3 className="font-serif text-2xl text-emerald-950">
+                  <h3 className="font-serif text-2xl text-surface-950">
                     Message sent
                   </h3>
-                  <p className="mt-3 text-[14px] text-slate-600 leading-relaxed">
+                  <p className="mt-3 text-[14px] text-surface-600 leading-relaxed">
                     Thank you, {form.name}. We'll be in touch within one working day.
                   </p>
                 </div>
               ) : (
                 <form
                   onSubmit={submit}
-                  className="bg-white rounded-2xl border border-stone-200 p-8 space-y-5"
+                  className="bg-white rounded-2xl border border-surface-200 p-8 space-y-5"
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Your name" required>
@@ -190,7 +193,7 @@ export default function ContactPage() {
                         type="text"
                         value={form.name}
                         onChange={change("name")}
-                        className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors"
+                        className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors"
                       />
                     </Field>
                     <Field label="Email" required>
@@ -198,7 +201,7 @@ export default function ContactPage() {
                         type="email"
                         value={form.email}
                         onChange={change("email")}
-                        className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors"
+                        className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors"
                       />
                     </Field>
                     <Field label="Phone">
@@ -206,14 +209,14 @@ export default function ContactPage() {
                         type="tel"
                         value={form.phone}
                         onChange={change("phone")}
-                        className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors"
+                        className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors"
                       />
                     </Field>
                     <Field label="Subject">
                       <select
                         value={form.subject}
                         onChange={change("subject")}
-                        className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors"
+                        className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors"
                       >
                         <option value="">Select a topic</option>
                         <option value="Admissions">Admissions enquiry</option>
@@ -229,39 +232,38 @@ export default function ContactPage() {
                       rows={5}
                       value={form.message}
                       onChange={change("message")}
-                      placeholder="Tell us a little about what you need…"
-                      className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none text-[14px] transition-colors resize-none"
+                      placeholder="Tell us a little about what you need..."
+                      className="w-full px-4 py-3 rounded-xl bg-surface-50 border border-surface-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-50 outline-none text-[14px] transition-colors resize-none"
                     />
                   </Field>
 
                   {error && (
-                    <div className="flex items-start gap-3 p-4 rounded-xl bg-rose-50 border border-rose-100">
-                      <AlertCircle className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
-                      <p className="text-[13px] text-rose-800">{error}</p>
+                    <div className="flex items-start gap-3 p-4 rounded-xl bg-flame-50 border border-flame-100">
+                      <AlertCircle className="w-4 h-4 text-flame-600 mt-0.5 shrink-0" />
+                      <p className="text-[13px] text-flame-800">{error}</p>
                     </div>
                   )}
 
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="w-full inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-emerald-800 text-white font-semibold text-[14px] hover:bg-emerald-900 transition-colors disabled:opacity-60"
+                    className="w-full inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-brand-600 text-white font-semibold text-[14px] hover:bg-brand-700 transition-colors disabled:opacity-60"
                   >
-                    {submitting ? "Sending…" : "Send message"}
+                    {submitting ? "Sending..." : "Send message"}
                     {!submitting && <Send className="w-4 h-4" />}
                   </button>
                 </form>
               )}
             </div>
 
-            {/* Map */}
             <div>
-              <p className="text-[12px] tracking-[0.25em] uppercase text-emerald-700 font-semibold mb-3">
+              <p className="text-[12px] tracking-[0.25em] uppercase text-brand-600 font-semibold mb-3">
                 Find us
               </p>
-              <h2 className="font-serif text-3xl text-emerald-950 tracking-tight mb-8">
+              <h2 className="font-serif text-3xl text-surface-950 tracking-tight mb-8">
                 On the map.
               </h2>
-              <div className="rounded-2xl overflow-hidden border border-stone-200 aspect-[4/3] bg-stone-200">
+              <div className="rounded-2xl overflow-hidden border border-surface-200 aspect-[4/3] bg-surface-200">
                 <iframe
                   title="DIBA Campus location"
                   src="https://www.google.com/maps?q=Old+Airport+Area+Sokoto&output=embed"
@@ -270,11 +272,11 @@ export default function ContactPage() {
                   referrerPolicy="no-referrer-when-downgrade"
                 />
               </div>
-              <div className="mt-5 p-5 bg-white rounded-2xl border border-stone-200">
-                <p className="text-[13px] text-slate-600 leading-relaxed">
-                  <strong className="text-emerald-950">Driving directions:</strong> From
-                  the Trade Fair Complex, head toward Old Airport Area. Our gate is
-                  on the left, beside the RCCG Headquarters — look for the blue
+              <div className="mt-5 p-5 bg-white rounded-2xl border border-surface-200">
+                <p className="text-[13px] text-surface-600 leading-relaxed">
+                  <strong className="text-surface-950">Driving directions:</strong> From
+                  the Trade Fair Complex, head toward Old Airport Area. Our gate
+                  is on the left, beside the RCCG Headquarters - look for the blue
                   crest on the white perimeter wall. P.M.B 3848 for postal mail.
                 </p>
               </div>
@@ -283,13 +285,12 @@ export default function ContactPage() {
         </div>
       </section>
 
-      {/* Departments */}
       <section className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-24">
         <div className="mb-12 max-w-2xl">
-          <p className="text-[12px] tracking-[0.25em] uppercase text-emerald-700 font-semibold mb-3">
+          <p className="text-[12px] tracking-[0.25em] uppercase text-brand-600 font-semibold mb-3">
             Direct lines
           </p>
-          <h2 className="font-serif text-3xl sm:text-4xl text-emerald-950 tracking-tight">
+          <h2 className="font-serif text-3xl sm:text-4xl text-surface-950 tracking-tight">
             Reach the right desk.
           </h2>
         </div>
@@ -298,23 +299,23 @@ export default function ContactPage() {
           {departments.map((d) => {
             const Icon = d.icon;
             return (
-              <div key={d.name} className="bg-white rounded-2xl border border-stone-200 p-7">
-                <div className="w-11 h-11 rounded-xl bg-emerald-50 grid place-items-center mb-5">
-                  <Icon className="w-5 h-5 text-emerald-700" strokeWidth={1.8} />
+              <div key={d.name} className="bg-white rounded-2xl border border-surface-200 p-7">
+                <div className="w-11 h-11 rounded-xl bg-brand-50 grid place-items-center mb-5">
+                  <Icon className="w-5 h-5 text-brand-700" strokeWidth={1.8} />
                 </div>
-                <h3 className="font-serif text-[19px] text-emerald-950">{d.name}</h3>
-                <p className="mt-2 text-[13px] text-slate-600 leading-relaxed">{d.body}</p>
+                <h3 className="font-serif text-[19px] text-surface-950">{d.name}</h3>
+                <p className="mt-2 text-[13px] text-surface-600 leading-relaxed">{d.body}</p>
                 <div className="mt-5 space-y-2 text-[13px]">
                   <a
                     href={`mailto:${d.email}`}
-                    className="flex items-center gap-2 text-emerald-800 hover:underline"
+                    className="flex items-center gap-2 text-brand-700 hover:underline"
                   >
                     <Mail className="w-3.5 h-3.5" />
                     {d.email}
                   </a>
                   <a
                     href={`tel:${d.phone.replace(/[^+\d]/g, "")}`}
-                    className="flex items-center gap-2 text-emerald-800 hover:underline"
+                    className="flex items-center gap-2 text-brand-700 hover:underline"
                   >
                     <Phone className="w-3.5 h-3.5" />
                     {d.phone}
@@ -340,9 +341,9 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="block text-[12px] font-medium text-slate-700 mb-1.5">
+      <span className="block text-[12px] font-medium text-surface-700 mb-1.5">
         {label}
-        {required && <span className="text-rose-500 ml-0.5">*</span>}
+        {required && <span className="text-flame-500 ml-0.5">*</span>}
       </span>
       {children}
     </label>

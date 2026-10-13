@@ -11,7 +11,7 @@ const items: PortalNavItem[] = [
 export default function ParentLayout() {
   return (
     <PortalShell
-      brand="Parent Portal · Sokoto"
+      brand="Parent Portal - Sokoto"
       items={items}
       loginPath="/auth/parent"
     />

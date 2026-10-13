@@ -71,7 +71,7 @@ export default function EnquiriesPage() {
         <div className="flex flex-col lg:flex-row gap-3">
           <div className="flex-1">
             <SearchInput
-              placeholder="Search by name, email, or phone…"
+              placeholder="Search by name, email, or phone..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             />
@@ -116,17 +116,17 @@ export default function EnquiriesPage() {
           />
         ) : (
           <>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-surface-100">
               {rows.map((e) => (
-                <div key={e.id} className="p-5 hover:bg-slate-50/50 transition-colors">
+                <div key={e.id} className="p-5 hover:bg-surface-50/50 transition-colors">
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div className="flex items-start gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-50 grid place-items-center shrink-0">
-                        <Inbox className="w-4 h-4 text-emerald-600" />
+                      <div className="w-10 h-10 rounded-xl bg-brand-50 grid place-items-center shrink-0">
+                        <Inbox className="w-4 h-4 text-brand-600" />
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-[14px] font-semibold text-slate-900">{e.parentName}</p>
+                          <p className="text-[14px] font-semibold text-surface-900">{e.parentName}</p>
                           <Badge variant={e.type === "Admission" ? "emerald" : "sky"}>{e.type}</Badge>
                           <Badge
                             variant={
@@ -139,31 +139,31 @@ export default function EnquiriesPage() {
                           </Badge>
                         </div>
                         {e.childFirstName && (
-                          <p className="text-[12px] text-slate-500 mt-0.5">
+                          <p className="text-[12px] text-surface-500 mt-0.5">
                             Applying for <strong>{e.childFirstName} {e.childLastName}</strong>
-                            {e.section && ` · ${e.section}`}
+                            {e.section && ` - ${e.section}`}
                           </p>
                         )}
                         {e.subject && (
-                          <p className="text-[12px] text-slate-500 mt-0.5">Subject: {e.subject}</p>
+                          <p className="text-[12px] text-surface-500 mt-0.5">Subject: {e.subject}</p>
                         )}
                       </div>
                     </div>
-                    <span className="text-[11px] text-slate-400 whitespace-nowrap shrink-0">
+                    <span className="text-[11px] text-surface-400 whitespace-nowrap shrink-0">
                       {formatDate(e.createdAt)}
                     </span>
                   </div>
 
-                  <p className="text-[13px] text-slate-700 leading-relaxed line-clamp-2 mb-3">
+                  <p className="text-[13px] text-surface-700 leading-relaxed line-clamp-2 mb-3">
                     {e.message}
                   </p>
 
-                  <div className="flex items-center gap-4 flex-wrap text-[12px] text-slate-500">
-                    <a href={`mailto:${e.parentEmail}`} className="inline-flex items-center gap-1.5 hover:text-emerald-700">
+                  <div className="flex items-center gap-4 flex-wrap text-[12px] text-surface-500">
+                    <a href={`mailto:${e.parentEmail}`} className="inline-flex items-center gap-1.5 hover:text-brand-700">
                       <Mail className="w-3 h-3" />{e.parentEmail}
                     </a>
                     {e.parentPhone && (
-                      <a href={`tel:${e.parentPhone}`} className="inline-flex items-center gap-1.5 hover:text-emerald-700">
+                      <a href={`tel:${e.parentPhone}`} className="inline-flex items-center gap-1.5 hover:text-brand-700">
                         <Phone className="w-3 h-3" />{e.parentPhone}
                       </a>
                     )}

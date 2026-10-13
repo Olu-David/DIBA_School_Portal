@@ -13,35 +13,35 @@ interface Slide {
   ctaTo: string;
   secondary?: { label: string; to: string };
   image: string;
-  tone: "emerald" | "amber" | "sky" | "violet";
+  tone: "brand" | "flame" | "sky" | "violet";
 }
 
 const slides: Slide[] = [
   {
-    eyebrow: "Knowledge Â· Character Â· Service",
+    eyebrow: "Knowledge / Character / Service",
     title: "Building intelligent leaders of tomorrow",
     accent: "one curious mind at a time",
     description:
-      "Dominion Intelligent Builders' Academy is a co-educational school in Sokoto shaping confident, capable, and God-fearing young people from Nursery through Senior Secondary.",
+      "Dominion Intelligent Builders Academy is a co-educational school in Sokoto shaping confident, capable, and God-fearing young people from Nursery through Senior Secondary.",
     ctaLabel: "Apply for 2025/2026",
     ctaTo: "/admissions",
     secondary: { label: "Take a campus tour", to: "/contact" },
     image:
       "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=1920&q=80",
-    tone: "emerald",
+    tone: "brand",
   },
   {
     eyebrow: "Admissions open",
     title: "Your child's next chapter",
     accent: "starts here",
     description:
-      "Limited places available across Nursery, Primary, Junior and Senior Secondary. Entrance assessments hold every Saturday â€” book a slot online.",
+      "Limited places available across Nursery, Primary, Junior and Senior Secondary. Entrance assessments hold every Saturday - book a slot online.",
     ctaLabel: "Begin application",
     ctaTo: "/admissions",
     secondary: { label: "Download prospectus", to: "/contact" },
     image:
       "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1920&q=80",
-    tone: "amber",
+    tone: "flame",
   },
   {
     eyebrow: "Academic excellence",
@@ -72,9 +72,9 @@ const slides: Slide[] = [
 ];
 
 const toneRing: Record<Slide["tone"], string> = {
-  emerald: "bg-emerald-500",
-  amber: "bg-amber-500",
-  sky: "bg-sky-500",
+  brand: "bg-brand-400",
+  flame: "bg-flame-500",
+  sky:   "bg-sky-500",
   violet: "bg-violet-500",
 };
 
@@ -109,7 +109,7 @@ export default function HeroCarousel() {
 
   return (
     <section
-      className="relative h-[88vh] min-h-[620px] w-full overflow-hidden bg-slate-900"
+      className="relative h-[88vh] min-h-[620px] w-full overflow-hidden bg-surface-900"
       onMouseEnter={() => setPlaying(false)}
       onMouseLeave={() => setPlaying(true)}
       aria-roledescription="carousel"
@@ -129,7 +129,7 @@ export default function HeroCarousel() {
             className="absolute inset-0 w-full h-full object-cover"
             loading={i === 0 ? "eager" : "lazy"}
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/95 via-emerald-950/75 to-emerald-950/30" />
+          <div className="absolute inset-0 bg-gradient-to-r from-surface-950/95 via-surface-950/75 to-surface-950/30" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
         </div>
       ))}
@@ -145,7 +145,7 @@ export default function HeroCarousel() {
 
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-[1.05] tracking-tight">
             {slides[index].title}{" "}
-            <span className="italic text-amber-300">{slides[index].accent}</span>
+            <span className="italic text-brand-300">{slides[index].accent}</span>
           </h1>
 
           <p className="mt-6 text-white/80 text-[15px] sm:text-base leading-relaxed max-w-xl">
@@ -155,7 +155,7 @@ export default function HeroCarousel() {
           <div className="mt-9 flex flex-col sm:flex-row gap-3">
             <Link
               to={slides[index].ctaTo}
-              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-amber-400 text-emerald-950 font-semibold text-[14px] hover:bg-amber-300 transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-brand-500 text-white font-semibold text-[14px] hover:bg-brand-400 transition-colors"
             >
               {slides[index].ctaLabel}
               <ArrowRight className="w-4 h-4" />
@@ -172,7 +172,6 @@ export default function HeroCarousel() {
         </div>
       </div>
 
-      {/* Controls */}
       <div className="absolute z-30 bottom-8 left-0 right-0 max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {slides.map((_, i) => (
@@ -183,7 +182,7 @@ export default function HeroCarousel() {
               aria-label={`Go to slide ${i + 1}`}
               className={`transition-all ${
                 i === index
-                  ? "w-10 h-1.5 bg-amber-400"
+                  ? "w-10 h-1.5 bg-brand-400"
                   : "w-4 h-1.5 bg-white/30 hover:bg-white/60"
               } rounded-full`}
             />

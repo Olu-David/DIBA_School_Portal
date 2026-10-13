@@ -40,9 +40,12 @@ import StudentDetailPage from "./pages/admin/StudentDetailPage";
 import TeachersPage from "./pages/admin/TeachersPage";
 import TeacherDetailPage from "./pages/admin/TeacherDetailPage";
 import ParentsPage from "./pages/admin/ParentsPage";
+import NewParentPage from "./pages/admin/NewParentPage";
 import ClassesPage from "./pages/admin/ClassesPage";
+import NewClassPage from "./pages/admin/NewClassPage";
 import ClassDetailPage from "./pages/admin/ClassDetailPage";
 import SubjectsPage from "./pages/admin/SubjectsPage";
+import NewSubjectPage from "./pages/admin/NewSubjectPage";
 import AcademicSessionsPage from "./pages/admin/AcademicSessionsPage";
 import AuditLogsPage from "./pages/admin/AuditLogsPage";
 import EnquiriesPage from "./pages/admin/EnquiriesPage";
@@ -75,13 +78,24 @@ import ProfilePage from "./pages/shared/ProfilePage";
 import ReportCardViewer from "./pages/shared/ReportCardViewer";
 import NotificationsPage from "./pages/shared/NotificationsPage";
 
+// Roles allowed to CREATE records (staff management tier)
+const MANAGERS = [
+  "SuperAdmin",
+  "Principal",
+  "Headmaster",
+  "Headmistress",
+  "VicePrincipal",
+  "SchoolAdmin",
+  "Registrar",
+] as const;
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
           <Routes>
-            {/* ==================== PUBLIC ==================== */}
+            {/* PUBLIC */}
             <Route element={<PublicLayout />}>
               <Route path="/" element={<HomePage />} />
               <Route path="/about" element={<AboutPage />} />
@@ -90,7 +104,7 @@ export default function App() {
               <Route path="/contact" element={<ContactPage />} />
             </Route>
 
-            {/* ==================== AUTH ==================== */}
+            {/* AUTH */}
             <Route path="/auth" element={<AuthLayout />}>
               <Route index element={<Navigate to="/auth/staff" replace />} />
               <Route path="staff" element={<StaffLogin />} />
@@ -98,24 +112,73 @@ export default function App() {
               <Route path="parent" element={<ParentLogin />} />
             </Route>
 
-            {/* ==================== ADMIN (all staff) ==================== */}
+            {/* ADMIN (any staff) */}
             <Route element={<ProtectedRoute allowedRoles={STAFF_ROLES} />}>
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Dashboard />} />
-
-                {/* ---------- Class list + detail: any staff ---------- */}
-                <Route path="classes" element={<ClassesPage />} />
-                <Route path="classes/:classId" element={<ClassDetailPage />} />
-
-                {/* ---------- Students: any staff (service filters by role) ---------- */}
-                <Route path="students" element={<StudentsPage />} />
-                <Route path="students/:id" element={<StudentDetailPage />} />
-
-                {/* ---------- Common ---------- */}
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
 
-                {/* ---------- Results viewer (role-filtered by API) ---------- */}
+                {/* ---------- CLASSES ---------- */}
+                {/* "new" MUST come before ":classId" */}
+                <Route path="classes" element={<ClassesPage />} />
+                <Route
+                  element={
+                    <ProtectedRoute allowedRoles={[...MANAGERS] as any} />
+                  }
+                >
+                  <Route path="classes/new" element={<NewClassPage />} />
+                </Route>
+                <Route path="classes/:classId" element={<ClassDetailPage />} />
+
+                {/* ---------- STUDENTS ---------- */}
+                {/* "new" MUST come before ":id" */}
+                <Route path="students" element={<StudentsPage />} />
+                <Route
+                  element={
+                    <ProtectedRoute allowedRoles={[...MANAGERS] as any} />
+                  }
+                >
+                  <Route path="students/new" element={<NewStudentPage />} />
+                </Route>
+                <Route path="students/:id" element={<StudentDetailPage />} />
+
+                {/* ---------- TEACHERS (any staff can view list) ---------- */}
+                <Route path="teachers" element={<TeachersPage />} />
+                <Route path="teachers/:id" element={<TeacherDetailPage />} />
+
+                {/* ---------- PARENTS ---------- */}
+                <Route path="parents" element={<ParentsPage />} />
+                <Route
+                  element={
+                    <ProtectedRoute
+                      allowedRoles={[
+                        "SuperAdmin",
+                        "Principal",
+                        "Registrar",
+                      ] as any}
+                    />
+                  }
+                >
+                  <Route path="parents/new" element={<NewParentPage />} />
+                </Route>
+
+                {/* ---------- SUBJECTS ---------- */}
+                <Route path="subjects" element={<SubjectsPage />} />
+                <Route
+                  element={
+                    <ProtectedRoute allowedRoles={ADMIN_ROLES} />
+                  }
+                >
+                  <Route path="subjects/new" element={<NewSubjectPage />} />
+                </Route>
+
+                {/* ---------- SESSIONS ---------- */}
+                <Route element={<ProtectedRoute allowedRoles={ADMIN_ROLES} />}>
+                  <Route path="sessions" element={<AcademicSessionsPage />} />
+                </Route>
+
+                {/* ---------- RESULTS ---------- */}
                 <Route element={<ProtectedRoute allowedRoles={RESULT_VIEWERS} />}>
                   <Route path="results" element={<SchoolResultsPage />} />
                   <Route path="report-cards" element={<ReportCardsPage />} />
@@ -125,7 +188,6 @@ export default function App() {
                   />
                 </Route>
 
-                {/* ---------- Score entry (teachers + leadership) ---------- */}
                 <Route
                   element={
                     <ProtectedRoute
@@ -144,45 +206,15 @@ export default function App() {
                   <Route path="score-entry" element={<ScoreEntryPage />} />
                 </Route>
 
-                {/* ---------- My Assignments (teachers only) ---------- */}
                 <Route element={<ProtectedRoute allowedRoles={TEACHING_ROLES} />}>
                   <Route path="my-assignments" element={<MyAssignmentsPage />} />
                 </Route>
 
-                {/* ---------- Results approval (leadership only) ---------- */}
                 <Route element={<ProtectedRoute allowedRoles={LEADERSHIP_ROLES} />}>
                   <Route path="results-approval" element={<ResultsApprovalPage />} />
                 </Route>
 
-                {/* ---------- People management (Registrar and above) ---------- */}
-                <Route
-                  element={
-                    <ProtectedRoute
-                      allowedRoles={[
-                        "SuperAdmin",
-                        "Principal",
-                        "Headmaster",
-                        "Headmistress",
-                        "VicePrincipal",
-                        "SchoolAdmin",
-                        "Registrar",
-                      ]}
-                    />
-                  }
-                >
-                  <Route path="students/new" element={<NewStudentPage />} />
-                  <Route path="teachers" element={<TeachersPage />} />
-                  <Route path="teachers/:id" element={<TeacherDetailPage />} />
-                  <Route path="parents" element={<ParentsPage />} />
-                </Route>
-
-                {/* ---------- Subjects & Sessions (admin only) ---------- */}
-                <Route element={<ProtectedRoute allowedRoles={ADMIN_ROLES} />}>
-                  <Route path="subjects" element={<SubjectsPage />} />
-                  <Route path="sessions" element={<AcademicSessionsPage />} />
-                </Route>
-
-                {/* ---------- Finance (finance roles only) ---------- */}
+                {/* ---------- FINANCE ---------- */}
                 <Route element={<ProtectedRoute allowedRoles={FINANCE_ROLES} />}>
                   <Route path="finance" element={<FinanceDashboard />} />
                   <Route path="finance/payments" element={<PaymentsListPage />} />
@@ -191,43 +223,59 @@ export default function App() {
                   <Route path="finance/record-cash" element={<RecordCash />} />
                 </Route>
 
-                {/* ---------- Enquiries (Registrar and above) ---------- */}
+                {/* ---------- ENQUIRIES ---------- */}
                 <Route element={<ProtectedRoute allowedRoles={ENQUIRY_ROLES} />}>
                   <Route path="enquiries" element={<EnquiriesPage />} />
                 </Route>
 
-                {/* ---------- Audit logs (leadership only) ---------- */}
+                {/* ---------- AUDIT ---------- */}
                 <Route element={<ProtectedRoute allowedRoles={AUDIT_ROLES} />}>
                   <Route path="audit-logs" element={<AuditLogsPage />} />
                 </Route>
               </Route>
             </Route>
 
-            {/* ==================== STUDENT ==================== */}
+            {/* STUDENT */}
             <Route element={<ProtectedRoute allowedRoles={["Student"]} />}>
               <Route path="/student" element={<StudentLayout />}>
                 <Route index element={<StudentDashboard />} />
                 <Route path="bill" element={<MyBillPage />} />
                 <Route path="results" element={<MyResultsPage />} />
-                <Route path="notifications" element={<NotificationsPage />} />
-                <Route path="profile" element={<ProfilePage />} />
-              </Route>
-            </Route>
-
-            {/* ==================== PARENT ==================== */}
-            <Route element={<ProtectedRoute allowedRoles={["Parent"]} />}>
-              <Route path="/parent" element={<ParentLayout />}>
-                <Route index element={<ParentDashboard />} />
                 <Route
-                  path="children/:studentProfileId"
-                  element={<ChildDetailPage />}
+                  path="results/:studentId/:sessionId/:termId"
+                  element={<ReportCardViewer />}
                 />
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
             </Route>
 
-            {/* ==================== FALLBACK ==================== */}
+            {/* PARENT */}
+            <Route element={<ProtectedRoute allowedRoles={["Parent"]} />}>
+              <Route path="/parent" element={<ParentLayout />}>
+                <Route index element={<ParentDashboard />} />
+                <Route path="children" element={<ParentDashboard />} />
+                <Route
+                  path="children/:studentProfileId"
+                  element={<ChildDetailPage />}
+                />
+                <Route
+                  path="children/:studentProfileId/results"
+                  element={<MyResultsPage />}
+                />
+                <Route
+                  path="children/:studentProfileId/payments"
+                  element={<MyBillPage />}
+                />
+                <Route
+                  path="children/:studentProfileId/report-cards/:sessionId/:termId"
+                  element={<ReportCardViewer />}
+                />
+                <Route path="notifications" element={<NotificationsPage />} />
+                <Route path="profile" element={<ProfilePage />} />
+              </Route>
+            </Route>
+
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ToastProvider>

@@ -12,7 +12,7 @@ const items: PortalNavItem[] = [
 export default function StudentLayout() {
   return (
     <PortalShell
-      brand="Student Portal · Sokoto"
+      brand="Student Portal - Sokoto"
       items={items}
       loginPath="/auth/student"
     />

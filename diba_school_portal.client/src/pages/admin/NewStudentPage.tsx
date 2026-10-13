@@ -1,6 +1,6 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserPlus, Camera, X } from "lucide-react";
+import { UserPlus, Camera, X, Sparkles } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
   Button, Card, FormField, Input, Select, Avatar,
@@ -20,9 +20,17 @@ interface Created {
   temporaryPassword: string;
 }
 
-// Only these three are valid SS streams — matches ClassStream enum.
-// We never send "None" or "General" from the UI.
 const STREAMS = ["Science", "Arts", "Commercial"];
+
+// Detects a stream from a class name like "SS 1 Science" or "SS-1-ARTS"
+function detectStream(className: string | undefined): string | null {
+  if (!className) return null;
+  const lower = className.toLowerCase();
+  if (lower.includes("science")) return "Science";
+  if (lower.includes("commercial")) return "Commercial";
+  if (lower.includes("arts")) return "Arts";
+  return null;
+}
 
 export default function NewStudentPage() {
   const navigate = useNavigate();
@@ -66,6 +74,15 @@ export default function NewStudentPage() {
 
   const selectedClass = classes.find((c) => c.id === form.schoolClassId);
   const isSenior = selectedClass?.academicSection === "SeniorSecondary";
+  const autoDetectedStream = detectStream(selectedClass?.name);
+  const needsManualStream = isSenior && !autoDetectedStream;
+
+  // When class changes, auto-fill stream from the class name if possible
+  const handleClassChange = (id: string) => {
+    const cls = classes.find((c) => c.id === id);
+    const detected = detectStream(cls?.name);
+    setForm((p) => ({ ...p, schoolClassId: id, stream: detected ?? "" }));
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -76,7 +93,10 @@ export default function NewStudentPage() {
     }
 
     if (isSenior && !form.stream) {
-      toast({ variant: "error", title: "Please choose a stream for this SS student" });
+      toast({
+        variant: "error",
+        title: "Please choose a stream for this SS student",
+      });
       return;
     }
 
@@ -90,7 +110,6 @@ export default function NewStudentPage() {
       if (form.phoneNumber) fd.append("phoneNumber", form.phoneNumber);
       fd.append("schoolClassId", form.schoolClassId);
 
-      // Only send stream for Senior Secondary
       if (isSenior && form.stream) {
         fd.append("stream", form.stream);
       }
@@ -127,13 +146,13 @@ export default function NewStudentPage() {
         <PageHeader eyebrow="Enrolment complete" title="Student added" />
         <Card>
           <div className="text-center py-4">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 grid place-items-center mx-auto mb-4">
-              <UserPlus className="w-6 h-6 text-emerald-600" />
+            <div className="w-14 h-14 rounded-2xl bg-brand-50 grid place-items-center mx-auto mb-4">
+              <UserPlus className="w-6 h-6 text-brand-600" />
             </div>
-            <h2 className="text-[16px] font-semibold text-slate-900">
+            <h2 className="text-[16px] font-semibold text-surface-900">
               {form.firstName} {form.lastName} enrolled
             </h2>
-            <p className="text-[13px] text-slate-500 mt-1">
+            <p className="text-[13px] text-surface-500 mt-1">
               Share these credentials with the guardian. You can link a parent
               from the student's page.
             </p>
@@ -173,7 +192,7 @@ export default function NewStudentPage() {
 
       <form onSubmit={submit} className="space-y-6">
         <Card>
-          <h3 className="text-[15px] font-semibold text-slate-900 mb-5">
+          <h3 className="text-[15px] font-semibold text-surface-900 mb-5">
             Student details
           </h3>
 
@@ -183,12 +202,12 @@ export default function NewStudentPage() {
                 <img
                   src={preview}
                   alt="preview"
-                  className="w-20 h-20 rounded-2xl object-cover border border-slate-200"
+                  className="w-20 h-20 rounded-2xl object-cover border border-surface-200"
                 />
               ) : (
                 <Avatar name={`${form.firstName} ${form.lastName}`} size="xl" />
               )}
-              <label className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-emerald-600 text-white grid place-items-center cursor-pointer shadow-sm hover:bg-emerald-700">
+              <label className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-brand-600 text-white grid place-items-center cursor-pointer shadow-sm hover:bg-brand-700">
                 <Camera className="w-3.5 h-3.5" />
                 <input
                   type="file"
@@ -198,9 +217,9 @@ export default function NewStudentPage() {
                 />
               </label>
             </div>
-            <div className="text-[12px] text-slate-400 pt-1">
-              <p className="font-medium text-slate-600">Profile picture</p>
-              <p className="mt-1">JPG, PNG, or WEBP · max 200 KB</p>
+            <div className="text-[12px] text-surface-400 pt-1">
+              <p className="font-medium text-surface-600">Profile picture</p>
+              <p className="mt-1">JPG, PNG, or WEBP - max 200 KB</p>
               {file && (
                 <button
                   type="button"
@@ -208,7 +227,7 @@ export default function NewStudentPage() {
                     setFile(null);
                     setPreview(null);
                   }}
-                  className="mt-2 inline-flex items-center gap-1 text-rose-600 hover:text-rose-700"
+                  className="mt-2 inline-flex items-center gap-1 text-flame-600 hover:text-flame-700"
                 >
                   <X className="w-3 h-3" /> Remove
                 </button>
@@ -243,36 +262,46 @@ export default function NewStudentPage() {
               <Input
                 value={form.phoneNumber}
                 onChange={change("phoneNumber")}
-                placeholder="080…"
+                placeholder="080..."
               />
             </FormField>
           </div>
         </Card>
 
         <Card>
-          <h3 className="text-[15px] font-semibold text-slate-900 mb-5">
+          <h3 className="text-[15px] font-semibold text-surface-900 mb-5">
             Class placement
           </h3>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Class" required>
               <Select
                 value={form.schoolClassId}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  // Reset stream whenever the class changes
-                  setForm((p) => ({ ...p, schoolClassId: id, stream: "" }));
-                }}
+                onChange={(e) => handleClassChange(e.target.value)}
                 placeholder="Choose a class"
                 options={classes.map((c) => ({ value: c.id, label: c.name }))}
               />
             </FormField>
 
-            {/* Stream picker only shows for Senior Secondary */}
-            {isSenior && (
+            {/* If the class name contains a stream, show it as auto-detected */}
+            {isSenior && autoDetectedStream && (
+              <FormField
+                label="Stream"
+                hint="Detected from the class name"
+              >
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 text-[14px] font-medium">
+                  <Sparkles className="w-4 h-4 shrink-0" />
+                  {autoDetectedStream}
+                </div>
+              </FormField>
+            )}
+
+            {/* Otherwise, show the dropdown so the user picks manually */}
+            {needsManualStream && (
               <FormField
                 label="Stream"
                 required
-                hint="Required for Senior Secondary students"
+                hint="This class is not stream-specific — pick the student's stream"
               >
                 <Select
                   value={form.stream}
@@ -283,6 +312,16 @@ export default function NewStudentPage() {
               </FormField>
             )}
           </div>
+
+          {isSenior && (
+            <p className="mt-4 text-[12px] text-surface-500 leading-relaxed">
+              Tip: create separate classes for each stream (e.g.{" "}
+              <strong className="text-surface-700">SS 1 Science</strong>,{" "}
+              <strong className="text-surface-700">SS 1 Arts</strong>,{" "}
+              <strong className="text-surface-700">SS 1 Commercial</strong>) and
+              the stream will be set automatically.
+            </p>
+          )}
         </Card>
 
         <div className="flex justify-end gap-3">
@@ -304,9 +343,9 @@ export default function NewStudentPage() {
 
 function CredRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-      <span className="text-[12px] text-slate-500">{label}</span>
-      <span className="text-[13px] font-mono font-semibold text-slate-900">
+    <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-50 border border-surface-100">
+      <span className="text-[12px] text-surface-500">{label}</span>
+      <span className="text-[13px] font-mono font-semibold text-surface-900">
         {value}
       </span>
     </div>

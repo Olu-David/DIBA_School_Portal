@@ -4,7 +4,6 @@ import {
   Menu, X, Phone, Mail, MapPin, Share2, Camera, AtSign, PlayCircle,
   ArrowRight,
 } from "lucide-react";
-import SchoolCrest from "../components/public/SchoolCrest";
 
 const nav = [
   { to: "/", label: "Home" },
@@ -19,9 +18,9 @@ export default function PublicLayout() {
   const { pathname } = useLocation();
 
   return (
-    <div className="min-h-screen bg-stone-50 text-slate-800 font-sans">
+    <div className="min-h-screen bg-surface-50 text-surface-800 font-sans">
       {/* Utility bar */}
-      <div className="bg-emerald-950 text-white/80 text-[12px]">
+      <div className="bg-surface-950 text-white/80 text-[12px]">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 h-10 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <span className="hidden sm:inline-flex items-center gap-1.5">
@@ -35,11 +34,11 @@ export default function PublicLayout() {
             <Link to="/auth/student" className="hover:text-white transition">
               Student
             </Link>
-            <span className="text-white/20">·</span>
+            <span className="text-white/20">-</span>
             <Link to="/auth/parent" className="hover:text-white transition">
               Parent
             </Link>
-            <span className="text-white/20">·</span>
+            <span className="text-white/20">-</span>
             <Link to="/auth/staff" className="hover:text-white transition">
               Staff
             </Link>
@@ -48,16 +47,20 @@ export default function PublicLayout() {
       </div>
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-stone-50/90 backdrop-blur border-b border-stone-200">
+      <header className="sticky top-0 z-50 bg-surface-50/90 backdrop-blur border-b border-surface-200">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 h-20 flex items-center justify-between gap-6">
           <Link to="/" className="flex items-center gap-3 shrink-0">
-            <SchoolCrest className="w-11 h-11" />
+            <img
+              src="/images/logo.png"
+              alt="Dominion Intelligent Builders Academy"
+              className="w-11 h-11 object-contain"
+            />
             <div className="leading-tight">
-              <p className="font-serif text-[15px] font-semibold text-emerald-950 tracking-tight">
+              <p className="font-serif text-[15px] font-semibold text-surface-950 tracking-tight">
                 Dominion Intelligent Builders
               </p>
-              <p className="text-[10px] tracking-[0.3em] uppercase text-emerald-700 font-medium">
-                Academy · Sokoto
+              <p className="text-[10px] tracking-[0.3em] uppercase text-brand-700 font-medium">
+                Academy - Sokoto
               </p>
             </div>
           </Link>
@@ -71,8 +74,8 @@ export default function PublicLayout() {
                   to={n.to}
                   className={`px-4 py-2 rounded-full text-[13px] font-medium transition-colors ${
                     active
-                      ? "bg-emerald-100 text-emerald-900"
-                      : "text-slate-700 hover:bg-stone-200/60"
+                      ? "bg-brand-50 text-brand-700"
+                      : "text-surface-700 hover:bg-surface-200/60"
                   }`}
                 >
                   {n.label}
@@ -84,7 +87,7 @@ export default function PublicLayout() {
           <div className="flex items-center gap-3">
             <Link
               to="/admissions"
-              className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-800 text-white text-[13px] font-semibold hover:bg-emerald-900 transition-colors"
+              className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-brand-600 text-white text-[13px] font-semibold hover:bg-brand-700 transition-colors"
             >
               Apply now
               <ArrowRight className="w-3.5 h-3.5" />
@@ -92,7 +95,7 @@ export default function PublicLayout() {
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
-              className="lg:hidden p-2 rounded-lg hover:bg-stone-200"
+              className="lg:hidden p-2 rounded-lg hover:bg-surface-200"
               aria-label="Menu"
             >
               {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -100,17 +103,16 @@ export default function PublicLayout() {
           </div>
         </div>
 
-        {/* Mobile drawer */}
         {open && (
-          <div className="lg:hidden border-t border-stone-200 bg-stone-50">
+          <div className="lg:hidden border-t border-surface-200 bg-surface-50">
             <nav className="px-6 py-4 flex flex-col">
               {nav.map((n) => (
                 <Link
                   key={n.to}
                   to={n.to}
                   onClick={() => setOpen(false)}
-                  className={`py-3 text-[14px] font-medium border-b border-stone-200 last:border-0 ${
-                    pathname === n.to ? "text-emerald-800" : "text-slate-700"
+                  className={`py-3 text-[14px] font-medium border-b border-surface-200 last:border-0 ${
+                    pathname === n.to ? "text-brand-700" : "text-surface-700"
                   }`}
                 >
                   {n.label}
@@ -119,7 +121,7 @@ export default function PublicLayout() {
               <Link
                 to="/admissions"
                 onClick={() => setOpen(false)}
-                className="mt-4 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full bg-emerald-800 text-white text-[13px] font-semibold"
+                className="mt-4 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full bg-brand-600 text-white text-[13px] font-semibold"
               >
                 Apply now
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -134,18 +136,22 @@ export default function PublicLayout() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-emerald-950 text-white/70 mt-24">
+      <footer className="bg-surface-950 text-white/70 mt-24">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 pt-16 pb-10">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
             <div>
               <div className="flex items-center gap-3 mb-5">
-                <SchoolCrest className="w-12 h-12" />
+                <img
+                     src="/images/logo1.png"
+                  alt="Dominion Intelligent Builders Academy"
+                  className="w-12 h-12 object-contain"
+                />
                 <div className="leading-tight">
                   <p className="font-serif text-[14px] font-semibold text-white">
                     Dominion Intelligent
                   </p>
                   <p className="font-serif text-[14px] font-semibold text-white">
-                    Builders' Academy
+                    Builders Academy
                   </p>
                   <p className="text-[10px] text-white/50 italic mt-1">
                     Knowledge is Wealth
@@ -157,32 +163,20 @@ export default function PublicLayout() {
                 Primary, and Secondary education guided by faith and character.
               </p>
               <div className="mt-5 flex items-center gap-3">
-                <a
-                  href="#"
-                  aria-label="Facebook"
-                  className="w-9 h-9 rounded-full border border-white/15 grid place-items-center hover:bg-white/10 transition"
-                >
+                <a href="#" aria-label="Facebook"
+                   className="w-9 h-9 rounded-full border border-white/15 grid place-items-center hover:bg-white/10 transition">
                   <Share2 className="w-4 h-4" />
                 </a>
-                <a
-                  href="#"
-                  aria-label="Instagram"
-                  className="w-9 h-9 rounded-full border border-white/15 grid place-items-center hover:bg-white/10 transition"
-                >
+                <a href="#" aria-label="Instagram"
+                   className="w-9 h-9 rounded-full border border-white/15 grid place-items-center hover:bg-white/10 transition">
                   <Camera className="w-4 h-4" />
                 </a>
-                <a
-                  href="#"
-                  aria-label="Twitter / X"
-                  className="w-9 h-9 rounded-full border border-white/15 grid place-items-center hover:bg-white/10 transition"
-                >
+                <a href="#" aria-label="Twitter"
+                   className="w-9 h-9 rounded-full border border-white/15 grid place-items-center hover:bg-white/10 transition">
                   <AtSign className="w-4 h-4" />
                 </a>
-                <a
-                  href="#"
-                  aria-label="YouTube"
-                  className="w-9 h-9 rounded-full border border-white/15 grid place-items-center hover:bg-white/10 transition"
-                >
+                <a href="#" aria-label="YouTube"
+                   className="w-9 h-9 rounded-full border border-white/15 grid place-items-center hover:bg-white/10 transition">
                   <PlayCircle className="w-4 h-4" />
                 </a>
               </div>
@@ -193,26 +187,10 @@ export default function PublicLayout() {
                 Explore
               </h4>
               <ul className="space-y-3 text-[13px]">
-                <li>
-                  <Link to="/about" className="hover:text-white">
-                    About the school
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/academics" className="hover:text-white">
-                    Academics
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/admissions" className="hover:text-white">
-                    Admissions
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/contact" className="hover:text-white">
-                    Contact us
-                  </Link>
-                </li>
+                <li><Link to="/about" className="hover:text-white">About the school</Link></li>
+                <li><Link to="/academics" className="hover:text-white">Academics</Link></li>
+                <li><Link to="/admissions" className="hover:text-white">Admissions</Link></li>
+                <li><Link to="/contact" className="hover:text-white">Contact us</Link></li>
               </ul>
             </div>
 
@@ -221,21 +199,9 @@ export default function PublicLayout() {
                 Portals
               </h4>
               <ul className="space-y-3 text-[13px]">
-                <li>
-                  <Link to="/auth/student" className="hover:text-white">
-                    Student portal
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/auth/parent" className="hover:text-white">
-                    Parent portal
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/auth/staff" className="hover:text-white">
-                    Staff portal
-                  </Link>
-                </li>
+                <li><Link to="/auth/student" className="hover:text-white">Student portal</Link></li>
+                <li><Link to="/auth/parent" className="hover:text-white">Parent portal</Link></li>
+                <li><Link to="/auth/staff" className="hover:text-white">Staff portal</Link></li>
               </ul>
             </div>
 
@@ -268,11 +234,11 @@ export default function PublicLayout() {
 
           <div className="mt-14 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-[12px]">
             <p>
-              © {new Date().getFullYear()} Dominion Intelligent Builders'
+              &copy; {new Date().getFullYear()} Dominion Intelligent Builders
               Academy. All rights reserved.
             </p>
             <p className="text-white/50">
-              RC-2372959 · Established 6 November 2015 · Sokoto State, Nigeria
+              RC-2372959 - Established 6 November 2015 - Sokoto State, Nigeria
             </p>
           </div>
         </div>

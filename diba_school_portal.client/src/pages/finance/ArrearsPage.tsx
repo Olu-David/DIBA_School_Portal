@@ -29,7 +29,6 @@ export default function ArrearsPage() {
   const [rows, setRows] = useState<ArrearsRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load sessions once
   useEffect(() => {
     (async () => {
       const { data } = await api.get<ApiResponse<{ items: Session[] }>>(
@@ -47,7 +46,6 @@ export default function ArrearsPage() {
     })();
   }, []);
 
-  // Load arrears
   useEffect(() => {
     if (!sessionId || !termId) return;
     setLoading(true);
@@ -80,7 +78,6 @@ export default function ArrearsPage() {
         }
       />
 
-      {/* Session/term selectors */}
       <Card padding="sm">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1">
@@ -104,24 +101,22 @@ export default function ArrearsPage() {
         </div>
       </Card>
 
-      {/* Alert banner */}
       {!loading && rows.length > 0 && (
-        <div className="bg-gradient-to-br from-rose-50 to-rose-100/40 border border-rose-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="bg-gradient-to-br from-flame-50 to-flame-100/40 border border-flame-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <div className="w-11 h-11 rounded-xl bg-white grid place-items-center shadow-sm shrink-0">
-            <AlertCircle className="w-5 h-5 text-rose-600" />
+            <AlertCircle className="w-5 h-5 text-flame-600" />
           </div>
           <div className="flex-1">
-            <p className="text-[14px] font-semibold text-slate-900">
+            <p className="text-[14px] font-semibold text-surface-900">
               {rows.length} student{rows.length !== 1 ? "s" : ""} owing
             </p>
-            <p className="text-[12px] text-slate-600 mt-0.5">
-              Total outstanding: <strong className="text-rose-600">{formatNaira(totalOwed)}</strong>
+            <p className="text-[12px] text-surface-600 mt-0.5">
+              Total outstanding: <strong className="text-flame-600">{formatNaira(totalOwed)}</strong>
             </p>
           </div>
         </div>
       )}
 
-      {/* List */}
       <Card padding="none">
         {loading ? (
           <div className="p-6 space-y-3">
@@ -131,31 +126,31 @@ export default function ArrearsPage() {
           <EmptyState
             icon={AlertCircle}
             title="No arrears"
-            description="Every student has paid their fees for this term. Nice!"
+            description="Every student has paid their fees for this term."
           />
         ) : (
           <>
             <div className="hidden lg:block overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/50">
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Student</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Class</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Guardian</th>
-                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Expected</th>
-                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Paid</th>
-                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-6 py-3">Outstanding</th>
+                  <tr className="border-b border-surface-100 bg-surface-50/50">
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Student</th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Class</th>
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Guardian</th>
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Expected</th>
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Paid</th>
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">Outstanding</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-surface-100">
                   {rows.map((r) => (
-                    <tr key={r.studentProfileId} className="hover:bg-slate-50/50">
+                    <tr key={r.studentProfileId} className="hover:bg-surface-50/50">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <Avatar name={r.studentName} size="sm" />
                           <div>
-                            <p className="text-[13px] font-medium text-slate-800">{r.studentName}</p>
-                            <p className="text-[11px] text-slate-400 font-mono">{r.admissionNumber}</p>
+                            <p className="text-[13px] font-medium text-surface-800">{r.studentName}</p>
+                            <p className="text-[11px] text-surface-400 font-mono">{r.admissionNumber}</p>
                           </div>
                         </div>
                       </td>
@@ -164,16 +159,16 @@ export default function ArrearsPage() {
                       </td>
                       <td className="px-6 py-4">
                         {r.guardianPhone ? (
-                          <a href={`tel:${r.guardianPhone}`} className="inline-flex items-center gap-1.5 text-[12px] text-slate-600 hover:text-emerald-700">
+                          <a href={`tel:${r.guardianPhone}`} className="inline-flex items-center gap-1.5 text-[12px] text-surface-600 hover:text-brand-700">
                             <Phone className="w-3 h-3" />
                             {r.guardianPhone}
                           </a>
-                        ) : <span className="text-slate-400">—</span>}
+                        ) : <span className="text-surface-400">-</span>}
                       </td>
-                      <td className="px-6 py-4 text-right text-[13px] text-slate-600 tabular-nums">{formatNaira(r.expected)}</td>
-                      <td className="px-6 py-4 text-right text-[13px] text-slate-600 tabular-nums">{formatNaira(r.paid)}</td>
+                      <td className="px-6 py-4 text-right text-[13px] text-surface-600 tabular-nums">{formatNaira(r.expected)}</td>
+                      <td className="px-6 py-4 text-right text-[13px] text-surface-600 tabular-nums">{formatNaira(r.paid)}</td>
                       <td className="px-6 py-4 text-right">
-                        <span className="text-[13px] font-semibold text-rose-600 tabular-nums">
+                        <span className="text-[13px] font-semibold text-flame-600 tabular-nums">
                           {formatNaira(r.outstanding)}
                         </span>
                       </td>
@@ -183,21 +178,21 @@ export default function ArrearsPage() {
               </table>
             </div>
 
-            <div className="lg:hidden divide-y divide-slate-100">
+            <div className="lg:hidden divide-y divide-surface-100">
               {rows.map((r) => (
                 <div key={r.studentProfileId} className="p-4">
                   <div className="flex items-center gap-3">
                     <Avatar name={r.studentName} size="md" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium text-slate-800 truncate">{r.studentName}</p>
-                      <p className="text-[11px] text-slate-400 font-mono">{r.admissionNumber} · {r.className}</p>
+                      <p className="text-[13px] font-medium text-surface-800 truncate">{r.studentName}</p>
+                      <p className="text-[11px] text-surface-400 font-mono">{r.admissionNumber} - {r.className}</p>
                     </div>
-                    <p className="text-[13px] font-semibold text-rose-600 tabular-nums">
+                    <p className="text-[13px] font-semibold text-flame-600 tabular-nums">
                       {formatNaira(r.outstanding)}
                     </p>
                   </div>
                   {r.guardianPhone && (
-                    <a href={`tel:${r.guardianPhone}`} className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-emerald-600">
+                    <a href={`tel:${r.guardianPhone}`} className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-brand-600">
                       <Phone className="w-3 h-3" />
                       {r.guardianPhone}
                     </a>
