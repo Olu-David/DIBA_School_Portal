@@ -7,12 +7,12 @@ namespace DIBA_School_Portal.Server.Repository.Services.Background
 {
     public class EmailWorker : BackgroundService
     {
-        private readonly IBackgroundSmsQueue _queue;
+        private readonly IBackgroundEmailQueue _queue;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<EmailWorker> _logger;
 
         public EmailWorker(
-            IBackgroundSmsQueue queue,
+            IBackgroundEmailQueue queue,
             IServiceScopeFactory scopeFactory,
             ILogger<EmailWorker> logger)
         {
@@ -23,7 +23,7 @@ namespace DIBA_School_Portal.Server.Repository.Services.Background
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("SMS worker started.");
+            _logger.LogInformation("Email worker started.");
 
             var sendDelay = TimeSpan.FromMilliseconds(400);
 
@@ -32,32 +32,27 @@ namespace DIBA_School_Portal.Server.Repository.Services.Background
                 try
                 {
                     using var scope = _scopeFactory.CreateScope();
-                    var sms = scope.ServiceProvider.GetRequiredService<ISmsService>();
+                    var email = scope.ServiceProvider.GetRequiredService<IEmailService>();
 
-                    var ok = await sms.SendSmsAsync(job.ToPhone, job.Message);
+                    await email.EmailSendAsync(job.ToEmail, job.Subject, job.HtmlBody);
 
-                    if (ok)
-                        _logger.LogInformation(
-                            "[SmsWorker] Sent → {Phone} (queue {QueueId})",
-                            job.ToPhone, job.QueueId);
-                    else
-                        _logger.LogWarning(
-                            "[SmsWorker] Provider returned false → {Phone} (queue {QueueId})",
-                            job.ToPhone, job.QueueId);
+                    _logger.LogInformation(
+                        "[EmailWorker] Sent -> {Email} (queue {QueueId})",
+                        job.ToEmail, job.QueueId);
                 }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex,
-                        "[SmsWorker] FAILED → {Phone} (queue {QueueId})",
-                        job.ToPhone, job.QueueId);
+                        "[EmailWorker] FAILED -> {Email} (queue {QueueId})",
+                        job.ToEmail, job.QueueId);
                 }
 
                 try { await Task.Delay(sendDelay, stoppingToken); }
                 catch (OperationCanceledException) { break; }
             }
 
-            _logger.LogInformation("SMS worker stopped.");
+            _logger.LogInformation("Email worker stopped.");
         }
     }
 }

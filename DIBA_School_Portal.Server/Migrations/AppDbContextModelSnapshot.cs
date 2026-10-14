@@ -970,6 +970,9 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasMaxLength(5)
                         .HasColumnType("nvarchar(5)");
 
+                    b.Property<bool>("IsDraft")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Remark")
                         .IsRequired()
                         .HasMaxLength(100)

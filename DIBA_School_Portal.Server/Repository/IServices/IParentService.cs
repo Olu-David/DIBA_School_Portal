@@ -1,4 +1,5 @@
 ﻿using DIBA_School_Portal.Server.Contracts;
+using DIBA_School_Portal.Server.Contracts.Parent_Child;
 using DIBA_School_Portal.Server.Contracts.StudentDTO;
 
 
@@ -11,7 +12,8 @@ namespace DIBA_School_Portal.Server.Repository.IServices
         /// </summary>
         Task<ServiceResponse<List<ParentChildSummaryDto>>> GetMyChildrenAsync(
             string parentUserId);
-
+        Task<ServiceResponse<PaginatedViewModel<ParentListRowDto>>> GetParentsAsync(
+    int pageNumber, int pageSize, string? searchTerm);
         /// <summary>
         /// Full dashboard for a single child (fees, results, enrollments).
         /// </summary>

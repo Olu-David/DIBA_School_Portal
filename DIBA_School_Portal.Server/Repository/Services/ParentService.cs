@@ -1,5 +1,6 @@
 ﻿using DIBA_School_Portal.Server.Configurations;
 using DIBA_School_Portal.Server.Contracts;
+using DIBA_School_Portal.Server.Contracts.Parent_Child;
 using DIBA_School_Portal.Server.Contracts.StudentDTO;
 using DIBA_School_Portal.Server.Database_Entities;
 using DIBA_School_Portal.Server.Enums;
@@ -520,5 +521,102 @@ namespace DIBA_School_Portal.Server.Repository.Services
                              && ps.StudentProfileId == studentProfileId);
         }
         #endregion
+    
+    public async Task<ServiceResponse<PaginatedViewModel<ParentListRowDto>>> GetParentsAsync(
+    int pageNumber, int pageSize, string? searchTerm)
+        {
+            var response = new ServiceResponse<PaginatedViewModel<ParentListRowDto>>();
+            try
+            {
+                pageNumber = Math.Max(1, pageNumber);
+                pageSize = Math.Max(1, Math.Min(200, pageSize));
+
+                // Base query — all ApplicationUsers in the Parent role
+                var parentRoleId = await _context.Roles
+                    .Where(r => r.Name == "Parent")
+                    .Select(r => r.Id)
+                    .FirstOrDefaultAsync();
+
+                if (string.IsNullOrEmpty(parentRoleId))
+                {
+                    response.Success = true;
+                    response.StatusCode = 200;
+                    response.Data = new PaginatedViewModel<ParentListRowDto>
+                    {
+                        Items = new List<ParentListRowDto>(),
+                        PageNumber = pageNumber,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        TotalPages = 0,
+                    };
+                    return response;
+                }
+
+                var query = from u in _context.Users
+                            join ur in _context.UserRoles on u.Id equals ur.UserId
+                            where ur.RoleId == parentRoleId && !u.IsDeleted
+                            select u;
+
+                if (!string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    var s = searchTerm.Trim().ToLower();
+                    query = query.Where(u =>
+                        u.FirstName!.ToLower().Contains(s) ||
+                        u.LastName!.ToLower().Contains(s) ||
+                        (u.Email != null && u.Email.ToLower().Contains(s)) ||
+                        (u.PhoneNumber != null && u.PhoneNumber.Contains(s)));
+                }
+
+                var totalCount = await query.CountAsync();
+
+                var users = await query
+                    .OrderBy(u => u.FirstName).ThenBy(u => u.LastName)
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                var userIds = users.Select(u => u.Id).ToList();
+
+                // Child counts from ParentStudents
+                var childCounts = await _context.ParentStudents
+                    .Where(ps => userIds.Contains(ps.ParentUserId))
+                    .GroupBy(ps => ps.ParentUserId)
+                    .Select(g => new { ParentUserId = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.ParentUserId, x => x.Count);
+
+                var rows = users.Select(u => new ParentListRowDto
+                {
+                    Id = u.Id,
+                    FirstName = u.FirstName ?? "",
+                    LastName = u.LastName ?? "",
+                    Email = u.Email,
+                    PhoneNumber = u.PhoneNumber,
+                    ProfilePictureUrl = u.ProfilePictureUrl,
+                    IsActive = u.IsActive,
+                    ChildCount = childCounts.TryGetValue(u.Id, out var c) ? c : 0,
+                }).ToList();
+
+                response.Success = true;
+                response.StatusCode = 200;
+                response.Data = new PaginatedViewModel<ParentListRowDto>
+                {
+                    Items = rows,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    TotalCount = totalCount,
+                    TotalPages = totalCount > 0
+                        ? (int)Math.Ceiling(totalCount / (double)pageSize)
+                        : 0,
+                };
+                return response;
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = ex.Message;
+                response.StatusCode = 500;
+                return response;
+            }
+        }
     }
 }

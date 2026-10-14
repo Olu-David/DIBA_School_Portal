@@ -7,14 +7,15 @@ namespace DIBA_School_Portal.Server.Contracts.ClassDto
         public Guid ClassId { get; set; }
         public string ClassName { get; set; } = string.Empty;
         public AcademicSection Section { get; set; }
-        public string SectionName => Section.ToString();
         public int DisplayOrder { get; set; }
 
         public int StudentCount { get; set; }
         public decimal ClassAverage { get; set; }
         public decimal HighestAverage { get; set; }
         public decimal LowestAverage { get; set; }
-        public int PublishedCount { get; set; }
+
+        // ---- RENAMED ----
+        public int CompleteCount { get; set; }   // was PublishedCount
         public int PendingCount { get; set; }
 
         public List<StreamResultGroupDto> Streams { get; set; } = new();

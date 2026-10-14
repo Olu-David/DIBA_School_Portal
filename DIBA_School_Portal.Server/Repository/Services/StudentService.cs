@@ -41,45 +41,46 @@ namespace DIBA_School_Portal.Server.Repository.Services
             _http.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
         #endregion
 
-        // ==========================================================
-        // HELPER — Which classes can the current user see?
-        //   null   → every class (admin-tier)
-        //   list   → only these class IDs (teacher)
-        //   empty  → nothing (teacher with no assignments)
-        // ==========================================================
         private async Task<List<Guid>?> GetAllowedClassIdsAsync()
         {
+            // Fall back to "sub" — some JWT setups only emit that.
             var userId = _http.HttpContext?.User?
-                .FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                .FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? _http.HttpContext?.User?.FindFirst("sub")?.Value;
 
-            if (string.IsNullOrEmpty(userId)) return null;
+            // Fail CLOSED: cannot identify caller → see nothing.
+            if (string.IsNullOrEmpty(userId))
+                return new List<Guid>();
 
             var user = await _userManager.FindByIdAsync(userId);
-            if (user == null) return null;
+            if (user == null)
+                return new List<Guid>();
 
             var roles = await _userManager.GetRolesAsync(user);
 
             var adminRoles = new[]
             {
-                "SuperAdmin", "Principal", "Headmaster", "Headmistress",
-                "VicePrincipal", "SchoolAdmin", "Registrar", "Accountant",
-            };
+        "SuperAdmin", "Principal", "Headmaster", "Headmistress",
+        "VicePrincipal", "SchoolAdmin", "Registrar", "Accountant",
+    };
 
-            if (roles.Any(r => adminRoles.Contains(r))) return null;
+            if (roles.Any(r => adminRoles.Contains(r)))
+                return null;   // null = unrestricted
 
             var teacher = await _context.Teachers
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.UserId == userId);
 
-            if (teacher == null) return new List<Guid>();
+            if (teacher == null)
+                return new List<Guid>();
 
+            // Only TeacherClasses — no FormTeacherId union.
             return await _context.TeacherClasses
                 .AsNoTracking()
                 .Where(tc => tc.TeacherId == teacher.Id)
                 .Select(tc => tc.SchoolClassId)
                 .ToListAsync();
         }
-
         // ==========================================================
         // LIST (paginated + filterable + role-scoped)
         // ==========================================================

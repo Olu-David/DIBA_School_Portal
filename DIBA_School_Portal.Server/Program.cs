@@ -7,7 +7,6 @@ using DIBA_School_Portal.Server.Repository.IServices;
 using DIBA_School_Portal.Server.Repository.Services;
 using DIBA_School_Portal.Server.Repository.Services.Background;
 using DIBA_School_Portal.Server.Services;
-using DIBA_School_Portal.Server.Services.Background;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -253,16 +252,20 @@ builder.Services.AddScoped<IPaymentLog, PaymentLogService>();
 
 // --- Payments ---
 builder.Services.AddScoped<IPaymentService, PaymentService>();
-builder.Services.AddScoped<IAccountService  , AccountService>();   // ← ADD THIS
-
+builder.Services.AddScoped<IAccountService  , AccountService>();   
 // --- Academics ---
 builder.Services.AddScoped<IAcademicSession, AcademicSessionService>();
 builder.Services.AddScoped<ISchoolClassService, SchoolClassService>();
 builder.Services.AddScoped<ISchoolFeeService, SchoolFeeService>();
 builder.Services.AddScoped<ISubjectService, SubjectService>();
 builder.Services.AddScoped<ITermSubjectResultService, TermSubjectResultService>();
-builder.Services.AddScoped<IStudentService, StudentService>();     // ← ADD THIS
+builder.Services.AddScoped<IStudentService, StudentService>();
 
+// --- Teachers ---
+builder.Services.AddScoped<ITeacherService, TeacherService>();  
+
+// --- Parents ---
+builder.Services.AddScoped<IParentService, ParentService>();
 // --- Parents ---
 builder.Services.AddScoped<IParentService, ParentService>();
 
@@ -361,4 +364,5 @@ app.MapDefaultEndpoints();
 // SPA fallback (must be last)
 app.MapFallbackToFile("/index.html");
 
+// Start the server
 app.Run();

@@ -1,6 +1,4 @@
-﻿using DIBA_School_Portal.Server.Contracts.ClassDto;
-
-namespace DIBA_School_Portal.Server.Contracts
+﻿namespace DIBA_School_Portal.Server.Contracts.ClassDto
 {
     public class SchoolResultResponseDto
     {
@@ -9,16 +7,17 @@ namespace DIBA_School_Portal.Server.Contracts
         public Guid TermId { get; set; }
         public string TermName { get; set; } = string.Empty;
 
-        public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
+        public DateTime GeneratedAt { get; set; }
 
-        // Summary
         public int TotalStudents { get; set; }
         public int TotalClasses { get; set; }
-        public int TotalPublished { get; set; }
+
+    
+        public int TotalComplete { get; set; }   // was TotalPublished
         public int TotalPending { get; set; }
+
         public decimal OverallAverage { get; set; }
 
-        // Breakdown
         public List<ClassResultGroupDto> Classes { get; set; } = new();
     }
 }

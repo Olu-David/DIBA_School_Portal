@@ -5,7 +5,6 @@ using DIBA_School_Portal.Server.Database_Entities;
 using DIBA_School_Portal.Server.Entities;
 using DIBA_School_Portal.Server.Enums;
 using DIBA_School_Portal.Server.Repository.IServices;
-using DIBA_School_Portal.Server.Services.Background;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -184,20 +183,25 @@ namespace DIBA_School_Portal.Server.Repository.Services.Background
         // Resolve recipients based on target
         // ==========================================================
         private async Task<List<RecipientDto>> ResolveRecipientsAsync(
-            string target, List<string>? parentIds, Guid? classId, string? section)
+            string target,
+            List<string>? parentIds,
+            Guid? classId,
+            string? section,
+            Guid? academicSessionId = null,
+            Guid? termId = null)
         {
             target = (target ?? "List").Trim();
 
             IQueryable<ApplicationUser> query = _userManager.Users;
 
-            // Only parents — filter by role is expensive in one query,
-            // so we resolve via the ParentStudents links instead
+            // Only parents — resolved via ParentStudents links
             var parentUserIds = _context.ParentStudents
                 .AsNoTracking()
                 .Select(ps => ps.ParentUserId)
                 .Distinct();
 
-            query = query.Where(u => parentUserIds.Contains(u.Id) && u.IsActive && !u.IsDeleted);
+            query = query.Where(u =>
+                parentUserIds.Contains(u.Id) && u.IsActive && !u.IsDeleted);
 
             // ---- Apply target filters ----
             if (target.Equals("List", StringComparison.OrdinalIgnoreCase))
@@ -211,14 +215,14 @@ namespace DIBA_School_Portal.Server.Repository.Services.Background
             {
                 if (!classId.HasValue) return new List<RecipientDto>();
 
-                var studentUserIds = _context.Students
+                var studentIdsForClass = _context.Students
                     .AsNoTracking()
                     .Where(s => s.SchoolClassId == classId.Value)
                     .Select(s => s.Id);
 
                 var parentIdsForClass = _context.ParentStudents
                     .AsNoTracking()
-                    .Where(ps => studentUserIds.Contains(ps.StudentProfileId))
+                    .Where(ps => studentIdsForClass.Contains(ps.StudentProfileId))
                     .Select(ps => ps.ParentUserId)
                     .Distinct();
 
@@ -230,20 +234,51 @@ namespace DIBA_School_Portal.Server.Repository.Services.Background
                     !Enum.TryParse<AcademicSection>(section, true, out var parsed))
                     return new List<RecipientDto>();
 
-                var studentUserIds = _context.Students
+                var studentIdsForSection = _context.Students
                     .AsNoTracking()
                     .Where(s => s.SchoolClass.AcademicSection == parsed)
                     .Select(s => s.Id);
 
                 var parentIdsForSection = _context.ParentStudents
                     .AsNoTracking()
-                    .Where(ps => studentUserIds.Contains(ps.StudentProfileId))
+                    .Where(ps => studentIdsForSection.Contains(ps.StudentProfileId))
                     .Select(ps => ps.ParentUserId)
                     .Distinct();
 
                 query = query.Where(u => parentIdsForSection.Contains(u.Id));
             }
-            // "All" → no additional filter
+            else if (target.Equals("Arrears", StringComparison.OrdinalIgnoreCase))
+            {
+                // Requires a term + session
+                if (!academicSessionId.HasValue || !termId.HasValue)
+                    return new List<RecipientDto>();
+
+                // Students with outstanding balance for that term
+                var arrearsStudentIds = _context.StudentEnrollments
+                    .AsNoTracking()
+                    .Where(e => e.AcademicSessionId == academicSessionId.Value
+                             && e.TermId == termId.Value
+                             && !e.IsFullyPaid)
+                    .Select(e => e.StudentProfileId)
+                    .Distinct();
+
+                // Optional: restrict to a single class
+                if (classId.HasValue)
+                {
+                    arrearsStudentIds = arrearsStudentIds.Where(sid =>
+                        _context.Students.Any(s =>
+                            s.Id == sid && s.SchoolClassId == classId.Value));
+                }
+
+                var parentIdsForArrears = _context.ParentStudents
+                    .AsNoTracking()
+                    .Where(ps => arrearsStudentIds.Contains(ps.StudentProfileId))
+                    .Select(ps => ps.ParentUserId)
+                    .Distinct();
+
+                query = query.Where(u => parentIdsForArrears.Contains(u.Id));
+            }
+            // "All" -> no additional filter
 
             return await query
                 .Select(u => new RecipientDto
@@ -255,7 +290,6 @@ namespace DIBA_School_Portal.Server.Repository.Services.Background
                 })
                 .ToListAsync();
         }
-
         private class RecipientDto
         {
             public string UserId { get; set; } = string.Empty;

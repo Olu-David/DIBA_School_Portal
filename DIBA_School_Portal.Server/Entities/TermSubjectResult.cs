@@ -47,8 +47,10 @@ namespace DIBA_School_Portal.Server.Entities
         [MaxLength(5)]
         public string Grade { get; set; } = string.Empty;
 
+        public bool IsDraft { get; set; } = true;
+
         [MaxLength(100)]
         public string Remark { get; set; } = string.Empty;
-        public DateTime CreatedAt { get; internal set; }
+        public DateTime CreatedAt { get;  set; }
     }
 }

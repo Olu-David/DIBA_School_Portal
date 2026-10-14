@@ -50,9 +50,9 @@ import AcademicSessionsPage from "./pages/admin/AcademicSessionsPage";
 import AuditLogsPage from "./pages/admin/AuditLogsPage";
 import EnquiriesPage from "./pages/admin/EnquiriesPage";
 import SchoolResultsPage from "./pages/admin/SchoolResultsPage";
-import ResultsApprovalPage from "./pages/admin/ResultsApprovalPage";
 import ReportCardsPage from "./pages/admin/ReportCardsPage";
 import MyAssignmentsPage from "./pages/admin/MyAssignmentsPage";
+import SubmittedResultsPage from "./pages/admin/SubmittedResultsPage";
 
 // Finance
 import FinanceDashboard from "./pages/finance/FinanceDashboard";
@@ -206,12 +206,10 @@ export default function App() {
                   <Route path="score-entry" element={<ScoreEntryPage />} />
                 </Route>
 
+                {/* ---------- TEACHER-ONLY ---------- */}
                 <Route element={<ProtectedRoute allowedRoles={TEACHING_ROLES} />}>
                   <Route path="my-assignments" element={<MyAssignmentsPage />} />
-                </Route>
-
-                <Route element={<ProtectedRoute allowedRoles={LEADERSHIP_ROLES} />}>
-                  <Route path="results-approval" element={<ResultsApprovalPage />} />
+                  <Route path="my-results" element={<SubmittedResultsPage />} />
                 </Route>
 
                 {/* ---------- FINANCE ---------- */}

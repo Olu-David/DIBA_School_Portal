@@ -38,18 +38,18 @@ namespace DIBA_School_Portal.Server.Repository.Services.Background
 
                     if (ok)
                         _logger.LogInformation(
-                            "[SmsWorker] Sent → {Phone} (queue {QueueId})",
+                            "[SmsWorker] Sent -> {Phone} (queue {QueueId})",
                             job.ToPhone, job.QueueId);
                     else
                         _logger.LogWarning(
-                            "[SmsWorker] Provider returned false → {Phone} (queue {QueueId})",
+                            "[SmsWorker] Provider returned false -> {Phone} (queue {QueueId})",
                             job.ToPhone, job.QueueId);
                 }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex,
-                        "[SmsWorker] FAILED → {Phone} (queue {QueueId})",
+                        "[SmsWorker] FAILED -> {Phone} (queue {QueueId})",
                         job.ToPhone, job.QueueId);
                 }
 

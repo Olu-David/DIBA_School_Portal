@@ -42,14 +42,114 @@ const STREAM_TONE: Record<string, "sky" | "violet" | "amber" | "rose"> = {
 
 const STREAMS = ["Science", "Arts", "Commercial"];
 
+// Roles allowed to edit/delete a student (match backend StudentEditors
+// + controller [Authorize] on PUT/DELETE /api/Student/{id}).
+const STUDENT_EDITOR_ROLES = [
+  "SuperAdmin",
+  "Principal",
+  "Registrar",
+  "SchoolAdmin",
+].map((r) => r.toLowerCase()); // normalize for case-insensitive compare
+
+// ---------------------------------------------------------------
+// Role lookup — tries JWT, then a cached user object.
+// ---------------------------------------------------------------
+const TOKEN_KEYS = [
+  "token",
+  "accessToken",
+  "access_token",
+  "authToken",
+  "auth_token",
+  "jwt",
+  "id_token",
+  "diba_token",
+];
+
+function findToken(): string | null {
+  for (const k of TOKEN_KEYS) {
+    const v = localStorage.getItem(k);
+    if (v && v.split(".").length === 3) return v;
+  }
+  // Last resort: any JWT-shaped value in storage
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i)!;
+    const v = localStorage.getItem(k);
+    if (v && v.split(".").length === 3) return v;
+  }
+  return null;
+}
+
+function decodeJwt(token: string): Record<string, any> | null {
+  try {
+    const p = token.split(".")[1];
+    const b64 = p.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
+function getUserRoles(): string[] {
+  // 1) JWT
+  const token = findToken();
+  if (token) {
+    const payload = decodeJwt(token);
+    if (payload) {
+      const raw =
+        payload.role ??
+        payload.roles ??
+        payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] ??
+        payload["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/role"];
+      if (raw) {
+        const arr = Array.isArray(raw) ? raw : [raw];
+        return arr.map((r: any) => String(r));
+      }
+    }
+  }
+
+  // 2) Cached user object
+  for (const k of ["user", "currentUser", "auth_user", "authUser"]) {
+    const raw = localStorage.getItem(k);
+    if (!raw) continue;
+    try {
+      const obj = JSON.parse(raw);
+      const r = obj?.roles ?? obj?.role;
+      if (r) {
+        const arr = Array.isArray(r) ? r : [r];
+        return arr.map((x: any) => String(x));
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return [];
+}
+
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // ---- role check ----
+  const roles = getUserRoles();
+  const canEdit = roles.some((r) =>
+    STUDENT_EDITOR_ROLES.includes(r.toLowerCase())
+  );
+
+  // DEBUG — remove after verifying
+  useEffect(() => {
+    console.log("[student-detail] roles =", roles, "canEdit =", canEdit);
+  }, [roles, canEdit]);
+
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // ---- Edit dialog state ----
   const [editOpen, setEditOpen] = useState(false);
@@ -71,23 +171,49 @@ export default function StudentDetailPage() {
     if (!id) return;
     (async () => {
       try {
-        const [{ data: s }, { data: p }, { data: c }] = await Promise.all([
+        const [sRes, pRes, cRes] = await Promise.allSettled([
           api.get<ApiResponse<StudentDetail>>(`/student/${id}`),
           api.get<ApiResponse<Payment[]>>(`/payment/student/${id}`),
           api.get<ApiResponse<SchoolClass[]>>(`/schoolclass/all`),
         ]);
-        if (s.success) setStudent(s.data);
-        if (p.success) setPayments((p.data ?? []).slice(0, 8));
-        if (c.success) setClasses(c.data);
+
+        if (sRes.status === "fulfilled" && sRes.value.data.success) {
+          setStudent(sRes.value.data.data);
+        } else if (sRes.status === "rejected") {
+          const status = (sRes.reason as any)?.response?.status ?? null;
+          const msg =
+            (sRes.reason as any)?.response?.data?.message ??
+            "Could not load student.";
+          setErrorStatus(status);
+          setErrorMessage(msg);
+        } else {
+          setErrorStatus(404);
+          setErrorMessage(
+            (sRes as PromiseFulfilledResult<any>).value.data?.message ??
+              "Student not found."
+          );
+        }
+
+        if (pRes.status === "fulfilled" && pRes.value.data.success) {
+          setPayments((pRes.value.data.data ?? []).slice(0, 8));
+        } else {
+          setPayments([]);
+        }
+
+        if (cRes.status === "fulfilled" && cRes.value.data.success) {
+          setClasses(cRes.value.data.data ?? []);
+        } else {
+          setClasses([]);
+        }
       } finally {
         setLoading(false);
       }
     })();
   }, [id]);
 
-  // ---- Open edit dialog ----
+  // ---- Open edit dialog (guarded) ----
   const openEdit = () => {
-    if (!student) return;
+    if (!canEdit || !student) return;
     setEditForm({
       firstName: student.firstName,
       lastName: student.lastName,
@@ -99,9 +225,9 @@ export default function StudentDetailPage() {
     setEditOpen(true);
   };
 
-  // ---- Save edits ----
+  // ---- Save edits (guarded) ----
   const saveEdit = async () => {
-    if (!student) return;
+    if (!canEdit || !student) return;
 
     if (!editForm.firstName.trim() || !editForm.lastName.trim()) {
       toast({ variant: "error", title: "First and last name are required" });
@@ -144,9 +270,9 @@ export default function StudentDetailPage() {
     }
   };
 
-  // ---- Delete ----
+  // ---- Delete (guarded) ----
   const confirmDelete = async () => {
-    if (!student) return;
+    if (!canEdit || !student) return;
     setDeleting(true);
     try {
       const { data } = await api.delete<ApiResponse<boolean>>(
@@ -180,12 +306,22 @@ export default function StudentDetailPage() {
   }
 
   if (!student) {
+    const title =
+      errorStatus === 403
+        ? "You don't have access to this student"
+        : errorStatus === 404
+        ? "Student not found"
+        : "Could not load student";
+
     return (
       <Card>
         <EmptyState
           icon={Users}
-          title="Student not found"
-          action={<Button onClick={() => navigate("/admin/students")}>Back</Button>}
+          title={title}
+          description={errorMessage ?? undefined}
+          action={
+            <Button onClick={() => navigate("/admin/students")}>Back</Button>
+          }
         />
       </Card>
     );
@@ -257,19 +393,23 @@ export default function StudentDetailPage() {
               </span>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" icon={Pencil} onClick={openEdit}>
-              Edit
-            </Button>
-            <Button
-              variant="ghost"
-              icon={Trash2}
-              className="text-flame-600 hover:bg-flame-50"
-              onClick={() => setDeleteOpen(true)}
-            >
-              Delete
-            </Button>
-          </div>
+
+          {/* Edit / Delete only for editors */}
+          {canEdit && (
+            <div className="flex gap-2">
+              <Button variant="secondary" icon={Pencil} onClick={openEdit}>
+                Edit
+              </Button>
+              <Button
+                variant="ghost"
+                icon={Trash2}
+                className="text-flame-600 hover:bg-flame-50"
+                onClick={() => setDeleteOpen(true)}
+              >
+                Delete
+              </Button>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -283,14 +423,20 @@ export default function StudentDetailPage() {
         />
         <StatCard
           label="Latest average"
-          value={student.latestAverageScore ? `${student.latestAverageScore.toFixed(1)}%` : "-"}
+          value={
+            student.latestAverageScore
+              ? `${student.latestAverageScore.toFixed(1)}%`
+              : "-"
+          }
           hint={student.latestTermName ?? "No results yet"}
           icon={TrendingUp}
           tone="sky"
         />
         <StatCard
           label="Class position"
-          value={student.latestClassPosition ? `#${student.latestClassPosition}` : "-"}
+          value={
+            student.latestClassPosition ? `#${student.latestClassPosition}` : "-"
+          }
           hint="Most recent term"
           icon={GraduationCap}
           tone="violet"
@@ -310,7 +456,7 @@ export default function StudentDetailPage() {
             <h3 className="text-[15px] font-semibold text-surface-900">
               Guardians & contacts
             </h3>
-            <Button variant="ghost" size="sm" icon={Plus}>Link</Button>
+            {canEdit && <Button variant="ghost" size="sm" icon={Plus}>Link</Button>}
           </div>
 
           {parentLinks.length === 0 ? (
@@ -334,7 +480,9 @@ export default function StudentDetailPage() {
                       <p className="text-[13px] font-medium text-surface-800">
                         {p.fullName}
                       </p>
-                      {p.isPrimaryContact && <Badge variant="emerald">Primary</Badge>}
+                      {p.isPrimaryContact && (
+                        <Badge variant="emerald">Primary</Badge>
+                      )}
                     </div>
                     <p className="text-[11px] text-surface-400 mt-0.5">
                       {p.relationship}
@@ -410,10 +558,8 @@ export default function StudentDetailPage() {
         </div>
       </Card>
 
-      {/* ==========================================================
-          EDIT MODAL
-         ========================================================== */}
-      {editOpen && (
+      {/* EDIT MODAL — editors only */}
+      {canEdit && editOpen && (
         <>
           <div
             className="fixed inset-0 bg-surface-950/50 z-40"
@@ -528,10 +674,8 @@ export default function StudentDetailPage() {
         </>
       )}
 
-      {/* ==========================================================
-          DELETE CONFIRMATION
-         ========================================================== */}
-      {deleteOpen && (
+      {/* DELETE CONFIRMATION — editors only */}
+      {canEdit && deleteOpen && (
         <>
           <div
             className="fixed inset-0 bg-surface-950/50 z-40"

@@ -1,4 +1,5 @@
 ﻿using DIBA_School_Portal.Server.Contracts;
+using DIBA_School_Portal.Server.Contracts.ClassDto;
 using DIBA_School_Portal.Server.Contracts.FinanceDto;
 using DIBA_School_Portal.Server.Contracts.StudentDTO;
 using DIBA_School_Portal.Server.Repository.IServices;
@@ -627,7 +628,203 @@ namespace DIBA_School_Portal.Server.Services
                 return null;
             }
         }
+        #region GenerateTeacherClassSheetPdf
+        public byte[] GenerateTeacherClassSheetPdf(TeacherClassSheetDto sheet)
+        {
+            var logoBytes = LoadLogo();
 
+            return Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
+                    page.Margin(1.4f, Unit.Centimetre);
+                    page.PageColor(BgPage);
+                    page.DefaultTextStyle(x =>
+                        x.FontSize(10).FontFamily("Helvetica").FontColor(TextPrimary));
+
+                    // ---------- HEADER ----------
+                    page.Header().ShowOnce().Element(header =>
+                    {
+                        header.Background(BgCard).Padding(18).CornerRadius(12)
+                            .Border(1).BorderColor(Border).Row(row =>
+                            {
+                                row.RelativeItem().Row(logoRow =>
+                                {
+                                    if (logoBytes != null)
+                                        logoRow.ConstantItem(60).Height(60).Image(logoBytes).FitArea();
+                                    else
+                                        logoRow.ConstantItem(60).Height(60)
+                                    .Background(BrandBlue).CornerRadius(10)
+                                    .AlignCenter().AlignMiddle()
+                                    .Text("DIBA").Bold().FontColor(Colors.White).FontSize(13);
+
+                                    logoRow.ConstantItem(14);
+                                    logoRow.RelativeItem().Column(col =>
+                                    {
+                                        col.Spacing(1);
+                                        col.Item().Text(SchoolName).Bold().FontSize(13).FontColor(BrandBlueDark);
+                                        col.Item().Text("Class Score Sheet").FontSize(9).Italic().FontColor(TextSecondary);
+                                        col.Item().Text(SchoolMotto).FontSize(8).Bold().FontColor(BrandBlue);
+                                    });
+                                });
+
+                                row.ConstantItem(220).AlignRight().Column(c =>
+                                {
+                                    c.Spacing(4);
+                                    c.Item().AlignRight().Text($"{sheet.ClassName}").Bold().FontSize(14).FontColor(BrandBlueDark);
+                                    c.Item().AlignRight().Text($"{sheet.SubjectName} ({sheet.SubjectCode})")
+                                .FontSize(10).FontColor(TextPrimary);
+                                    c.Item().AlignRight().Text($"{sheet.TermName}  •  {sheet.AcademicSessionName}")
+                                .FontSize(9).FontColor(TextSecondary);
+                                });
+                            });
+                    });
+
+                    // ---------- CONTENT ----------
+                    page.Content().PaddingVertical(12).Column(col =>
+                    {
+                        col.Spacing(12);
+
+                        // Teacher + status bar
+                        col.Item().Background(BgCard).CornerRadius(12).Border(1).BorderColor(Border)
+                            .Padding(14).Row(r =>
+                            {
+                                r.RelativeItem().Column(c =>
+                                {
+                                    c.Spacing(2);
+                                    c.Item().Text("TEACHER").FontSize(7).Bold().FontColor(TextMuted);
+                                    c.Item().Text(sheet.TeacherName).FontSize(11).Bold();
+                                });
+
+                                r.ConstantItem(200).AlignRight().Column(c =>
+                                {
+                                    c.Spacing(2);
+                                    c.Item().AlignRight().Text("STATUS").FontSize(7).Bold().FontColor(TextMuted);
+                                    c.Item().AlignRight()
+                                .Background(sheet.IsSubmitted ? AccentEmeraldLight : AccentAmberLight)
+                                .CornerRadius(6).Padding(6)
+                                .Text(sheet.IsSubmitted ? "SUBMITTED" : "DRAFT")
+                                .FontSize(9).Bold()
+                                .FontColor(sheet.IsSubmitted ? AccentEmerald : AccentAmber);
+                                });
+                            });
+
+                        // KPIs
+                        col.Item().Row(row =>
+                        {
+                            row.RelativeItem().Element(e => StatTile(e, "Students", sheet.Students.Count.ToString()));
+                            row.ConstantItem(8);
+                            row.RelativeItem().Element(e => StatTile(e, "Class Avg", $"{sheet.ClassAverage:N1}%"));
+                            row.ConstantItem(8);
+                            row.RelativeItem().Element(e => StatTile(e, "Highest", $"{sheet.HighestScore:N1}"));
+                            row.ConstantItem(8);
+                            row.RelativeItem().Element(e => StatTile(e, "Lowest", $"{sheet.LowestScore:N1}"));
+                            row.ConstantItem(8);
+                            row.RelativeItem().Element(e => StatTile(e, "Pass / Fail", $"{sheet.PassCount} / {sheet.FailCount}"));
+                        });
+
+                        // Student table
+                        col.Item().Background(BgCard).CornerRadius(12).Border(1).BorderColor(Border)
+                            .Padding(16).Table(table =>
+                            {
+                                table.ColumnsDefinition(columns =>
+                                {
+                                    columns.ConstantColumn(30);  // Pos
+                                    columns.RelativeColumn(4);   // Student
+                                    columns.RelativeColumn(2);   // Admission
+                                    columns.RelativeColumn(1);   // T1
+                                    columns.RelativeColumn(1);   // T2
+                                    columns.RelativeColumn(1);   // Exam
+                                    columns.RelativeColumn(1);   // Total
+                                    columns.RelativeColumn(1);   // Grade
+                                    columns.RelativeColumn(3);   // Remark
+                                });
+
+                                table.Header(h =>
+                                {
+                                    void H(IContainer c, string text, bool right = false)
+                                    {
+                                        var cell = c.Background(BgSubtle).Padding(8);
+                                        var t = right ? cell.AlignRight() : cell;
+                                        t.Text(text).FontSize(8).Bold().FontColor(TextSecondary);
+                                    }
+                                    H(h.Cell(), "#", true);
+                                    H(h.Cell(), "Student");
+                                    H(h.Cell(), "Admission");
+                                    H(h.Cell(), "T1", true);
+                                    H(h.Cell(), "T2", true);
+                                    H(h.Cell(), "Exam", true);
+                                    H(h.Cell(), "Total", true);
+                                    H(h.Cell(), "Grade", true);
+                                    H(h.Cell(), "Remark");
+                                });
+
+                                var isAlt = false;
+                                foreach (var s in sheet.Students)
+                                {
+                                    var rowBg = isAlt ? BgSubtle : BgCard;
+
+                                    table.Cell().Background(rowBg).Padding(8).AlignRight()
+                                .Text(s.Position.ToString()).FontSize(9).FontColor(TextSecondary);
+                                    table.Cell().Background(rowBg).Padding(8)
+                                .Text(s.StudentName).FontSize(9).Bold();
+                                    table.Cell().Background(rowBg).Padding(8)
+                                .Text(s.AdmissionNumber).FontSize(9).FontColor(TextSecondary);
+                                    table.Cell().Background(rowBg).Padding(8).AlignRight()
+                                .Text(s.Test1Score.ToString("0.##")).FontSize(9);
+                                    table.Cell().Background(rowBg).Padding(8).AlignRight()
+                                .Text(s.Test2Score.ToString("0.##")).FontSize(9);
+                                    table.Cell().Background(rowBg).Padding(8).AlignRight()
+                                .Text(s.ExamScore.ToString("0.##")).FontSize(9);
+                                    table.Cell().Background(rowBg).Padding(8).AlignRight()
+                                .Text(s.TotalScore.ToString("0.##")).FontSize(9).Bold();
+                                    table.Cell().Background(rowBg).Padding(8).AlignRight()
+                                .Text(s.Grade).FontSize(9).Bold().FontColor(GradeColor(s.Grade));
+                                    table.Cell().Background(rowBg).Padding(8)
+                                .Text(s.Remark).FontSize(9).FontColor(TextSecondary);
+
+                                    isAlt = !isAlt;
+                                }
+                            });
+
+                        // Signature strip
+                        col.Item().PaddingTop(12).Row(row =>
+                        {
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().PaddingTop(24).LineHorizontal(1).LineColor(Border);
+                                c.Item().PaddingTop(4).Text("Subject Teacher").FontSize(8).FontColor(TextMuted);
+                            });
+                            row.ConstantItem(60);
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().PaddingTop(24).LineHorizontal(1).LineColor(Border);
+                                c.Item().PaddingTop(4).Text("HOD / Principal").FontSize(8).FontColor(TextMuted);
+                            });
+                        });
+                    });
+
+                    // ---------- FOOTER ----------
+                    page.Footer().Column(footer =>
+                    {
+                        footer.Spacing(2);
+                        footer.Item().AlignCenter().Text(text =>
+                        {
+                            text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
+                            text.Span(SchoolAddress); text.Span("  •  "); text.Span(SchoolPhone);
+                        });
+                        footer.Item().AlignCenter().Text(text =>
+                        {
+                            text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
+                            text.Span($"Generated {sheet.GeneratedAt:dd MMM yyyy HH:mm}  •  Page ");
+                            text.CurrentPageNumber(); text.Span(" of "); text.TotalPages();
+                        });
+                    });
+                });
+            }).GeneratePdf();
+        }
+        #endregion
         private byte[]? LoadProfileImage(string? url)
         {
             if (string.IsNullOrWhiteSpace(url))

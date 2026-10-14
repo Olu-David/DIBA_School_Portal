@@ -49,7 +49,6 @@ namespace DIBA_School_Portal.Server.Services
         // ==========================================================
         // HELPER — Check assignment
         // ==========================================================
-        #region IsTeacherAuthorizedForClassSubjectAsync
         private async Task<(bool authorized, string reason)> IsTeacherAuthorizedForClassSubjectAsync(
             string userId, Guid classId, Guid subjectId)
         {
@@ -79,12 +78,10 @@ namespace DIBA_School_Portal.Server.Services
 
             return (true, "Authorized");
         }
-        #endregion
 
         // ==========================================================
         // MY ASSIGNMENTS
         // ==========================================================
-        #region GetMyAssignmentsAsync
         public async Task<ServiceResponse<List<TeacherAssignmentDto>>> GetMyAssignmentsAsync(
             string teacherUserId, Guid? academicSessionId = null, Guid? termId = null)
         {
@@ -234,12 +231,10 @@ namespace DIBA_School_Portal.Server.Services
                 return response;
             }
         }
-        #endregion
 
         // ==========================================================
         // GET SCORE SHEET
         // ==========================================================
-        #region GetStudentsForScoreEntryAsync
         public async Task<ServiceResponse<PaginatedViewModel<StudentScoreEntryDto>>> GetStudentsForScoreEntryAsync(
             Guid classId, Guid subjectId, Guid termId, Guid academicSessionId,
             string currentUserId, int pageNumber = 1, int pageSize = 50)
@@ -338,12 +333,10 @@ namespace DIBA_School_Portal.Server.Services
                 return response;
             }
         }
-        #endregion
 
         // ==========================================================
         // SAVE SCORES
         // ==========================================================
-        #region SaveAndComputeSubjectScoresAsync
         public async Task<ServiceResponse<string>> SaveAndComputeSubjectScoresAsync(
             ClassScoreSubmissionDto model, string currentUserId)
         {
@@ -380,11 +373,65 @@ namespace DIBA_School_Portal.Server.Services
                         };
                     }
 
+                    var studentProfile = await _context.Students
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(s => s.UserId == item.StudentId);
+
+                    if (studentProfile == null)
+                        return new ServiceResponse<string>
+                        {
+                            Success = false,
+                            Message = $"Student profile not found for user {item.StudentId}.",
+                            StatusCode = 404
+                        };
+
+                    // Ensure enrollment exists
+                    var enrollment = await _context.StudentEnrollments
+                        .FirstOrDefaultAsync(e =>
+                            e.StudentProfileId == studentProfile.Id &&
+                            e.TermId == model.TermId &&
+                            e.AcademicSessionId == model.AcademicSessionId);
+
+                    if (enrollment == null)
+                    {
+                        var billedAmount = await _context.ClassFeePrices
+                            .Include(cfp => cfp.Fee)
+                            .Where(cfp =>
+                                cfp.SchoolClassId == studentProfile.SchoolClassId &&
+                                cfp.Fee.TermId == model.TermId &&
+                                cfp.Fee.AcademicSessionId == model.AcademicSessionId)
+                            .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
+
+                        enrollment = new StudentEnrollments
+                        {
+                            Id = Guid.NewGuid(),
+                            StudentProfileId = studentProfile.Id,
+                            AcademicSessionId = model.AcademicSessionId,
+                            TermId = model.TermId,
+                            SchoolClassId = studentProfile.SchoolClassId,
+                            TotalAmountPaid = 0m,
+                            OutstandingBalance = billedAmount,
+                            IsFullyPaid = false,
+                            Status = StudentEnrollmentStatus.Pending,
+                            IsActive = false,
+                            EnrolledAt = DateTime.UtcNow,
+                        };
+
+                        _context.StudentEnrollments.Add(enrollment);
+                        await _context.SaveChangesAsync();
+
+                        _logger.LogInformation(
+                            "Auto-created enrollment {EnrollmentId} for student {StudentProfileId} (term {TermId}).",
+                            enrollment.Id, studentProfile.Id, model.TermId);
+                    }
+
+                    // Find or create TermResult
                     var termResult = await _context.TermResults
-                        .FirstOrDefaultAsync(tr => tr.StudentId == item.StudentId
-                                                && tr.ClassId == model.ClassId
-                                                && tr.TermId == model.TermId
-                                                && tr.AcademicSessionId == model.AcademicSessionId);
+                        .FirstOrDefaultAsync(tr =>
+                            tr.StudentId == item.StudentId &&
+                            tr.ClassId == model.ClassId &&
+                            tr.TermId == model.TermId &&
+                            tr.AcademicSessionId == model.AcademicSessionId);
 
                     if (termResult == null)
                     {
@@ -395,14 +442,23 @@ namespace DIBA_School_Portal.Server.Services
                             ClassId = model.ClassId,
                             TermId = model.TermId,
                             AcademicSessionId = model.AcademicSessionId,
+                            EnrollmentId = enrollment.Id,
                         };
                         await _context.TermResults.AddAsync(termResult);
                         await _context.SaveChangesAsync();
                     }
+                    else if (termResult.EnrollmentId == Guid.Empty)
+                    {
+                        termResult.EnrollmentId = enrollment.Id;
+                        _context.TermResults.Update(termResult);
+                        await _context.SaveChangesAsync();
+                    }
 
+                    // Find or create TermSubjectResult
                     var subjectResult = await _context.TermSubjectResults
-                        .FirstOrDefaultAsync(tsr => tsr.TermResultId == termResult.Id
-                                                 && tsr.SubjectId == model.SubjectId);
+                        .FirstOrDefaultAsync(tsr =>
+                            tsr.TermResultId == termResult.Id &&
+                            tsr.SubjectId == model.SubjectId);
 
                     decimal totalScore = item.Test1Score + item.Test2Score + item.ExamScore;
                     string grade = CalculateGrade(totalScore);
@@ -422,6 +478,7 @@ namespace DIBA_School_Portal.Server.Services
                             TotalScore = totalScore,
                             Grade = grade,
                             Remark = remark,
+                            IsDraft = !model.IsFinished,
                             CreatedAt = DateTime.UtcNow
                         };
                         await _context.TermSubjectResults.AddAsync(subjectResult);
@@ -449,12 +506,14 @@ namespace DIBA_School_Portal.Server.Services
                         subjectResult.Grade = grade;
                         subjectResult.Remark = remark;
                         subjectResult.TeacherId = currentUserId;
+                        subjectResult.IsDraft = !model.IsFinished;
 
                         _context.TermSubjectResults.Update(subjectResult);
                     }
                 }
 
                 await _context.SaveChangesAsync();
+
                 await RecalculateRankingsAndAveragesAsync(
                     model.ClassId, model.SubjectId, model.TermId, model.AcademicSessionId);
 
@@ -468,16 +527,6 @@ namespace DIBA_School_Portal.Server.Services
                 {
                     await NotifyPrincipalOfSubmissionAsync(
                         teacher, model.ClassId, model.SubjectId, model.TermId, model.AcademicSessionId);
-
-                    var principals = await _userManager.GetUsersInRoleAsync("Principal");
-                    foreach (var p in principals)
-                    {
-                        await _notification.SendNotificationAsync(
-                            p.Id,
-                            "Scores Submitted",
-                            $"{teacher.FirstName} {teacher.LastName} submitted scores for class {model.ClassId}.",
-                            category: "Academic");
-                    }
                 }
 
                 return new ServiceResponse<string>
@@ -494,12 +543,10 @@ namespace DIBA_School_Portal.Server.Services
                 return new ServiceResponse<string> { Success = false, Message = ex.Message, StatusCode = 500 };
             }
         }
-        #endregion
 
         // ==========================================================
         // UPDATE SINGLE RESULT
         // ==========================================================
-        #region UpdateTermSubjectResultAsync
         public async Task<ServiceResponse<string>> UpdateTermSubjectResultAsync(
             Guid subjectResultId, decimal test1, decimal test2, decimal exam, string currentUserId)
         {
@@ -566,12 +613,10 @@ namespace DIBA_School_Portal.Server.Services
                 return new ServiceResponse<string> { Success = false, Message = ex.Message, StatusCode = 500 };
             }
         }
-        #endregion
 
         // ==========================================================
         // REPORT CARD
         // ==========================================================
-        #region GetStudentReportCardAsync
         public async Task<ServiceResponse<StudentReportCardDto>> GetStudentReportCardAsync(
             string studentId, Guid termId, Guid academicSessionId)
         {
@@ -629,7 +674,7 @@ namespace DIBA_School_Portal.Server.Services
                 .Include(tr => tr.Term)
                 .Include(tr => tr.AcademicSession)
                 .Include(tr => tr.SchoolClass)
-                .Include(tr => tr.SubjectResults)
+                .Include(tr => tr.SubjectResults.Where(sr => !sr.IsDraft))
                     .ThenInclude(sr => sr.Subject)
                 .FirstOrDefaultAsync(tr =>
                     tr.StudentId == studentId &&
@@ -646,7 +691,6 @@ namespace DIBA_School_Portal.Server.Services
                 };
             }
 
-            // ---- Stream lives on the Student profile ----
             var studentProfile = await _context.Students
                 .AsNoTracking()
                 .Where(s => s.UserId == studentId)
@@ -685,7 +729,7 @@ namespace DIBA_School_Portal.Server.Services
                     ProfilePictureUrl = studentProfile?.ProfilePictureUrl,
                     ClassId = termResult.ClassId,
                     ClassName = termResult.SchoolClass?.Name ?? "—",
-                    Stream = studentProfile?.Stream,                    // ← NEW
+                    Stream = studentProfile?.Stream,
                     TermId = termResult.TermId,
                     TermName = termResult.Term?.Name ?? term.Name,
                     AcademicSessionId = termResult.AcademicSessionId,
@@ -707,7 +751,7 @@ namespace DIBA_School_Portal.Server.Services
                 .Include(tr => tr.Term)
                 .Include(tr => tr.AcademicSession)
                 .Include(tr => tr.SchoolClass)
-                .Include(tr => tr.SubjectResults)
+                .Include(tr => tr.SubjectResults.Where(sr => !sr.IsDraft))
                     .ThenInclude(sr => sr.Subject)
                 .Where(tr => tr.StudentId == studentId
                           && tr.AcademicSessionId == academicSessionId)
@@ -771,7 +815,7 @@ namespace DIBA_School_Portal.Server.Services
                     ProfilePictureUrl = studentProfile?.ProfilePictureUrl,
                     ClassId = thirdTerm.ClassId,
                     ClassName = thirdTerm.SchoolClass?.Name ?? "—",
-                    Stream = studentProfile?.Stream,                    // ← NEW
+                    Stream = studentProfile?.Stream,
                     TermId = termId,
                     TermName = term.Name,
                     AcademicSessionId = academicSessionId,
@@ -783,12 +827,10 @@ namespace DIBA_School_Portal.Server.Services
                 }
             };
         }
-        #endregion
 
         // ==========================================================
-        // SCHOOL-WIDE RESULTS
+        // SCHOOL-WIDE RESULTS — live, no publish gate
         // ==========================================================
-        #region GetAllSchoolResultsAsync
         public async Task<ServiceResponse<SchoolResultResponseDto>> GetAllSchoolResultsAsync(
             Guid academicSessionId, Guid termId, AcademicSection? sectionFilter = null)
         {
@@ -807,11 +849,12 @@ namespace DIBA_School_Portal.Server.Services
                     return response;
                 }
 
+                // Only non-draft subjects appear.
                 var termResults = await _context.TermResults
                     .AsNoTracking()
                     .Include(tr => tr.Student)
                     .Include(tr => tr.SchoolClass)
-                    .Include(tr => tr.SubjectResults)
+                    .Include(tr => tr.SubjectResults.Where(sr => !sr.IsDraft))
                     .Where(tr => tr.TermId == termId && tr.AcademicSessionId == academicSessionId)
                     .ToListAsync();
 
@@ -847,6 +890,12 @@ namespace DIBA_School_Portal.Server.Services
                     .Where(sp => userIds.Contains(sp.UserId))
                     .ToDictionaryAsync(sp => sp.UserId, sp => sp);
 
+                var classSubjectCounts = await _context.ClassSubjects
+                    .Where(cs => cs.SchoolClassId.HasValue && classIds.Contains(cs.SchoolClassId.Value))
+                    .GroupBy(cs => cs.SchoolClassId!.Value)
+                    .Select(g => new { ClassId = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.ClassId, x => x.Count);
+
                 if (sectionFilter.HasValue)
                 {
                     classes = classes
@@ -861,9 +910,17 @@ namespace DIBA_School_Portal.Server.Services
                     var classResults = termResults.Where(tr => tr.ClassId == schoolClass.Id).ToList();
                     if (!classResults.Any()) continue;
 
+                    classSubjectCounts.TryGetValue(schoolClass.Id, out var totalSubjects);
+
                     var students = classResults.Select(tr =>
                     {
                         studentProfiles.TryGetValue(tr.StudentId, out var profile);
+
+                        var submitted = tr.SubjectResults ?? new List<TermSubjectResult>();
+
+                        var average = submitted.Any()
+                            ? Math.Round(submitted.Average(sr => sr.TotalScore), 2)
+                            : 0m;
 
                         return new StudentResultSummaryDto
                         {
@@ -875,12 +932,13 @@ namespace DIBA_School_Portal.Server.Services
                             AdmissionNumber = profile?.AdmissionNumber ?? "N/A",
                             ProfilePictureUrl = profile?.User?.ProfilePictureUrl,
                             Stream = profile?.Stream,
-                            AverageScore = Math.Round(tr.AverageScore, 2),
-                            TotalMarksObtained = tr.TotalMarksObtained,
+                            AverageScore = average,
+                            TotalMarksObtained = submitted.Sum(sr => sr.TotalScore),
                             Position = tr.Position,
                             OverallGrade = tr.OverallGrade,
-                            SubjectCount = tr.SubjectResults?.Count ?? 0,
-                            IsPublished = tr.IsPublished,
+                            SubjectCount = submitted.Count,
+                            SubmittedSubjectCount = submitted.Count,
+                            TotalSubjectCount = totalSubjects,
                         };
                     }).ToList();
 
@@ -902,8 +960,10 @@ namespace DIBA_School_Portal.Server.Services
                         })
                         .ToList();
 
-                    var classAvg = students.Any()
-                        ? Math.Round(students.Average(s => s.AverageScore), 2)
+                    var studentsWithData = students.Where(s => s.SubjectCount > 0).ToList();
+
+                    var classAvg = studentsWithData.Any()
+                        ? Math.Round(studentsWithData.Average(s => s.AverageScore), 2)
                         : 0m;
 
                     classGroups.Add(new ClassResultGroupDto
@@ -914,10 +974,12 @@ namespace DIBA_School_Portal.Server.Services
                         DisplayOrder = schoolClass.DisplayOrder,
                         StudentCount = students.Count,
                         ClassAverage = classAvg,
-                        HighestAverage = students.Any() ? students.Max(s => s.AverageScore) : 0m,
-                        LowestAverage = students.Any() ? students.Min(s => s.AverageScore) : 0m,
-                        PublishedCount = students.Count(s => s.IsPublished),
-                        PendingCount = students.Count(s => !s.IsPublished),
+                        HighestAverage = studentsWithData.Any() ? studentsWithData.Max(s => s.AverageScore) : 0m,
+                        LowestAverage = studentsWithData.Any() ? studentsWithData.Min(s => s.AverageScore) : 0m,
+
+                        CompleteCount = students.Count(s => s.IsComplete),
+                        PendingCount = students.Count(s => !s.IsComplete),
+
                         Streams = streamGroups,
                     });
                 }
@@ -926,6 +988,8 @@ namespace DIBA_School_Portal.Server.Services
                     .SelectMany(c => c.Streams)
                     .SelectMany(s => s.Students)
                     .ToList();
+
+                var withData = allStudents.Where(s => s.SubjectCount > 0).ToList();
 
                 response.Success = true;
                 response.StatusCode = 200;
@@ -938,10 +1002,10 @@ namespace DIBA_School_Portal.Server.Services
                     GeneratedAt = DateTime.UtcNow,
                     TotalStudents = allStudents.Count,
                     TotalClasses = classGroups.Count,
-                    TotalPublished = allStudents.Count(s => s.IsPublished),
-                    TotalPending = allStudents.Count(s => !s.IsPublished),
-                    OverallAverage = allStudents.Any()
-                        ? Math.Round(allStudents.Average(s => s.AverageScore), 2)
+                    TotalComplete = allStudents.Count(s => s.IsComplete),
+                    TotalPending = allStudents.Count(s => !s.IsComplete),
+                    OverallAverage = withData.Any()
+                        ? Math.Round(withData.Average(s => s.AverageScore), 2)
                         : 0m,
                     Classes = classGroups,
                 };
@@ -956,15 +1020,138 @@ namespace DIBA_School_Portal.Server.Services
                 return response;
             }
         }
-        #endregion
+
+        // ==========================================================
+        // OUTSTANDING SUBMISSIONS — who hasn't submitted yet
+        // ==========================================================
+        public async Task<ServiceResponse<List<OutstandingSubmissionDto>>> GetOutstandingSubmissionsAsync(
+            Guid academicSessionId, Guid termId, Guid? classId = null)
+        {
+            var response = new ServiceResponse<List<OutstandingSubmissionDto>>();
+            try
+            {
+                var classesQuery = _context.SchoolClasses
+                    .AsNoTracking()
+                    .Where(c => !c.IsDeleted);
+                if (classId.HasValue)
+                    classesQuery = classesQuery.Where(c => c.Id == classId.Value);
+
+                var classes = await classesQuery
+                    .OrderBy(c => c.DisplayOrder).ThenBy(c => c.Name)
+                    .Select(c => new { c.Id, c.Name })
+                    .ToListAsync();
+
+                var classIds = classes.Select(c => c.Id).ToList();
+                if (!classIds.Any())
+                {
+                    response.Success = true;
+                    response.StatusCode = 200;
+                    response.Data = new List<OutstandingSubmissionDto>();
+                    return response;
+                }
+
+                // Every subject each class is supposed to teach
+                // Every subject each class is supposed to teach
+                var classSubjects = await _context.ClassSubjects
+                    .Where(cs => cs.SchoolClassId.HasValue
+                              && cs.SubjectId.HasValue
+                              && classIds.Contains(cs.SchoolClassId.Value))
+                    .Select(cs => new
+                    {
+                        ClassId = cs.SchoolClassId!.Value,
+                        SubjectId = cs.SubjectId!.Value
+                    })
+                    .ToListAsync();
+
+                // Submitted subject results for this term/session
+                var submitted = await _context.TermSubjectResults
+                    .Where(tsr => !tsr.IsDraft
+                               && tsr.TermResult.TermId == termId
+                               && tsr.TermResult.AcademicSessionId == academicSessionId
+                               && classIds.Contains(tsr.TermResult.ClassId))
+                    .GroupBy(tsr => new { tsr.TermResult.ClassId, tsr.SubjectId })
+                    .Select(g => new { g.Key.ClassId, g.Key.SubjectId, Count = g.Count() })
+                    .ToListAsync();
+
+                // Draft rows — work started but not submitted
+                var drafts = await _context.TermSubjectResults
+                    .Where(tsr => tsr.IsDraft
+                               && tsr.TermResult.TermId == termId
+                               && tsr.TermResult.AcademicSessionId == academicSessionId
+                               && classIds.Contains(tsr.TermResult.ClassId))
+                    .GroupBy(tsr => new { tsr.TermResult.ClassId, tsr.SubjectId })
+                    .Select(g => new { g.Key.ClassId, g.Key.SubjectId, Count = g.Count() })
+                    .ToListAsync();
+
+                var subjectIds = classSubjects.Select(cs => cs.SubjectId).Distinct().ToList();
+                var subjectNames = await _context.Subjects
+                    .Where(s => subjectIds.Contains(s.Id))
+                    .Select(s => new { s.Id, s.Name })
+                    .ToDictionaryAsync(s => s.Id, s => s.Name);
+
+                var teacherMap = await _context.TeacherSubjects
+                    .Include(ts => ts.Teacher)
+                    .Where(ts => subjectIds.Contains(ts.SubjectId))
+                    .ToListAsync();
+
+                var studentCounts = await _context.Students
+                    .Where(s => classIds.Contains(s.SchoolClassId))
+                    .GroupBy(s => s.SchoolClassId)
+                    .Select(g => new { ClassId = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.ClassId, x => x.Count);
+
+                var result = new List<OutstandingSubmissionDto>();
+
+                foreach (var cs in classSubjects)
+                {
+                    var hit = submitted.FirstOrDefault(s => s.ClassId == cs.ClassId && s.SubjectId == cs.SubjectId);
+                    if (hit != null) continue;
+
+                    var draftHit = drafts.FirstOrDefault(s => s.ClassId == cs.ClassId && s.SubjectId == cs.SubjectId);
+
+                    var teacher = teacherMap.FirstOrDefault(t => t.SubjectId == cs.SubjectId)?.Teacher;
+
+                    result.Add(new OutstandingSubmissionDto
+                    {
+                        ClassId = cs.ClassId,
+                        ClassName = classes.First(c => c.Id == cs.ClassId).Name,
+                        SubjectId = cs.SubjectId,
+                        SubjectName = subjectNames.TryGetValue(cs.SubjectId, out var n) ? n : "—",
+                        TeacherName = teacher != null
+                            ? $"{teacher.FirstName} {teacher.LastName}"
+                            : "—",
+                        StudentCount = studentCounts.TryGetValue(cs.ClassId, out var sc) ? sc : 0,
+                        ScoredCount = draftHit?.Count ?? 0,
+                    });
+                }
+
+                result = result
+                    .OrderBy(r => r.ClassName)
+                    .ThenBy(r => r.SubjectName)
+                    .ToList();
+
+                response.Success = true;
+                response.StatusCode = 200;
+                response.Data = result;
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching outstanding submissions");
+                response.Success = false;
+                response.Message = ex.Message;
+                response.StatusCode = 500;
+                return response;
+            }
+        }
 
         // ==========================================================
         // HELPERS
         // ==========================================================
-        #region Helpers
         private async Task RecalculateRankingsAndAveragesAsync(
             Guid classId, Guid subjectId, Guid termId, Guid academicSessionId)
         {
+            // 1. Rank subject results for this subject
             var classSubjectResults = await _context.TermSubjectResults
                 .Include(tsr => tsr.TermResult)
                 .Where(tsr => tsr.SubjectId == subjectId
@@ -983,6 +1170,7 @@ namespace DIBA_School_Portal.Server.Services
             }
             await _context.SaveChangesAsync();
 
+            // 2. Recompute averages from submitted subjects only
             var termResults = await _context.TermResults
                 .Include(tr => tr.SubjectResults)
                 .Where(tr => tr.ClassId == classId
@@ -992,12 +1180,21 @@ namespace DIBA_School_Portal.Server.Services
 
             foreach (var tr in termResults)
             {
-                tr.AverageScore = tr.SubjectResults.Any()
-                    ? tr.SubjectResults.Average(sr => sr.TotalScore)
+                var submitted = tr.SubjectResults
+                    .Where(sr => !sr.IsDraft)
+                    .ToList();
+
+                tr.AverageScore = submitted.Any()
+                    ? submitted.Average(sr => sr.TotalScore)
                     : 0;
             }
 
-            var ranked = termResults.OrderByDescending(tr => tr.AverageScore).ToList();
+            // 3. Rank students by their submitted average
+            var ranked = termResults
+                .OrderByDescending(tr => tr.AverageScore)
+                .ThenByDescending(tr => tr.SubjectResults.Count(sr => !sr.IsDraft))
+                .ToList();
+
             int cr = 1;
             foreach (var tr in ranked)
             {
@@ -1005,30 +1202,55 @@ namespace DIBA_School_Portal.Server.Services
                 _context.TermResults.Update(tr);
                 cr++;
             }
+
             await _context.SaveChangesAsync();
         }
 
         private async Task NotifyPrincipalOfSubmissionAsync(
-            ApplicationUser teacher, Guid classId, Guid subjectId, Guid termId, Guid academicSessionId)
+            ApplicationUser teacher,
+            Guid classId,
+            Guid subjectId,
+            Guid termId,
+            Guid academicSessionId)
         {
             var className = await _context.SchoolClasses
-                .Where(c => c.Id == classId).Select(c => c.Name).FirstOrDefaultAsync() ?? "Class";
+                .Where(c => c.Id == classId)
+                .Select(c => c.Name)
+                .FirstOrDefaultAsync() ?? "Class";
+
             var subjectName = await _context.Subjects
-                .Where(s => s.Id == subjectId).Select(s => s.Name).FirstOrDefaultAsync() ?? "Subject";
+                .Where(s => s.Id == subjectId)
+                .Select(s => s.Name)
+                .FirstOrDefaultAsync() ?? "Subject";
+
             var termName = await _context.SchoolTerms
-                .Where(t => t.Id == termId).Select(t => t.Name).FirstOrDefaultAsync() ?? "Term";
+                .Where(t => t.Id == termId)
+                .Select(t => t.Name)
+                .FirstOrDefaultAsync() ?? "Term";
+
+            var title = "Scores submitted";
+            var message =
+                $"{teacher.FirstName} {teacher.LastName} submitted {subjectName} " +
+                $"for {className} ({termName}).";
 
             var principals = await _userManager.GetUsersInRoleAsync("Principal");
-            if (!principals.Any()) principals = await _userManager.GetUsersInRoleAsync("Admin");
-            var email = principals.FirstOrDefault()?.Email;
+            if (!principals.Any())
+                principals = await _userManager.GetUsersInRoleAsync("VicePrincipal");
 
-            if (!string.IsNullOrEmpty(email))
+            foreach (var p in principals)
             {
-                await _emailService.EmailSendAsync(
-                    email,
-                    $"Score Submission Alert: {subjectName} for {className}",
-                    $"Teacher <b>{teacher.FirstName} {teacher.LastName}</b> submitted scores for <b>{subjectName}</b> in <b>{className}</b> ({termName}).");
+                await _notification.SendNotificationAsync(
+                    p.Id,
+                    title,
+                    message,
+                    category: "Academic");
             }
+
+            await _auditLog.LogActivityAsync(
+                teacher.Id,
+                "Scores Submitted",
+                $"{teacher.FirstName} {teacher.LastName} submitted {subjectName} for {className} ({termName}).",
+                Ip);
         }
 
         private string CalculateGrade(decimal score)
@@ -1050,6 +1272,5 @@ namespace DIBA_School_Portal.Server.Services
             if (score >= 40) return "Pass";
             return "Poor";
         }
-        #endregion
     }
 }

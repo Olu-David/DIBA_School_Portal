@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿
+using System.ComponentModel.DataAnnotations;
 
 namespace DIBA_School_Portal.Server.Contracts
 {
@@ -12,17 +13,15 @@ namespace DIBA_School_Portal.Server.Contracts
 
         /// <summary>One or more parent User IDs. Ignored when Target=All.</summary>
         public List<string>? ParentUserIds { get; set; }
-
-        /// <summary>
-        /// Who to send to:
-        ///   "All"       → every active parent
-        ///   "Class"     → parents of a specific class
-        ///   "Section"   → parents of a specific section
-        ///   "List"      → only the ParentUserIds list
-        /// </summary>
-        public string Target { get; set; } = "List";
+ 
 
         public Guid? ClassId { get; set; }
         public string? Section { get; set; }
+      
+        public Guid? AcademicSessionId { get; set; }
+        public Guid? TermId { get; set; }
+        public string Target { get; set; } = "List";
+
+    
     }
 }

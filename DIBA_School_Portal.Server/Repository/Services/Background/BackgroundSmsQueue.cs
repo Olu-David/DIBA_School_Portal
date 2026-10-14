@@ -1,5 +1,6 @@
-﻿using System.Threading.Channels;
-using DIBA_School_Portal.Server.Repository.IServices;
+﻿using DIBA_School_Portal.Server.Repository.IServices;
+using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 
 namespace DIBA_School_Portal.Server.Repository.Services.Background
 {
@@ -26,7 +27,7 @@ namespace DIBA_School_Portal.Server.Repository.Services.Background
         }
 
         public async IAsyncEnumerable<SmsJob> DequeueAllAsync(
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+            [EnumeratorCancellation] CancellationToken ct)
         {
             await foreach (var job in _channel.Reader.ReadAllAsync(ct))
                 yield return job;

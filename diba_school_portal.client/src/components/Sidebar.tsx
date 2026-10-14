@@ -2,7 +2,7 @@
 import {
   LayoutDashboard, Users, Wallet, GraduationCap, LogOut, ScrollText,
   BookOpen, CalendarDays, ClipboardCheck, FileText, UserCog, Inbox,
-  AlertTriangle, Receipt, BarChart3, Bell, CheckCircle2, User,
+  AlertTriangle, Receipt, BarChart3, Bell, User, Send,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
@@ -121,7 +121,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/my-assignments", label: "My Assignments", icon: BookOpen, roles: R.teaching },
       { to: "/admin/results", label: "School Results", icon: BarChart3, roles: R.results },
       { to: "/admin/report-cards", label: "Report Cards", icon: FileText, roles: R.results },
-      { to: "/admin/results-approval", label: "Approve Results", icon: CheckCircle2, roles: R.leadership },
     ],
   },
 
@@ -134,6 +133,19 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/finance/arrears", label: "Arrears", icon: AlertTriangle, roles: R.finance },
       { to: "/admin/finance/fees", label: "Fee Structures", icon: Wallet, roles: R.finance },
       { to: "/admin/finance/record-cash", label: "Record Cash", icon: Receipt, roles: R.finance },
+    ],
+  },
+
+  // ---- Communications (leadership only) ----
+  {
+    label: "Communications",
+    items: [
+      {
+        to: "/admin/notifications/send",
+        label: "Send Notifications",
+        icon: Send,
+        roles: R.leadership,
+      },
     ],
   },
 
