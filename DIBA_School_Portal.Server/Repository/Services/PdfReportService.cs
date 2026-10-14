@@ -37,15 +37,12 @@ namespace DIBA_School_Portal.Server.Services
         private const string TextSecondary = "#64748B";
         private const string TextMuted = "#94A3B8";
 
-        // Brand colours — the school's logo is blue with a red dove,
-        // so we anchor on blue and use amber/gold as the accent.
-        private const string BrandBlue = "#1E40AF";        // core brand
+        private const string BrandBlue = "#1E40AF";
         private const string BrandBlueDark = "#1E3A8A";
         private const string BrandBlueLight = "#EFF6FF";
-        private const string Accent = "#1E40AF";            // primary action / headers
+        private const string Accent = "#1E40AF";
         private const string AccentLight = "#EFF6FF";
 
-        // Secondary accents for grades & stream chips
         private const string AccentEmerald = "#059669";
         private const string AccentEmeraldLight = "#ECFDF5";
         private const string AccentBlue = "#2563EB";
@@ -92,50 +89,35 @@ namespace DIBA_School_Portal.Server.Services
                     page.Size(PageSizes.A4);
                     page.Margin(1.4f, Unit.Centimetre);
                     page.PageColor(BgPage);
-                    page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Helvetica").FontColor(TextPrimary));
+                    page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Lato").FontColor(TextPrimary));
 
-                    // ============================================
-                    // HEADER
-                    // ============================================
+                    // ---------- HEADER ----------
                     page.Header().ShowOnce().Element(header =>
                     {
                         header.Background(BgCard).Padding(18).CornerRadius(12).Border(1).BorderColor(Border).Row(row =>
                         {
-                            // ---- Logo + name block ----
                             row.RelativeItem().Row(logoRow =>
                             {
-                                // Try to load the real logo
                                 var logoBytes = LoadLogo();
-
                                 if (logoBytes != null)
-                                {
                                     logoRow.ConstantItem(64).Height(64).Image(logoBytes).FitArea();
-                                }
                                 else
-                                {
-                                    // Fallback crest if logo.png missing
                                     logoRow.ConstantItem(64).Height(64)
                                         .Background(BrandBlue).CornerRadius(12)
                                         .AlignCenter().AlignMiddle()
                                         .Text("DIBA").Bold().FontColor(Colors.White).FontSize(14);
-                                }
 
                                 logoRow.ConstantItem(14);
-
                                 logoRow.RelativeItem().Column(col =>
                                 {
                                     col.Spacing(1);
-                                    col.Item().Text(SchoolName)
-                                        .Bold().FontSize(13).FontColor(BrandBlueDark)
+                                    col.Item().Text(SchoolName).Bold().FontSize(13).FontColor(BrandBlueDark)
                                         .LetterSpacing(0.02f);
-                                    col.Item().Text(SchoolTagline)
-                                        .FontSize(9).Italic().FontColor(TextSecondary);
-                                    col.Item().Text(SchoolMotto)
-                                        .FontSize(8).Bold().FontColor(BrandBlue);
+                                    col.Item().Text(SchoolTagline).FontSize(9).Italic().FontColor(TextSecondary);
+                                    col.Item().Text(SchoolMotto).FontSize(8).Bold().FontColor(BrandBlue);
                                 });
                             });
 
-                            // ---- Session / Term chips ----
                             row.ConstantItem(200).AlignRight().Row(chips =>
                             {
                                 chips.RelativeItem().Background(AccentLight).CornerRadius(8).Padding(9).Column(c =>
@@ -143,9 +125,7 @@ namespace DIBA_School_Portal.Server.Services
                                     c.Item().Text("SESSION").FontSize(7).Bold().FontColor(Accent).LetterSpacing(0.05f);
                                     c.Item().Text(report.SessionName ?? "—").FontSize(10).Bold().FontColor(TextPrimary);
                                 });
-
                                 chips.ConstantItem(8);
-
                                 chips.RelativeItem().Background(AccentBlueLight).CornerRadius(8).Padding(9).Column(c =>
                                 {
                                     c.Item().Text("TERM").FontSize(7).Bold().FontColor(AccentBlue).LetterSpacing(0.05f);
@@ -155,9 +135,7 @@ namespace DIBA_School_Portal.Server.Services
                         });
                     });
 
-                    // ============================================
-                    // CONTENT
-                    // ============================================
+                    // ---------- CONTENT ----------
                     page.Content().PaddingVertical(12).Column(col =>
                     {
                         col.Spacing(12);
@@ -166,21 +144,13 @@ namespace DIBA_School_Portal.Server.Services
                         col.Item().Background(BgCard).CornerRadius(12).Border(1).BorderColor(Border).Padding(18).Row(row =>
                         {
                             if (profileImage != null)
-                            {
-                                row.ConstantItem(78).Height(78)
-                                    .Background(BgSubtle)
-                                    .CornerRadius(39)
-                                    .Image(profileImage)
-                                    .FitArea();
-                            }
+                                row.ConstantItem(78).Height(78).Background(BgSubtle).CornerRadius(39)
+                                    .Image(profileImage).FitArea();
                             else
-                            {
-                                row.ConstantItem(78).Height(78)
-                                    .Background(BrandBlue).CornerRadius(39)
+                                row.ConstantItem(78).Height(78).Background(BrandBlue).CornerRadius(39)
                                     .AlignCenter().AlignMiddle()
                                     .Text(GetInitials(report.StudentName))
                                     .Bold().FontColor(Colors.White).FontSize(22);
-                            }
 
                             row.ConstantItem(16);
 
@@ -189,14 +159,10 @@ namespace DIBA_School_Portal.Server.Services
                                 c.Spacing(3);
                                 c.Item().Text(report.StudentName ?? "—").Bold().FontSize(19).FontColor(TextPrimary);
 
-                                // ---- Class + Stream line ----
                                 c.Item().Row(classRow =>
                                 {
-                                    classRow.AutoItem().Text("Class: ")
-                                        .FontSize(11).FontColor(TextSecondary);
-
-                                    classRow.AutoItem().Text(report.ClassName ?? "—")
-                                        .FontSize(11).Bold().FontColor(TextPrimary);
+                                    classRow.AutoItem().Text("Class: ").FontSize(11).FontColor(TextSecondary);
+                                    classRow.AutoItem().Text(report.ClassName ?? "—").FontSize(11).Bold().FontColor(TextPrimary);
 
                                     if (report.Stream.HasValue)
                                     {
@@ -212,10 +178,8 @@ namespace DIBA_School_Portal.Server.Services
                                 });
 
                                 if (!string.IsNullOrWhiteSpace(report.AdmissionNumber))
-                                {
                                     c.Item().Text($"Admission No: {report.AdmissionNumber}")
                                         .FontSize(10).FontColor(TextMuted);
-                                }
                             });
 
                             row.ConstantItem(90).AlignRight().AlignMiddle().Column(c =>
@@ -245,9 +209,7 @@ namespace DIBA_School_Portal.Server.Services
                         col.Item().Background(BgCard).CornerRadius(12).Border(1).BorderColor(Border).Padding(16).Column(tableSection =>
                         {
                             tableSection.Spacing(10);
-
-                            tableSection.Item().Text("Subject Performance")
-                                .Bold().FontSize(12).FontColor(TextPrimary);
+                            tableSection.Item().Text("Subject Performance").Bold().FontSize(12).FontColor(TextPrimary);
 
                             tableSection.Item().Table(table =>
                             {
@@ -265,22 +227,14 @@ namespace DIBA_School_Portal.Server.Services
 
                                 table.Header(header =>
                                 {
-                                    header.Cell().Background(BgSubtle).Padding(9)
-                                        .Text("Subject").FontSize(9).Bold().FontColor(TextSecondary);
-                                    header.Cell().Background(BgSubtle).Padding(9).AlignRight()
-                                        .Text("Test 1").FontSize(9).Bold().FontColor(TextSecondary);
-                                    header.Cell().Background(BgSubtle).Padding(9).AlignRight()
-                                        .Text("Test 2").FontSize(9).Bold().FontColor(TextSecondary);
-                                    header.Cell().Background(BgSubtle).Padding(9).AlignRight()
-                                        .Text("Exam").FontSize(9).Bold().FontColor(TextSecondary);
-                                    header.Cell().Background(BgSubtle).Padding(9).AlignRight()
-                                        .Text("Total").FontSize(9).Bold().FontColor(TextSecondary);
-                                    header.Cell().Background(BgSubtle).Padding(9).AlignRight()
-                                        .Text("Grade").FontSize(9).Bold().FontColor(TextSecondary);
-                                    header.Cell().Background(BgSubtle).Padding(9).AlignRight()
-                                        .Text("Pos").FontSize(9).Bold().FontColor(TextSecondary);
-                                    header.Cell().Background(BgSubtle).Padding(9)
-                                        .Text("Remark").FontSize(9).Bold().FontColor(TextSecondary);
+                                    header.Cell().Background(BgSubtle).Padding(9).Text("Subject").FontSize(9).Bold().FontColor(TextSecondary);
+                                    header.Cell().Background(BgSubtle).Padding(9).AlignRight().Text("Test 1").FontSize(9).Bold().FontColor(TextSecondary);
+                                    header.Cell().Background(BgSubtle).Padding(9).AlignRight().Text("Test 2").FontSize(9).Bold().FontColor(TextSecondary);
+                                    header.Cell().Background(BgSubtle).Padding(9).AlignRight().Text("Exam").FontSize(9).Bold().FontColor(TextSecondary);
+                                    header.Cell().Background(BgSubtle).Padding(9).AlignRight().Text("Total").FontSize(9).Bold().FontColor(TextSecondary);
+                                    header.Cell().Background(BgSubtle).Padding(9).AlignRight().Text("Grade").FontSize(9).Bold().FontColor(TextSecondary);
+                                    header.Cell().Background(BgSubtle).Padding(9).AlignRight().Text("Pos").FontSize(9).Bold().FontColor(TextSecondary);
+                                    header.Cell().Background(BgSubtle).Padding(9).Text("Remark").FontSize(9).Bold().FontColor(TextSecondary);
                                 });
 
                                 var subjects = report.SubjectResults ?? new List<TermSubjectResultDto>();
@@ -326,10 +280,8 @@ namespace DIBA_School_Portal.Server.Services
                                     rem.Item().Background(AccentBlueLight).CornerRadius(8).Padding(10).Column(c =>
                                     {
                                         c.Spacing(3);
-                                        c.Item().Text("CLASS TEACHER").FontSize(8).Bold()
-                                            .FontColor(AccentBlue).LetterSpacing(0.05f);
-                                        c.Item().Text(report.TeacherRemark)
-                                            .FontSize(10).FontColor(TextPrimary);
+                                        c.Item().Text("CLASS TEACHER").FontSize(8).Bold().FontColor(AccentBlue).LetterSpacing(0.05f);
+                                        c.Item().Text(report.TeacherRemark).FontSize(10).FontColor(TextPrimary);
                                     });
                                 }
 
@@ -338,10 +290,8 @@ namespace DIBA_School_Portal.Server.Services
                                     rem.Item().Background(AccentLight).CornerRadius(8).Padding(10).Column(c =>
                                     {
                                         c.Spacing(3);
-                                        c.Item().Text("PRINCIPAL").FontSize(8).Bold()
-                                            .FontColor(Accent).LetterSpacing(0.05f);
-                                        c.Item().Text(report.PrincipalRemark)
-                                            .FontSize(10).FontColor(TextPrimary);
+                                        c.Item().Text("PRINCIPAL").FontSize(8).Bold().FontColor(Accent).LetterSpacing(0.05f);
+                                        c.Item().Text(report.PrincipalRemark).FontSize(10).FontColor(TextPrimary);
                                     });
                                 }
                             });
@@ -355,9 +305,7 @@ namespace DIBA_School_Portal.Server.Services
                                 c.Item().PaddingTop(24).LineHorizontal(1).LineColor(Border);
                                 c.Item().PaddingTop(4).Text("Class Teacher").FontSize(8).FontColor(TextMuted);
                             });
-
                             row.ConstantItem(60);
-
                             row.RelativeItem().Column(c =>
                             {
                                 c.Item().PaddingTop(24).LineHorizontal(1).LineColor(Border);
@@ -366,36 +314,22 @@ namespace DIBA_School_Portal.Server.Services
                         });
                     });
 
-                    // ============================================
-                    // FOOTER
-                    // ============================================
+                    // ---------- FOOTER ----------
                     page.Footer().Column(footer =>
                     {
                         footer.Spacing(2);
-
-                        // School contact line
                         footer.Item().AlignCenter().Text(text =>
                         {
                             text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
-                            text.Span(SchoolAddress);
-                            text.Span("  •  ");
-                            text.Span(SchoolPostal);
-                            text.Span("  •  ");
-                            text.Span(SchoolPhone);
+                            text.Span(SchoolAddress); text.Span("  •  "); text.Span(SchoolPostal);
+                            text.Span("  •  "); text.Span(SchoolPhone);
                         });
-
-                        // RC + motto + page
                         footer.Item().AlignCenter().Text(text =>
                         {
                             text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
-                            text.Span($"{SchoolRC}  •  ");
-                            text.Span(SchoolFounded);
-                            text.Span("  •  ");
-                            text.Span(SchoolMotto);
-                            text.Span("  •  Page ");
-                            text.CurrentPageNumber();
-                            text.Span(" of ");
-                            text.TotalPages();
+                            text.Span($"{SchoolRC}  •  "); text.Span(SchoolFounded);
+                            text.Span("  •  "); text.Span(SchoolMotto);
+                            text.Span("  •  Page "); text.CurrentPageNumber(); text.Span(" of "); text.TotalPages();
                         });
                     });
                 });
@@ -419,43 +353,34 @@ namespace DIBA_School_Portal.Server.Services
                     page.Size(PageSizes.A5);
                     page.Margin(1.0f, Unit.Centimetre);
                     page.PageColor(BgPage);
-                    page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Helvetica").FontColor(TextPrimary));
+                    page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Lato").FontColor(TextPrimary));
 
                     // ---------- HEADER ----------
                     page.Header().ShowOnce().Element(header =>
                     {
                         header.Background(BrandBlue).CornerRadius(12).Padding(14).Row(row =>
                         {
-                            // Logo + school name
                             row.RelativeItem().Row(logoRow =>
                             {
                                 if (logoBytes != null)
-                                {
                                     logoRow.ConstantItem(46).Height(46)
                                         .Background(Colors.White).CornerRadius(8).Padding(3)
                                         .Image(logoBytes).FitArea();
-                                }
                                 else
-                                {
                                     logoRow.ConstantItem(46).Height(46)
                                         .Background(Colors.White).CornerRadius(8)
                                         .AlignCenter().AlignMiddle()
                                         .Text("DIBA").Bold().FontColor(BrandBlue).FontSize(11);
-                                }
 
                                 logoRow.ConstantItem(12);
-
                                 logoRow.RelativeItem().Column(c =>
                                 {
                                     c.Spacing(1);
-                                    c.Item().Text(SchoolName)
-                                        .Bold().FontSize(11).FontColor(Colors.White);
-                                    c.Item().Text("Official Payment Receipt")
-                                        .FontSize(8).FontColor(Colors.White);
+                                    c.Item().Text(SchoolName).Bold().FontSize(11).FontColor(Colors.White);
+                                    c.Item().Text("Official Payment Receipt").FontSize(8).FontColor(Colors.White);
                                 });
                             });
 
-                            // PAID badge
                             row.ConstantItem(64).AlignRight().AlignMiddle().Column(c =>
                             {
                                 c.Item().Background("#047857").CornerRadius(6).Padding(7)
@@ -470,64 +395,50 @@ namespace DIBA_School_Portal.Server.Services
                     {
                         col.Spacing(10);
 
-                        // ---------- Student card ----------
+                        // Student card
                         col.Item().Background(BgCard).CornerRadius(12).Border(1).BorderColor(Border).Padding(14).Row(row =>
                         {
                             if (profileImage != null)
-                            {
-                                row.ConstantItem(56).Height(56)
-                                    .Background(BgSubtle).CornerRadius(28)
+                                row.ConstantItem(56).Height(56).Background(BgSubtle).CornerRadius(28)
                                     .Image(profileImage).FitArea();
-                            }
                             else
-                            {
-                                row.ConstantItem(56).Height(56)
-                                    .Background(BrandBlue).CornerRadius(28)
+                                row.ConstantItem(56).Height(56).Background(BrandBlue).CornerRadius(28)
                                     .AlignCenter().AlignMiddle()
                                     .Text(GetInitials(receipt.StudentName))
                                     .Bold().FontColor(Colors.White).FontSize(16);
-                            }
 
                             row.ConstantItem(12);
-
                             row.RelativeItem().Column(c =>
                             {
                                 c.Spacing(2);
                                 c.Item().Text(receipt.StudentName ?? "—").Bold().FontSize(13);
-                                c.Item().Text($"Class: {receipt.ClassName ?? "—"}")
-                                    .FontSize(10).FontColor(TextSecondary);
+                                c.Item().Text($"Class: {receipt.ClassName ?? "—"}").FontSize(10).FontColor(TextSecondary);
                                 c.Item().Text($"Session / Term: {receipt.SessionName} - {receipt.TermName}")
                                     .FontSize(9).FontColor(TextMuted);
                             });
                         });
 
-                        // ---------- Receipt meta ----------
+                        // Receipt meta
                         col.Item().Background(BgCard).CornerRadius(12).Border(1).BorderColor(Border).Padding(12).Row(row =>
                         {
                             row.RelativeItem().Column(c =>
                             {
-                                c.Item().Text("RECEIPT NO").FontSize(7).Bold()
-                                    .FontColor(TextMuted).LetterSpacing(0.05f);
-                                c.Item().Text(receipt.ReferenceNumber ?? "—")
-                                    .FontSize(10).Bold().FontColor(TextPrimary);
+                                c.Item().Text("RECEIPT NO").FontSize(7).Bold().FontColor(TextMuted).LetterSpacing(0.05f);
+                                c.Item().Text(receipt.ReferenceNumber ?? "—").FontSize(10).Bold().FontColor(TextPrimary);
                             });
-
                             row.RelativeItem().AlignRight().Column(c =>
                             {
-                                c.Item().AlignRight().Text("DATE").FontSize(7).Bold()
-                                    .FontColor(TextMuted).LetterSpacing(0.05f);
+                                c.Item().AlignRight().Text("DATE").FontSize(7).Bold().FontColor(TextMuted).LetterSpacing(0.05f);
                                 c.Item().AlignRight().Text(receipt.PaymentDate.ToString("dd MMM, yyyy"))
                                     .FontSize(10).Bold().FontColor(TextPrimary);
                             });
                         });
 
-                        // ---------- Fee items table ----------
+                        // Fee items table
                         col.Item().Background(BgCard).CornerRadius(12).Border(1).BorderColor(Border).Padding(12).Column(section =>
                         {
                             section.Spacing(8);
-
-                            section.Item().Text("Fee Breakdown")
-                                .Bold().FontSize(11).FontColor(TextPrimary);
+                            section.Item().Text("Fee Breakdown").Bold().FontSize(11).FontColor(TextPrimary);
 
                             section.Item().Table(table =>
                             {
@@ -539,10 +450,8 @@ namespace DIBA_School_Portal.Server.Services
 
                                 table.Header(header =>
                                 {
-                                    header.Cell().Background(BgSubtle).Padding(8)
-                                        .Text("Description").FontSize(9).Bold().FontColor(TextSecondary);
-                                    header.Cell().Background(BgSubtle).Padding(8).AlignRight()
-                                        .Text("Amount").FontSize(9).Bold().FontColor(TextSecondary);
+                                    header.Cell().Background(BgSubtle).Padding(8).Text("Description").FontSize(9).Bold().FontColor(TextSecondary);
+                                    header.Cell().Background(BgSubtle).Padding(8).AlignRight().Text("Amount").FontSize(9).Bold().FontColor(TextSecondary);
                                 });
 
                                 foreach (var item in receipt.FeeItems ?? new List<FeeItemDto>())
@@ -555,12 +464,10 @@ namespace DIBA_School_Portal.Server.Services
                             });
                         });
 
-                        // ---------- Total ----------
+                        // Total
                         col.Item().Background(AccentLight).CornerRadius(12).Border(1).BorderColor("#BFDBFE").Padding(14).Row(row =>
                         {
-                            row.RelativeItem().AlignMiddle().Text("TOTAL PAID")
-                                .Bold().FontSize(11).FontColor(BrandBlue);
-
+                            row.RelativeItem().AlignMiddle().Text("TOTAL PAID").Bold().FontSize(11).FontColor(BrandBlue);
                             row.RelativeItem().AlignRight().AlignMiddle().Text($"₦{receipt.TotalAmountPaid:N2}")
                                 .Bold().FontSize(18).FontColor(BrandBlue);
                         });
@@ -573,19 +480,16 @@ namespace DIBA_School_Portal.Server.Services
                     page.Footer().Column(footer =>
                     {
                         footer.Spacing(2);
-
                         footer.Item().AlignCenter().Text(text =>
                         {
                             text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
                             text.Span(SchoolAddress);
                         });
-
                         footer.Item().AlignCenter().Text(text =>
                         {
                             text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
                             text.Span($"{SchoolRC}  •  {SchoolPhone}  •  {SchoolEmail}");
                         });
-
                         footer.Item().AlignCenter().Text(text =>
                         {
                             text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
@@ -598,36 +502,8 @@ namespace DIBA_School_Portal.Server.Services
         #endregion
 
         // ==========================================================
-        // HELPERS
+        // TEACHER CLASS SHEET
         // ==========================================================
-        #region Helpers
-
-        /// <summary>
-        /// Loads the school logo from wwwroot/images/logo.png.
-        /// Returns null if the file is missing — callers fall back
-        /// to a plain blue crest.
-        /// </summary>
-        private byte[]? LoadLogo()
-        {
-            try
-            {
-                var root = _webHostEnvironment.WebRootPath
-                           ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-
-                var path = Path.Combine(root, "images", "logo.png");
-
-                if (File.Exists(path))
-                    return File.ReadAllBytes(path);
-
-                _logger.LogWarning("School logo not found at {Path}", path);
-                return null;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to load school logo.");
-                return null;
-            }
-        }
         #region GenerateTeacherClassSheetPdf
         public byte[] GenerateTeacherClassSheetPdf(TeacherClassSheetDto sheet)
         {
@@ -640,8 +516,7 @@ namespace DIBA_School_Portal.Server.Services
                     page.Size(PageSizes.A4);
                     page.Margin(1.4f, Unit.Centimetre);
                     page.PageColor(BgPage);
-                    page.DefaultTextStyle(x =>
-                        x.FontSize(10).FontFamily("Helvetica").FontColor(TextPrimary));
+                    page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Lato").FontColor(TextPrimary));
 
                     // ---------- HEADER ----------
                     page.Header().ShowOnce().Element(header =>
@@ -655,9 +530,9 @@ namespace DIBA_School_Portal.Server.Services
                                         logoRow.ConstantItem(60).Height(60).Image(logoBytes).FitArea();
                                     else
                                         logoRow.ConstantItem(60).Height(60)
-                                    .Background(BrandBlue).CornerRadius(10)
-                                    .AlignCenter().AlignMiddle()
-                                    .Text("DIBA").Bold().FontColor(Colors.White).FontSize(13);
+                                            .Background(BrandBlue).CornerRadius(10)
+                                            .AlignCenter().AlignMiddle()
+                                            .Text("DIBA").Bold().FontColor(Colors.White).FontSize(13);
 
                                     logoRow.ConstantItem(14);
                                     logoRow.RelativeItem().Column(col =>
@@ -674,9 +549,9 @@ namespace DIBA_School_Portal.Server.Services
                                     c.Spacing(4);
                                     c.Item().AlignRight().Text($"{sheet.ClassName}").Bold().FontSize(14).FontColor(BrandBlueDark);
                                     c.Item().AlignRight().Text($"{sheet.SubjectName} ({sheet.SubjectCode})")
-                                .FontSize(10).FontColor(TextPrimary);
+                                        .FontSize(10).FontColor(TextPrimary);
                                     c.Item().AlignRight().Text($"{sheet.TermName}  •  {sheet.AcademicSessionName}")
-                                .FontSize(9).FontColor(TextSecondary);
+                                        .FontSize(9).FontColor(TextSecondary);
                                 });
                             });
                     });
@@ -702,11 +577,11 @@ namespace DIBA_School_Portal.Server.Services
                                     c.Spacing(2);
                                     c.Item().AlignRight().Text("STATUS").FontSize(7).Bold().FontColor(TextMuted);
                                     c.Item().AlignRight()
-                                .Background(sheet.IsSubmitted ? AccentEmeraldLight : AccentAmberLight)
-                                .CornerRadius(6).Padding(6)
-                                .Text(sheet.IsSubmitted ? "SUBMITTED" : "DRAFT")
-                                .FontSize(9).Bold()
-                                .FontColor(sheet.IsSubmitted ? AccentEmerald : AccentAmber);
+                                        .Background(sheet.IsSubmitted ? AccentEmeraldLight : AccentAmberLight)
+                                        .CornerRadius(6).Padding(6)
+                                        .Text(sheet.IsSubmitted ? "SUBMITTED" : "DRAFT")
+                                        .FontSize(9).Bold()
+                                        .FontColor(sheet.IsSubmitted ? AccentEmerald : AccentAmber);
                                 });
                             });
 
@@ -730,15 +605,15 @@ namespace DIBA_School_Portal.Server.Services
                             {
                                 table.ColumnsDefinition(columns =>
                                 {
-                                    columns.ConstantColumn(30);  // Pos
-                                    columns.RelativeColumn(4);   // Student
-                                    columns.RelativeColumn(2);   // Admission
-                                    columns.RelativeColumn(1);   // T1
-                                    columns.RelativeColumn(1);   // T2
-                                    columns.RelativeColumn(1);   // Exam
-                                    columns.RelativeColumn(1);   // Total
-                                    columns.RelativeColumn(1);   // Grade
-                                    columns.RelativeColumn(3);   // Remark
+                                    columns.ConstantColumn(30);
+                                    columns.RelativeColumn(4);
+                                    columns.RelativeColumn(2);
+                                    columns.RelativeColumn(1);
+                                    columns.RelativeColumn(1);
+                                    columns.RelativeColumn(1);
+                                    columns.RelativeColumn(1);
+                                    columns.RelativeColumn(1);
+                                    columns.RelativeColumn(3);
                                 });
 
                                 table.Header(h =>
@@ -766,23 +641,23 @@ namespace DIBA_School_Portal.Server.Services
                                     var rowBg = isAlt ? BgSubtle : BgCard;
 
                                     table.Cell().Background(rowBg).Padding(8).AlignRight()
-                                .Text(s.Position.ToString()).FontSize(9).FontColor(TextSecondary);
+                                        .Text(s.Position.ToString()).FontSize(9).FontColor(TextSecondary);
                                     table.Cell().Background(rowBg).Padding(8)
-                                .Text(s.StudentName).FontSize(9).Bold();
+                                        .Text(s.StudentName).FontSize(9).Bold();
                                     table.Cell().Background(rowBg).Padding(8)
-                                .Text(s.AdmissionNumber).FontSize(9).FontColor(TextSecondary);
+                                        .Text(s.AdmissionNumber).FontSize(9).FontColor(TextSecondary);
                                     table.Cell().Background(rowBg).Padding(8).AlignRight()
-                                .Text(s.Test1Score.ToString("0.##")).FontSize(9);
+                                        .Text(s.Test1Score.ToString("0.##")).FontSize(9);
                                     table.Cell().Background(rowBg).Padding(8).AlignRight()
-                                .Text(s.Test2Score.ToString("0.##")).FontSize(9);
+                                        .Text(s.Test2Score.ToString("0.##")).FontSize(9);
                                     table.Cell().Background(rowBg).Padding(8).AlignRight()
-                                .Text(s.ExamScore.ToString("0.##")).FontSize(9);
+                                        .Text(s.ExamScore.ToString("0.##")).FontSize(9);
                                     table.Cell().Background(rowBg).Padding(8).AlignRight()
-                                .Text(s.TotalScore.ToString("0.##")).FontSize(9).Bold();
+                                        .Text(s.TotalScore.ToString("0.##")).FontSize(9).Bold();
                                     table.Cell().Background(rowBg).Padding(8).AlignRight()
-                                .Text(s.Grade).FontSize(9).Bold().FontColor(GradeColor(s.Grade));
+                                        .Text(s.Grade).FontSize(9).Bold().FontColor(GradeColor(s.Grade));
                                     table.Cell().Background(rowBg).Padding(8)
-                                .Text(s.Remark).FontSize(9).FontColor(TextSecondary);
+                                        .Text(s.Remark).FontSize(9).FontColor(TextSecondary);
 
                                     isAlt = !isAlt;
                                 }
@@ -825,6 +700,379 @@ namespace DIBA_School_Portal.Server.Services
             }).GeneratePdf();
         }
         #endregion
+
+        // ==========================================================
+        // SCHOOL RESULTS PDF
+        // ==========================================================
+        #region GenerateSchoolResultsPdf
+        public byte[] GenerateSchoolResultsPdf(SchoolResultsPdfDto report)
+        {
+            var logoBytes = LoadLogo();
+
+            return Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
+                    page.Margin(1.4f, Unit.Centimetre);
+                    page.PageColor(BgPage);
+                    page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Lato").FontColor(TextPrimary));
+
+                    // ---------- HEADER ----------
+                    page.Header().ShowOnce().Element(header =>
+                    {
+                        header.Background(BgCard).Padding(18).CornerRadius(12)
+                            .Border(1).BorderColor(Border).Row(row =>
+                            {
+                                row.RelativeItem().Row(logoRow =>
+                                {
+                                    if (logoBytes != null)
+                                        logoRow.ConstantItem(60).Height(60).Image(logoBytes).FitArea();
+                                    else
+                                        logoRow.ConstantItem(60).Height(60)
+                                            .Background(BrandBlue).CornerRadius(10)
+                                            .AlignCenter().AlignMiddle()
+                                            .Text("DIBA").Bold().FontColor(Colors.White).FontSize(13);
+
+                                    logoRow.ConstantItem(14);
+                                    logoRow.RelativeItem().Column(col =>
+                                    {
+                                        col.Spacing(1);
+                                        col.Item().Text(SchoolName).Bold().FontSize(13).FontColor(BrandBlueDark);
+                                        col.Item().Text("School-Wide Results Summary").FontSize(9).Italic().FontColor(TextSecondary);
+                                        col.Item().Text(SchoolMotto).FontSize(8).Bold().FontColor(BrandBlue);
+                                    });
+                                });
+
+                                row.ConstantItem(200).AlignRight().Row(chips =>
+                                {
+                                    chips.RelativeItem().Background(AccentLight).CornerRadius(8).Padding(9).Column(c =>
+                                    {
+                                        c.Item().Text("SESSION").FontSize(7).Bold().FontColor(Accent);
+                                        c.Item().Text(report.AcademicSessionName ?? "—").FontSize(10).Bold();
+                                    });
+                                    chips.ConstantItem(8);
+                                    chips.RelativeItem().Background(AccentBlueLight).CornerRadius(8).Padding(9).Column(c =>
+                                    {
+                                        c.Item().Text("TERM").FontSize(7).Bold().FontColor(AccentBlue);
+                                        c.Item().Text(report.TermName ?? "—").FontSize(10).Bold();
+                                    });
+                                });
+                            });
+                    });
+
+                    // ---------- CONTENT ----------
+                    page.Content().PaddingVertical(12).Column(col =>
+                    {
+                        col.Spacing(12);
+
+                        // KPI strip
+                        col.Item().Row(row =>
+                        {
+                            row.RelativeItem().Element(e => StatTile(e, "Students", report.TotalStudents.ToString()));
+                            row.ConstantItem(8);
+                            row.RelativeItem().Element(e => StatTile(e, "Classes", report.TotalClasses.ToString()));
+                            row.ConstantItem(8);
+                            row.RelativeItem().Element(e => StatTile(e, "Complete", report.TotalComplete.ToString()));
+                            row.ConstantItem(8);
+                            row.RelativeItem().Element(e => StatTile(e, "Waiting", report.TotalPending.ToString()));
+                            row.ConstantItem(8);
+                            row.RelativeItem().Element(e => StatTile(e, "Overall Avg", $"{report.OverallAverage:N2}%"));
+                        });
+
+                        // Per class
+                        foreach (var cls in report.Classes)
+                        {
+                            col.Item().Background(BgCard).CornerRadius(12).Border(1).BorderColor(Border)
+                                .Padding(16).Column(card =>
+                                {
+                                    card.Spacing(10);
+
+                                    card.Item().Column(c =>
+                                    {
+                                        c.Spacing(2);
+                                        c.Item().Text(cls.ClassName).Bold().FontSize(13).FontColor(BrandBlueDark);
+                                        c.Item().Text(
+                                                $"{cls.StudentCount} students · " +
+                                                $"{cls.CompleteCount} complete, {cls.PendingCount} waiting · " +
+                                                $"avg {cls.ClassAverage:N1}%")
+                                            .FontSize(9).FontColor(TextSecondary);
+                                    });
+
+                                    card.Item().Table(table =>
+                                    {
+                                        table.ColumnsDefinition(columns =>
+                                        {
+                                            columns.ConstantColumn(30);
+                                            columns.RelativeColumn(4);
+                                            columns.RelativeColumn(2);
+                                            columns.RelativeColumn(2);
+                                            columns.RelativeColumn(2);
+                                            columns.RelativeColumn(2);
+                                            columns.RelativeColumn(2);
+                                        });
+
+                                        table.Header(h =>
+                                        {
+                                            void H(IContainer c, string text, bool right = false)
+                                            {
+                                                var cell = c.Background(BgSubtle).Padding(8);
+                                                var t = right ? cell.AlignRight() : cell;
+                                                t.Text(text).FontSize(8).Bold().FontColor(TextSecondary);
+                                            }
+                                            H(h.Cell(), "#", true);
+                                            H(h.Cell(), "Student");
+                                            H(h.Cell(), "Admission");
+                                            H(h.Cell(), "Subjects", true);
+                                            H(h.Cell(), "Avg", true);
+                                            H(h.Cell(), "Grade", true);
+                                            H(h.Cell(), "Status", true);
+                                        });
+
+                                        var isAlt = false;
+                                        foreach (var s in cls.Students)
+                                        {
+                                            var rowBg = isAlt ? BgSubtle : BgCard;
+
+                                            table.Cell().Background(rowBg).Padding(8).AlignRight()
+                                                .Text(s.Position.ToString()).FontSize(9).FontColor(TextSecondary);
+                                            table.Cell().Background(rowBg).Padding(8)
+                                                .Text(s.StudentName).FontSize(9).Bold();
+                                            table.Cell().Background(rowBg).Padding(8)
+                                                .Text(s.AdmissionNumber).FontSize(9).FontColor(TextSecondary);
+                                            table.Cell().Background(rowBg).Padding(8).AlignRight()
+                                                .Text($"{s.SubmittedSubjectCount}/{s.TotalSubjectCount}")
+                                                .FontSize(9).FontColor(s.IsComplete ? AccentEmerald : TextPrimary);
+                                            table.Cell().Background(rowBg).Padding(8).AlignRight()
+                                                .Text(s.AverageScore > 0 ? $"{s.AverageScore:N1}%" : "-")
+                                                .FontSize(9).Bold();
+                                            table.Cell().Background(rowBg).Padding(8).AlignRight()
+                                                .Text(s.OverallGrade ?? "-").FontSize(9).Bold()
+                                                .FontColor(GradeColor(s.OverallGrade));
+                                            table.Cell().Background(rowBg).Padding(8).AlignRight()
+                                                .Text(s.IsComplete ? "Complete" : "Waiting")
+                                                .FontSize(8).Bold()
+                                                .FontColor(s.IsComplete ? AccentEmerald : AccentAmber);
+
+                                            isAlt = !isAlt;
+                                        }
+                                    });
+                                });
+                        }
+                    });
+
+                    // ---------- FOOTER ----------
+                    page.Footer().Column(footer =>
+                    {
+                        footer.Spacing(2);
+                        footer.Item().AlignCenter().Text(text =>
+                        {
+                            text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
+                            text.Span(SchoolAddress); text.Span("  •  "); text.Span(SchoolPhone);
+                        });
+                        footer.Item().AlignCenter().Text(text =>
+                        {
+                            text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
+                            text.Span($"Generated {report.GeneratedAt:dd MMM yyyy HH:mm}  •  Page ");
+                            text.CurrentPageNumber(); text.Span(" of "); text.TotalPages();
+                        });
+                    });
+                });
+            }).GeneratePdf();
+        }
+        #endregion
+
+        // ==========================================================
+        // CLASS RECEIPTS PDF — one page per student
+        // ==========================================================
+        #region GenerateClassReceiptsPdf
+        public byte[] GenerateClassReceiptsPdf(ClassReceiptsDto batch)
+        {
+            var logoBytes = LoadLogo();
+
+            return Document.Create(container =>
+            {
+                foreach (var receipt in batch.Receipts)
+                {
+                    container.Page(page =>
+                    {
+                        page.Size(PageSizes.A5);
+                        page.Margin(1.0f, Unit.Centimetre);
+                        page.PageColor(BgPage);
+                        page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Lato").FontColor(TextPrimary));
+
+                        // ---------- HEADER ----------
+                        page.Header().ShowOnce().Element(header =>
+                        {
+                            header.Background(BrandBlue).CornerRadius(12).Padding(14).Row(row =>
+                            {
+                                row.RelativeItem().Row(logoRow =>
+                                {
+                                    if (logoBytes != null)
+                                        logoRow.ConstantItem(46).Height(46)
+                                            .Background(Colors.White).CornerRadius(8).Padding(3)
+                                            .Image(logoBytes).FitArea();
+                                    else
+                                        logoRow.ConstantItem(46).Height(46)
+                                            .Background(Colors.White).CornerRadius(8)
+                                            .AlignCenter().AlignMiddle()
+                                            .Text("DIBA").Bold().FontColor(BrandBlue).FontSize(11);
+
+                                    logoRow.ConstantItem(12);
+                                    logoRow.RelativeItem().Column(c =>
+                                    {
+                                        c.Spacing(1);
+                                        c.Item().Text(SchoolName).Bold().FontSize(11).FontColor(Colors.White);
+                                        c.Item().Text("Official Payment Receipt").FontSize(8).FontColor(Colors.White);
+                                    });
+                                });
+
+                                row.ConstantItem(64).AlignRight().AlignMiddle()
+                                    .Background("#047857").CornerRadius(6).Padding(7)
+                                    .Text("PAID").Bold().FontSize(10).FontColor(Colors.White);
+                            });
+                        });
+
+                        // ---------- CONTENT ----------
+                        page.Content().PaddingVertical(10).Column(col =>
+                        {
+                            col.Spacing(10);
+
+                            var profileImage = LoadProfileImage(receipt.ProfilePictureUrl);
+
+                            col.Item().Background(BgCard).CornerRadius(12).Border(1).BorderColor(Border)
+                                .Padding(14).Row(row =>
+                                {
+                                    if (profileImage != null)
+                                        row.ConstantItem(56).Height(56).Background(BgSubtle).CornerRadius(28)
+                                            .Image(profileImage).FitArea();
+                                    else
+                                        row.ConstantItem(56).Height(56).Background(BrandBlue).CornerRadius(28)
+                                            .AlignCenter().AlignMiddle()
+                                            .Text(GetInitials(receipt.StudentName))
+                                            .Bold().FontColor(Colors.White).FontSize(16);
+
+                                    row.ConstantItem(12);
+                                    row.RelativeItem().Column(c =>
+                                    {
+                                        c.Spacing(2);
+                                        c.Item().Text(receipt.StudentName ?? "—").Bold().FontSize(13);
+                                        c.Item().Text($"Class: {receipt.ClassName ?? "—"}")
+                                            .FontSize(10).FontColor(TextSecondary);
+                                        c.Item().Text($"{receipt.SessionName} - {receipt.TermName}")
+                                            .FontSize(9).FontColor(TextMuted);
+                                    });
+                                });
+
+                            col.Item().Background(BgCard).CornerRadius(12).Border(1).BorderColor(Border)
+                                .Padding(12).Row(row =>
+                                {
+                                    row.RelativeItem().Column(c =>
+                                    {
+                                        c.Item().Text("RECEIPT NO").FontSize(7).Bold().FontColor(TextMuted);
+                                        c.Item().Text(receipt.ReferenceNumber ?? "—").FontSize(10).Bold();
+                                    });
+                                    row.RelativeItem().AlignRight().Column(c =>
+                                    {
+                                        c.Item().AlignRight().Text("DATE").FontSize(7).Bold().FontColor(TextMuted);
+                                        c.Item().AlignRight().Text(receipt.PaymentDate.ToString("dd MMM, yyyy"))
+                                            .FontSize(10).Bold();
+                                    });
+                                });
+
+                            col.Item().Background(BgCard).CornerRadius(12).Border(1).BorderColor(Border)
+                                .Padding(12).Column(section =>
+                                {
+                                    section.Spacing(8);
+                                    section.Item().Text("Fee Breakdown").Bold().FontSize(11);
+
+                                    section.Item().Table(table =>
+                                    {
+                                        table.ColumnsDefinition(c =>
+                                        {
+                                            c.RelativeColumn(3);
+                                            c.RelativeColumn(2);
+                                        });
+                                        table.Header(h =>
+                                        {
+                                            h.Cell().Background(BgSubtle).Padding(8)
+                                                .Text("Description").FontSize(9).Bold().FontColor(TextSecondary);
+                                            h.Cell().Background(BgSubtle).Padding(8).AlignRight()
+                                                .Text("Amount").FontSize(9).Bold().FontColor(TextSecondary);
+                                        });
+
+                                        foreach (var item in receipt.FeeItems ?? new List<FeeItemDto>())
+                                        {
+                                            table.Cell().BorderBottom(1).BorderColor(Border).Padding(8)
+                                                .Text(item.Name ?? "—").FontSize(10);
+                                            table.Cell().BorderBottom(1).BorderColor(Border).Padding(8).AlignRight()
+                                                .Text($"₦{item.Amount:N2}").FontSize(10);
+                                        }
+                                    });
+                                });
+
+                            col.Item().Background(AccentLight).CornerRadius(12).Border(1).BorderColor("#BFDBFE")
+                                .Padding(14).Row(row =>
+                                {
+                                    row.RelativeItem().AlignMiddle().Text("TOTAL PAID")
+                                        .Bold().FontSize(11).FontColor(BrandBlue);
+                                    row.RelativeItem().AlignRight().AlignMiddle()
+                                        .Text($"₦{receipt.TotalAmountPaid:N2}")
+                                        .Bold().FontSize(18).FontColor(BrandBlue);
+                                });
+
+                            col.Item().PaddingTop(6).AlignCenter().Text("Thank you for your payment.")
+                                .Italic().FontSize(9).FontColor(TextSecondary);
+                        });
+
+                        // ---------- FOOTER ----------
+                        page.Footer().Column(footer =>
+                        {
+                            footer.Spacing(2);
+                            footer.Item().AlignCenter().Text(text =>
+                            {
+                                text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
+                                text.Span($"{SchoolRC}  •  {SchoolPhone}  •  {SchoolEmail}");
+                            });
+                            footer.Item().AlignCenter().Text(text =>
+                            {
+                                text.DefaultTextStyle(x => x.FontSize(7).FontColor(TextMuted));
+                                text.Span($"Class: {batch.ClassName}  •  {batch.TermName}");
+                            });
+                        });
+                    });
+                }
+            }).GeneratePdf();
+        }
+        #endregion
+
+        // ==========================================================
+        // HELPERS
+        // ==========================================================
+        #region Helpers
+
+        private byte[]? LoadLogo()
+        {
+            try
+            {
+                var root = _webHostEnvironment.WebRootPath
+                           ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+
+                var path = Path.Combine(root, "images", "logo.png");
+
+                if (File.Exists(path))
+                    return File.ReadAllBytes(path);
+
+                _logger.LogWarning("School logo not found at {Path}", path);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to load school logo.");
+                return null;
+            }
+        }
+
         private byte[]? LoadProfileImage(string? url)
         {
             if (string.IsNullOrWhiteSpace(url))
@@ -908,7 +1156,6 @@ namespace DIBA_School_Portal.Server.Services
             _ => BgSubtle
         };
 
-        // ---- Stream chip colours (blue theme) ----
         private static string StreamColor(DIBA_School_Portal.Server.Enums.ClassStream? stream) => stream switch
         {
             DIBA_School_Portal.Server.Enums.ClassStream.Science => AccentBlue,
