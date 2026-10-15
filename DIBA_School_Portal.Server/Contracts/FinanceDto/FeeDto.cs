@@ -12,7 +12,7 @@ namespace DIBA_School_Portal.Server.Contracts.FinanceDto
         public Guid TermId { get; set; }
         public Guid SchoolClassId { get; set; } 
         public AcademicSection Section { get; set; }
-        public ClassStream Stream { get; set; } 
+        public ClassStream? Stream { get; set; } 
         public Guid AcademicSessionId { get;  set; }
         public List<ClassFeePriceInputDto> ClassPrices { get; set; } = new List<ClassFeePriceInputDto>();
     }

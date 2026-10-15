@@ -1,152 +1,172 @@
 ﻿import { useEffect, useState } from "react";
-import { FileText, Download, Trophy, TrendingUp } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { FileText, Calendar, ArrowRight, GraduationCap, Download } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
-import { Button, Card, EmptyState, Skeleton, Badge, Select } from "../../components/ui";
-import { useAuth } from "../../hooks/useAuth";
+import { Card, EmptyState, Skeleton, Badge, Button } from "../../components/ui";
+import { useToast } from "../../hooks/useToast";
 import api from "../../lib/api";
+import { useAuth } from "../../hooks/useAuth";
 import type { ApiResponse } from "../../types/common";
 
-interface TermResult {
-  averageScore: number;
-  classPosition: number;
-  overallGrade: string | null;
-  subjectResults: { id: string; subjectName: string; test1Score: number; test2Score: number; examScore: number; totalScore: number; subjectPosition: number; grade: string; remark: string }[];
+interface Session {
+  id: string;
+  name: string;
+  isCurrentSession: boolean;
+  terms: { id: string; name: string; isCurrentTerm: boolean }[];
 }
-interface Session { id: string; name: string; isCurrentSession: boolean; terms: { id: string; name: string; isCurrentTerm: boolean }[]; }
 
 export default function MyResultsPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
+  const { toast } = useToast();
+
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [sessionId, setSessionId] = useState("");
-  const [termId, setTermId] = useState("");
-  const [report, setReport] = useState<TermResult | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState<string | null>(null); // "termId"
+
+  const studentId = user?.id ?? "";
 
   useEffect(() => {
     (async () => {
-      const { data } = await api.get<ApiResponse<{ items: Session[] }>>("/academicsession/all?pageNumber=1&pageSize=20");
-      if (data.success) {
-        setSessions(data.data.items);
-        const c = data.data.items.find((s) => s.isCurrentSession);
-        if (c) {
-          setSessionId(c.id);
-          const t = c.terms.find((x) => x.isCurrentTerm) ?? c.terms[0];
-          if (t) setTermId(t.id);
-        }
+      try {
+        const { data: res } = await api.get<ApiResponse<{ items: Session[] }>>(
+          "/academicsession/all?pageNumber=1&pageSize=20"
+        );
+        if (res.success) setSessions(res.data.items ?? []);
+      } finally {
+        setLoading(false);
       }
     })();
   }, []);
 
-  useEffect(() => {
-    if (!sessionId || !termId || !user?.id) return;
-    setLoading(true);
-    (async () => {
-      try {
-        const { data } = await api.get<ApiResponse<TermResult>>(
-          `/termsubjectresult/report-card/${user.id}?termId=${termId}&academicSessionId=${sessionId}`
-        );
-        setReport(data.success ? data.data : null);
-      } catch { setReport(null); }
-      finally { setLoading(false); }
-    })();
-  }, [sessionId, termId, user?.id]);
+  const openReportCard = (termId: string, sessionId: string) => {
+    if (!studentId) return;
+    navigate(`/student/results/${studentId}/${sessionId}/${termId}`);
+  };
 
-  const session = sessions.find((s) => s.id === sessionId);
+  const downloadPdf = async (termId: string, sessionId: string) => {
+    if (!studentId) return;
+    setDownloading(termId);
+    try {
+      const res = await api.get(
+        `/termsubjectresult/report-card/${studentId}/pdf` +
+          `?termId=${termId}&academicSessionId=${sessionId}`,
+        { responseType: "blob" }
+      );
+
+      const disposition = (res.headers?.["content-disposition"] as string) ?? "";
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const filename = match?.[1] ?? `ReportCard_${termId}.pdf`;
+
+      const blob = new Blob([res.data], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      if (err?.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          toast({ variant: "error", title: json?.message ?? "Download failed" });
+          return;
+        } catch {
+          /* fall through */
+        }
+      }
+      toast({
+        variant: "error",
+        title: err?.response?.data?.message ?? "Could not download PDF",
+      });
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Academics" title="My results" description="View your term report card and subject breakdown." />
-
-      <Card padding="sm">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Select
-            value={sessionId}
-            onChange={(e) => {
-              setSessionId(e.target.value);
-              const s = sessions.find((x) => x.id === e.target.value);
-              if (s?.terms[0]) setTermId(s.terms[0].id);
-            }}
-            options={sessions.map((s) => ({ value: s.id, label: s.name }))}
-          />
-          <Select
-            value={termId}
-            onChange={(e) => setTermId(e.target.value)}
-            options={session?.terms.map((t) => ({ value: t.id, label: t.name })) ?? []}
-          />
-        </div>
-      </Card>
+      <PageHeader
+        eyebrow="Results"
+        title="My results"
+        description="View or download your term report cards."
+      />
 
       {loading ? (
-        <Card><Skeleton className="h-96" /></Card>
-      ) : !report ? (
         <Card>
-          <EmptyState icon={FileText} title="No results available" description="Your report card has not been published for this term yet." />
+          <Skeleton className="h-40" />
+        </Card>
+      ) : sessions.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={FileText}
+            title="No results yet"
+            description="Report cards appear once your teachers finish submitting scores."
+          />
         </Card>
       ) : (
-        <>
-          <div className="grid grid-cols-3 gap-4">
-            <Card padding="sm" className="text-center">
-              <div className="w-10 h-10 rounded-xl bg-sky-50 grid place-items-center mx-auto mb-2">
-                <TrendingUp className="w-4 h-4 text-sky-600" />
+        <div className="space-y-4">
+          {sessions.map((s) => (
+            <Card key={s.id} padding="none">
+              <div className="p-6 pb-3 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-brand-50 grid place-items-center">
+                  <Calendar className="w-5 h-5 text-brand-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-[15px] font-semibold text-surface-900">
+                    {s.name}
+                  </h3>
+                  {s.isCurrentSession && (
+                    <Badge variant="emerald">Current session</Badge>
+                  )}
+                </div>
               </div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Average</p>
-              <p className="text-xl font-semibold text-slate-900 tabular-nums">{report.averageScore.toFixed(1)}%</p>
-            </Card>
-            <Card padding="sm" className="text-center">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 grid place-items-center mx-auto mb-2">
-                <Trophy className="w-4 h-4 text-amber-600" />
-              </div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Position</p>
-              <p className="text-xl font-semibold text-slate-900 tabular-nums">#{report.classPosition}</p>
-            </Card>
-            <Card padding="sm" className="text-center">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 grid place-items-center mx-auto mb-2">
-                <FileText className="w-4 h-4 text-emerald-600" />
-              </div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Grade</p>
-              <p className="text-xl font-semibold text-slate-900">{report.overallGrade ?? "-"}</p>
-            </Card>
-          </div>
 
-          <Card padding="none">
-            <div className="p-6 pb-4 flex items-center justify-between">
-              <h3 className="text-[15px] font-semibold text-slate-900">Subject breakdown</h3>
-              <Button variant="secondary" size="sm" icon={Download}>Download PDF</Button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/50">
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-5 py-3">Subject</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-5 py-3">Test 1</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-5 py-3">Test 2</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-5 py-3">Exam</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-5 py-3">Total</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-5 py-3">Grade</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-5 py-3">Pos</th>
-                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-5 py-3">Remark</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {report.subjectResults.map((s) => (
-                    <tr key={s.id} className="hover:bg-slate-50/50">
-                      <td className="px-5 py-3 text-[13px] font-medium text-slate-800">{s.subjectName}</td>
-                      <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">{s.test1Score}</td>
-                      <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">{s.test2Score}</td>
-                      <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">{s.examScore}</td>
-                      <td className="px-5 py-3 text-right tabular-nums text-[13px] font-semibold text-slate-900">{s.totalScore}</td>
-                      <td className="px-5 py-3 text-right">
-                        <Badge variant="sky">{s.grade}</Badge>
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">#{s.subjectPosition}</td>
-                      <td className="px-5 py-3 text-[12px] text-slate-500">{s.remark}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </>
+              <div className="divide-y divide-surface-100 border-t border-surface-100">
+                {s.terms.map((t) => (
+                  <div
+                    key={t.id}
+                    className="px-6 py-4 flex items-center gap-3"
+                  >
+                    <GraduationCap className="w-4 h-4 text-surface-400" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium text-surface-900">
+                        {t.name}
+                      </p>
+                      {t.isCurrentTerm && (
+                        <p className="text-[11px] text-emerald-600 mt-0.5">
+                          Current term
+                        </p>
+                      )}
+                    </div>
+
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={Download}
+                      loading={downloading === t.id}
+                      onClick={() => downloadPdf(t.id, s.id)}
+                    >
+                      PDF
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      iconRight={ArrowRight}
+                      onClick={() => openReportCard(t.id, s.id)}
+                    >
+                      View
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );

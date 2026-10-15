@@ -1,9 +1,14 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserPlus, Camera, X, Sparkles } from "lucide-react";
+import { UserPlus, Sparkles, ImageOff } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
-  Button, Card, FormField, Input, Select, Avatar,
+  Button,
+  Card,
+  FormField,
+  Input,
+  Select,
+  Avatar,
 } from "../../components/ui";
 import { useToast } from "../../hooks/useToast";
 import api from "../../lib/api";
@@ -14,6 +19,7 @@ interface SchoolClass {
   name: string;
   academicSection: string;
 }
+
 interface Created {
   userId: string;
   admissionNumber: string;
@@ -35,6 +41,7 @@ function detectStream(className: string | undefined): string | null {
 export default function NewStudentPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<Created | null>(null);
@@ -48,9 +55,7 @@ export default function NewStudentPage() {
     stream: "",
   });
 
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-
+  // ---- Load classes ----
   useEffect(() => {
     (async () => {
       const { data } = await api.get<ApiResponse<SchoolClass[]>>(
@@ -59,13 +64,6 @@ export default function NewStudentPage() {
       if (data.success) setClasses(data.data);
     })();
   }, []);
-
-  const onFile = (e: ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
-  };
 
   const change =
     (k: keyof typeof form) =>
@@ -77,13 +75,13 @@ export default function NewStudentPage() {
   const autoDetectedStream = detectStream(selectedClass?.name);
   const needsManualStream = isSenior && !autoDetectedStream;
 
-  // When class changes, auto-fill stream from the class name if possible
   const handleClassChange = (id: string) => {
     const cls = classes.find((c) => c.id === id);
     const detected = detectStream(cls?.name);
     setForm((p) => ({ ...p, schoolClassId: id, stream: detected ?? "" }));
   };
 
+  // ---- Submit (JSON) ----
   const submit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -102,24 +100,20 @@ export default function NewStudentPage() {
 
     setSubmitting(true);
     try {
-      const fd = new FormData();
-      fd.append("role", "Student");
-      fd.append("firstName", form.firstName);
-      fd.append("lastName", form.lastName);
-      if (form.email) fd.append("email", form.email);
-      if (form.phoneNumber) fd.append("phoneNumber", form.phoneNumber);
-      fd.append("schoolClassId", form.schoolClassId);
-
-      if (isSenior && form.stream) {
-        fd.append("stream", form.stream);
-      }
-
-      if (file) fd.append("profilePicture", file);
+      const payload = {
+        role: "Student",
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email: form.email.trim() || null,
+        phoneNumber: form.phoneNumber.trim() || null,
+        schoolClassId: form.schoolClassId,
+        stream: isSenior && form.stream ? form.stream : null,
+      };
 
       const { data } = await api.post<ApiResponse<Created>>(
         "/auth/create-account",
-        fd,
-        { headers: { "Content-Type": "multipart/form-data" } }
+        payload
+        // No headers override — axios will set application/json automatically
       );
 
       if (!data.success) {
@@ -140,6 +134,7 @@ export default function NewStudentPage() {
     }
   };
 
+  // ---- Success screen ----
   if (created) {
     return (
       <div className="max-w-2xl mx-auto">
@@ -167,7 +162,21 @@ export default function NewStudentPage() {
           </div>
 
           <div className="mt-6 flex gap-3">
-            <Button variant="secondary" fullWidth onClick={() => setCreated(null)}>
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={() => {
+                setCreated(null);
+                setForm({
+                  firstName: "",
+                  lastName: "",
+                  email: "",
+                  phoneNumber: "",
+                  schoolClassId: "",
+                  stream: "",
+                });
+              }}
+            >
               Enrol another
             </Button>
             <Button
@@ -182,6 +191,7 @@ export default function NewStudentPage() {
     );
   }
 
+  // ---- Form ----
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <PageHeader
@@ -196,42 +206,21 @@ export default function NewStudentPage() {
             Student details
           </h3>
 
+          {/* Photo placeholder — uploader coming soon */}
           <div className="flex items-start gap-5 mb-6">
-            <div className="relative">
-              {preview ? (
-                <img
-                  src={preview}
-                  alt="preview"
-                  className="w-20 h-20 rounded-2xl object-cover border border-surface-200"
-                />
-              ) : (
-                <Avatar name={`${form.firstName} ${form.lastName}`} size="xl" />
-              )}
-              <label className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-brand-600 text-white grid place-items-center cursor-pointer shadow-sm hover:bg-brand-700">
-                <Camera className="w-3.5 h-3.5" />
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={onFile}
-                />
-              </label>
-            </div>
+            <Avatar
+              name={`${form.firstName} ${form.lastName}`}
+              size="xl"
+            />
             <div className="text-[12px] text-surface-400 pt-1">
-              <p className="font-medium text-surface-600">Profile picture</p>
-              <p className="mt-1">JPG, PNG, or WEBP - max 200 KB</p>
-              {file && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFile(null);
-                    setPreview(null);
-                  }}
-                  className="mt-2 inline-flex items-center gap-1 text-flame-600 hover:text-flame-700"
-                >
-                  <X className="w-3 h-3" /> Remove
-                </button>
-              )}
+              <p className="font-medium text-surface-600 flex items-center gap-1.5">
+                <ImageOff className="w-3.5 h-3.5" />
+                Profile picture
+              </p>
+              <p className="mt-1">
+                Photo upload will be enabled soon. You can add a picture later
+                from the student's profile page.
+              </p>
             </div>
           </div>
 
@@ -279,16 +268,15 @@ export default function NewStudentPage() {
                 value={form.schoolClassId}
                 onChange={(e) => handleClassChange(e.target.value)}
                 placeholder="Choose a class"
-                options={classes.map((c) => ({ value: c.id, label: c.name }))}
+                options={classes.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                }))}
               />
             </FormField>
 
-            {/* If the class name contains a stream, show it as auto-detected */}
             {isSenior && autoDetectedStream && (
-              <FormField
-                label="Stream"
-                hint="Detected from the class name"
-              >
+              <FormField label="Stream" hint="Detected from the class name">
                 <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 text-[14px] font-medium">
                   <Sparkles className="w-4 h-4 shrink-0" />
                   {autoDetectedStream}
@@ -296,7 +284,6 @@ export default function NewStudentPage() {
               </FormField>
             )}
 
-            {/* Otherwise, show the dropdown so the user picks manually */}
             {needsManualStream && (
               <FormField
                 label="Stream"

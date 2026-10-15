@@ -9,5 +9,6 @@
         public string TemporaryPassword { get; set; } = string.Empty;
         public string Role { get; set; } = string.Empty;
         public string? ProfilePictureUrl { get; set; }
+        public string? StudentProfileId { get;  set; }
     }
 }

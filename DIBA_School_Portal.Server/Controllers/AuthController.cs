@@ -80,8 +80,9 @@ namespace DIBA_School_Portal.Server.Controllers
         /// </summary>
         [HttpPost("create-account")]
         [Authorize(Roles = "SuperAdmin,Principal,Registrar")]
+        [Consumes("multipart/form-data")]                              // ← new
         [ProducesResponseType(typeof(ServiceResponse<CreateAccountResponseDto>), StatusCodes.Status201Created)]
-        public async Task<IActionResult> CreateAccount([FromBody] CreateAccountDto request)
+        public async Task<IActionResult> CreateAccount([FromForm] CreateAccountDto request)   // ← FromForm
         {
             var result = await _auth.CreateAccountAsync(request, CurrentUserId, Ip);
             return StatusCode(result.StatusCode, result);

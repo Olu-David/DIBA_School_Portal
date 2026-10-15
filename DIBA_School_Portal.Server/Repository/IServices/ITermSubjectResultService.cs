@@ -28,5 +28,12 @@ namespace DIBA_School_Portal.Server.Repository.IServices
 
         Task<ServiceResponse<List<OutstandingSubmissionDto>>> GetOutstandingSubmissionsAsync(
             Guid academicSessionId, Guid termId, Guid? classId = null);
+
+        Task<ServiceResponse<ClassSubjectResultDto>> GetClassSubjectResultsAsync(
+            Guid classId, Guid subjectId, Guid termId, Guid academicSessionId, string currentUserId);
+
+        // NEW — PDF for the report card
+        Task<ServiceResponse<byte[]>> GenerateReportCardPdfAsync(
+            string studentId, Guid termId, Guid academicSessionId);
     }
 }

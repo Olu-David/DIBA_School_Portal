@@ -85,12 +85,12 @@ export default function ContactPage() {
             Contact
           </p>
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-[1.05] tracking-tight max-w-3xl">
-            Come and visit us.
+            Old Airport Area, beside the RCCG.{" "}
+            <span className="italic text-flame-300">Blue crest on a white wall.</span>
           </h1>
           <p className="mt-6 text-white/75 text-[16px] leading-relaxed max-w-2xl">
-            Our campus sits just off the Trade Fair Complex at Old Airport Area,
-            Sokoto. Walk in, call, or send a message - we respond to every
-            enquiry personally.
+            Walk in, call, or send a message - we respond to every enquiry
+            personally. If the gate is closed, ring the bell.
           </p>
         </div>
       </section>
@@ -167,7 +167,7 @@ export default function ContactPage() {
                 Send a message
               </p>
               <h2 className="font-serif text-3xl text-surface-950 tracking-tight mb-8">
-                What can we help with?
+                Send a message — or just call.
               </h2>
 
               {sent ? (

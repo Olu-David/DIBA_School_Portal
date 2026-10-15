@@ -1,14 +1,20 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  GraduationCap, Plus, Users, BookOpen, Settings2, Baby, Sparkles, Trophy,
+  GraduationCap, Plus, Users, BookOpen, Settings2, Baby, Sparkles,
+  Trophy, Heart,
 } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import { Button, Card, EmptyState, Badge, Skeleton } from "../../components/ui";
 import api from "../../lib/api";
 import type { ApiResponse } from "../../types/common";
 
-type Section = "Nursery" | "Primary" | "JuniorSecondary" | "SeniorSecondary";
+type Section =
+  | "PreNursery"
+  | "Nursery"
+  | "Primary"
+  | "JuniorSecondary"
+  | "SeniorSecondary";
 
 interface SchoolClass {
   id: string;
@@ -17,15 +23,25 @@ interface SchoolClass {
   studentCount?: number;
 }
 
-const SECTION_STYLE: Record<Section, {
-  badge: "rose" | "sky" | "violet" | "brand";
-  ring: string;
-  bar: string;
-  icon: typeof Baby;
-  label: string;
-}> = {
-  Nursery: {
+const SECTION_STYLE: Record<
+  Section,
+  {
+    badge: "rose" | "amber" | "sky" | "violet" | "brand";
+    ring: string;
+    bar: string;
+    icon: typeof Baby;
+    label: string;
+  }
+> = {
+  PreNursery: {
     badge: "rose",
+    ring: "hover:border-rose-200",
+    bar: "from-rose-300 to-rose-500",
+    icon: Heart,
+    label: "Pre-Nursery",
+  },
+  Nursery: {
+    badge: "amber",
     ring: "hover:border-pink-200",
     bar: "from-pink-400 to-pink-600",
     icon: Baby,
@@ -78,7 +94,11 @@ export default function ClassesPage() {
   }, {});
 
   const sections: Section[] = [
-    "Nursery", "Primary", "JuniorSecondary", "SeniorSecondary",
+    "PreNursery",
+    "Nursery",
+    "Primary",
+    "JuniorSecondary",
+    "SeniorSecondary",
   ];
 
   return (
@@ -122,7 +142,9 @@ export default function ClassesPage() {
           return (
             <section key={section}>
               <div className="flex items-center gap-3 mb-4">
-                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${style.bar} grid place-items-center text-white shadow-sm`}>
+                <div
+                  className={`w-9 h-9 rounded-xl bg-gradient-to-br ${style.bar} grid place-items-center text-white shadow-sm`}
+                >
                   <Icon className="w-4 h-4" />
                 </div>
                 <div>
@@ -143,7 +165,9 @@ export default function ClassesPage() {
                     onClick={() => navigate(`/admin/classes/${c.id}`)}
                     className={`text-left bg-white rounded-2xl border border-surface-100 p-5 shadow-soft transition-all ${style.ring} hover:shadow-md`}
                   >
-                    <div className={`h-1 w-12 rounded-full bg-gradient-to-r ${style.bar} mb-4`} />
+                    <div
+                      className={`h-1 w-12 rounded-full bg-gradient-to-r ${style.bar} mb-4`}
+                    />
 
                     <div className="flex items-start justify-between gap-3">
                       <div>

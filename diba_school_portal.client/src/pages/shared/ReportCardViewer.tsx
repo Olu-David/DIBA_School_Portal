@@ -1,210 +1,324 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Download, FileText, GraduationCap } from "lucide-react";
+import {
+  ArrowLeft,
+  Download,
+  Printer,
+  Trophy,
+  GraduationCap,
+} from "lucide-react";
 import PageHeader from "../../components/PageHeader";
-import { Button, Card, EmptyState, Skeleton, Badge } from "../../components/ui";
+import {
+  Card,
+  Button,
+  Avatar,
+  Badge,
+  Skeleton,
+  EmptyState,
+} from "../../components/ui";
+import { useToast } from "../../hooks/useToast";
 import api from "../../lib/api";
 import type { ApiResponse } from "../../types/common";
 
-// Matches the backend ClassStream enum.
-// "None" is not valid — a non-SS student will have stream === null.
-type ClassStream = "Science" | "Arts" | "Commercial" | "General";
+interface SubjectScore {
+  id: string;
+  subjectId: string;
+  subjectName: string;
+  test1Score: number;
+  test2Score: number;
+  examScore: number;
+  totalScore: number;
+  subjectPosition: number;
+  grade: string;
+  remark: string;
+}
 
-// Colour per stream — keeps the badge meaningfully tinted instead of neutral.
-const STREAM_TONE: Record<ClassStream, "sky" | "violet" | "amber" | "rose"> = {
-  Science: "sky",
-  Arts: "violet",
-  Commercial: "amber",
-  General: "rose",
+interface ReportCard {
+  termResultId: string;
+  studentId: string;
+  studentName: string;
+  admissionNumber: string | null;
+  profilePictureUrl: string | null;
+  classId: string;
+  className: string;
+  stream: number | null;
+  termId: string;
+  termName: string;
+  academicSessionId: string;
+  sessionName: string;
+  averageScore: number;
+  classPosition: number;
+  overallGrade: string;
+  subjectResults: SubjectScore[];
+}
+
+const STREAM_LABEL: Record<number, string> = {
+  0: "Science",
+  1: "Arts",
+  2: "Commercial",
+  3: "General",
 };
 
 export default function ReportCardViewer() {
-  const { studentId, termId, sessionId } = useParams<{
+  const { studentId, sessionId, termId } = useParams<{
     studentId: string;
-    termId: string;
     sessionId: string;
+    termId: string;
   }>();
   const navigate = useNavigate();
-  const [report, setReport] = useState<any>(null);
+  const { toast } = useToast();
+
+  const [data, setData] = useState<ReportCard | null>(null);
   const [loading, setLoading] = useState(true);
-  const [pdfLoading, setPdfLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
+    if (!studentId || !sessionId || !termId) {
+      setLoading(false);
+      return;
+    }
     (async () => {
       try {
-        const { data } = await api.get<ApiResponse<any>>(
-          `/termsubjectresult/report-card/${studentId}?termId=${termId}&academicSessionId=${sessionId}`
+        const { data: res } = await api.get<ApiResponse<ReportCard>>(
+          `/termsubjectresult/report-card/${studentId}` +
+            `?termId=${termId}&academicSessionId=${sessionId}`
         );
-        if (data.success) setReport(data.data);
+        if (res.success) setData(res.data);
+      } catch (err: any) {
+        toast({
+          variant: "error",
+          title: err?.response?.data?.message ?? "Could not load report card",
+        });
       } finally {
         setLoading(false);
       }
     })();
-  }, [studentId, termId, sessionId]);
+  }, [studentId, sessionId, termId, toast]);
 
-  const downloadPdf = async () => {
-    if (!report) return;
-    setPdfLoading(true);
+  const handleDownload = async () => {
+    if (!data || !studentId || !sessionId || !termId) return;
+    setDownloading(true);
     try {
-      const res = await api.post("/pdfreport/report-card", report, {
-        responseType: "blob",
-      });
-      const url = URL.createObjectURL(
-        new Blob([res.data], { type: "application/pdf" })
+      const res = await api.get(
+        `/termsubjectresult/report-card/${studentId}/pdf` +
+          `?termId=${termId}&academicSessionId=${sessionId}`,
+        { responseType: "blob" }
       );
+
+      const disposition =
+        (res.headers?.["content-disposition"] as string) ?? "";
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const filename =
+        match?.[1] ?? `ReportCard_${data.studentName}_${data.termName}.pdf`;
+
+      const blob = new Blob([res.data], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `ReportCard_${report.studentName}_${report.termName}.pdf`;
+      a.download = filename;
+      document.body.appendChild(a);
       a.click();
+      a.remove();
       URL.revokeObjectURL(url);
+    } catch (err: any) {
+      if (err?.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          toast({
+            variant: "error",
+            title: json?.message ?? "Could not generate PDF",
+          });
+          return;
+        } catch {
+          /* fall through */
+        }
+      }
+      toast({
+        variant: "error",
+        title: err?.response?.data?.message ?? "Could not generate PDF",
+      });
     } finally {
-      setPdfLoading(false);
+      setDownloading(false);
     }
   };
 
   if (loading) {
     return (
-      <Card>
-        <Skeleton className="h-96" />
-      </Card>
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-40" />
+        <Card>
+          <Skeleton className="h-96" />
+        </Card>
+      </div>
     );
   }
 
-  if (!report) {
+  if (!data) {
     return (
       <Card>
         <EmptyState
-          icon={FileText}
-          title="Report card not found"
-          description="It may not have been published yet."
+          icon={GraduationCap}
+          title="Report card not available"
+          description="No results found for this student in the selected term."
           action={<Button onClick={() => navigate(-1)}>Back</Button>}
         />
       </Card>
     );
   }
 
-  const stream: ClassStream | null = report.stream ?? null;
-
   return (
     <div className="space-y-6">
       <button
         type="button"
         onClick={() => navigate(-1)}
-        className="inline-flex items-center gap-1.5 text-[12px] text-slate-500 hover:text-slate-800"
+        className="inline-flex items-center gap-1.5 text-[12px] text-surface-500 hover:text-surface-800"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
         Back
       </button>
 
       <PageHeader
-        eyebrow={`${report.sessionName} · ${report.termName}`}
-        title={
-          <span className="inline-flex items-center gap-2 flex-wrap">
-            {report.studentName}
-            {stream && (
-              <Badge variant={STREAM_TONE[stream]}>
-                {stream}
-              </Badge>
-            )}
-          </span>
-        }
-        description={
-          <span className="inline-flex items-center gap-1.5 flex-wrap">
-            <GraduationCap className="w-3.5 h-3.5" />
-            Class: {report.className}
-            {stream && (
-              <>
-                <span className="text-slate-300">·</span>
-                <span className="font-medium text-slate-700">{stream}</span>
-              </>
-            )}
-            {report.admissionNumber && (
-              <>
-                <span className="text-slate-300">·</span>
-                <span className="font-mono text-slate-500">
-                  {report.admissionNumber}
-                </span>
-              </>
-            )}
-          </span>
-        }
+        eyebrow="Report card"
+        title={`${data.termName} · ${data.sessionName}`}
+        description={`${data.studentName} — ${data.className}`}
         actions={
-          <Button icon={Download} loading={pdfLoading} onClick={downloadPdf}>
-            Download PDF
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              icon={Printer}
+              onClick={() => window.print()}
+            >
+              Print
+            </Button>
+            <Button
+              icon={Download}
+              loading={downloading}
+              onClick={handleDownload}
+            >
+              Download PDF
+            </Button>
+          </div>
         }
       />
 
-      <div className="grid grid-cols-3 gap-4">
-        <Card padding="sm" className="text-center">
-          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">
-            Average
+      <Card>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+          <Avatar name={data.studentName} src={data.profilePictureUrl} size="xl" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-semibold text-surface-900">
+                {data.studentName}
+              </h1>
+              <Badge
+                variant={
+                  data.overallGrade === "A"
+                    ? "emerald"
+                    : data.overallGrade === "F"
+                    ? "rose"
+                    : "sky"
+                }
+              >
+                {data.overallGrade}
+              </Badge>
+              {data.stream !== null && (
+                <Badge variant="violet">
+                  {STREAM_LABEL[data.stream] ?? "Stream"}
+                </Badge>
+              )}
+            </div>
+            <p className="mt-1 text-[13px] text-surface-500 font-mono">
+              {data.admissionNumber ?? "—"}
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card padding="sm">
+          <p className="text-[10px] uppercase tracking-wider text-surface-400 font-medium">
+            Average score
           </p>
-          <p className="text-2xl font-semibold text-slate-900 tabular-nums mt-1">
-            {report.averageScore?.toFixed(2)}%
+          <p className="text-2xl font-semibold text-surface-900 tabular-nums mt-1">
+            {data.averageScore.toFixed(2)}%
           </p>
         </Card>
-        <Card padding="sm" className="text-center">
-          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">
-            Position
+        <Card padding="sm">
+          <p className="text-[10px] uppercase tracking-wider text-surface-400 font-medium">
+            Class position
           </p>
-          <p className="text-2xl font-semibold text-slate-900 tabular-nums mt-1">
-            #{report.classPosition}
+          <p className="text-2xl font-semibold text-surface-900 tabular-nums mt-1 inline-flex items-center gap-2">
+            {data.classPosition <= 3 && data.classPosition > 0 && (
+              <Trophy className="w-5 h-5 text-flame-500" />
+            )}
+            {data.classPosition > 0 ? `#${data.classPosition}` : "-"}
           </p>
         </Card>
-        <Card padding="sm" className="text-center">
-          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">
-            Grade
+        <Card padding="sm">
+          <p className="text-[10px] uppercase tracking-wider text-surface-400 font-medium">
+            Subjects taken
           </p>
-          <p className="text-2xl font-semibold text-slate-900 mt-1">
-            {report.overallGrade ?? "—"}
+          <p className="text-2xl font-semibold text-surface-900 tabular-nums mt-1">
+            {data.subjectResults.length}
           </p>
         </Card>
       </div>
 
       <Card padding="none">
+        <div className="p-6 pb-4">
+          <h3 className="text-[15px] font-semibold text-surface-900">
+            Subject performance
+          </h3>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/50">
-                {[
-                  "Subject",
-                  "Test 1",
-                  "Test 2",
-                  "Exam",
-                  "Total",
-                  "Grade",
-                  "Pos",
-                  "Remark",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-5 py-3 whitespace-nowrap"
-                  >
-                    {h}
-                  </th>
-                ))}
+              <tr className="border-b border-surface-100 bg-surface-50/50">
+                <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">
+                  Subject
+                </th>
+                <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3">
+                  Test 1
+                </th>
+                <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3">
+                  Test 2
+                </th>
+                <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3">
+                  Exam
+                </th>
+                <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3">
+                  Total
+                </th>
+                <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3">
+                  Grade
+                </th>
+                <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3">
+                  Pos
+                </th>
+                <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">
+                  Remark
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {report.subjectResults.map((s: any) => (
-                <tr key={s.id} className="hover:bg-slate-50/50">
-                  <td className="px-5 py-3 text-[13px] font-medium text-slate-800">
+            <tbody className="divide-y divide-surface-100">
+              {data.subjectResults.map((s) => (
+                <tr key={s.id} className="hover:bg-surface-50/50">
+                  <td className="px-6 py-3 text-[13px] font-medium text-surface-900">
                     {s.subjectName}
                   </td>
-                  <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">
-                    {s.test1Score}
+                  <td className="px-4 py-3 text-right text-[13px] text-surface-700 tabular-nums">
+                    {s.test1Score.toFixed(1)}
                   </td>
-                  <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">
-                    {s.test2Score}
+                  <td className="px-4 py-3 text-right text-[13px] text-surface-700 tabular-nums">
+                    {s.test2Score.toFixed(1)}
                   </td>
-                  <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">
-                    {s.examScore}
+                  <td className="px-4 py-3 text-right text-[13px] text-surface-700 tabular-nums">
+                    {s.examScore.toFixed(1)}
                   </td>
-                  <td className="px-5 py-3 text-right tabular-nums text-[13px] font-semibold text-slate-900">
-                    {s.totalScore}
+                  <td className="px-4 py-3 text-right text-[13px] font-semibold text-surface-900 tabular-nums">
+                    {s.totalScore.toFixed(1)}
                   </td>
-                  <td className="px-5 py-3 text-right">
+                  <td className="px-4 py-3 text-right">
                     <Badge
                       variant={
                         s.grade === "A"
@@ -217,10 +331,10 @@ export default function ReportCardViewer() {
                       {s.grade}
                     </Badge>
                   </td>
-                  <td className="px-5 py-3 text-right tabular-nums text-[13px] text-slate-600">
-                    #{s.subjectPosition}
+                  <td className="px-4 py-3 text-right text-[12px] text-surface-500 tabular-nums">
+                    {s.subjectPosition}
                   </td>
-                  <td className="px-5 py-3 text-[12px] text-slate-500">
+                  <td className="px-6 py-3 text-[12px] text-surface-600">
                     {s.remark}
                   </td>
                 </tr>

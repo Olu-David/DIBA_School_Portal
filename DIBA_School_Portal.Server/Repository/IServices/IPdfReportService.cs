@@ -6,11 +6,10 @@ namespace DIBA_School_Portal.Server.Services
 {
     public interface IPdfReportService
     {
-        byte[] GenerateReportCardPdf(StudentTermReportDto report);
-        byte[] GeneratePaymentReceiptPdf(StudentPaymentReceiptDto receipt);
-
-
-        byte[] GenerateSchoolResultsPdf(SchoolResultsPdfDto report);
-        byte[] GenerateClassReceiptsPdf(ClassReceiptsDto batch);
+        public byte[] GenerateReportCardPdf(StudentTermReportDto report);
+        public byte[] GeneratePaymentReceiptPdf(StudentPaymentReceiptDto receipt);
+        public byte[] GenerateTeacherClassSheetPdf(TeacherClassSheetDto sheet);
+        public byte[] GenerateSchoolResultsPdf(SchoolResultsPdfDto report);
+        public byte[] GenerateClassReceiptsPdf(ClassReceiptsDto batch);
     }
 }

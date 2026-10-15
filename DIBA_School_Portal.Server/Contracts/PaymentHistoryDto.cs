@@ -1,6 +1,6 @@
 ﻿using DIBA_School_Portal.Server.Enums;
 
-namespace DIBA_School_Portal.Server.Repository.Services
+namespace DIBA_School_Portal.Server.Contracts
 {
     public class PaymentHistoryDto
     {

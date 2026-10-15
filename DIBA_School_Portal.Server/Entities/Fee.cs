@@ -6,42 +6,42 @@ namespace DIBA_School_Portal.Server.Entities
 {
     public class Fee
     {
-       [Key]
+        [Key]
         public Guid Id { get; set; } = Guid.NewGuid();
 
         [Required]
         [MaxLength(100)]
-        public string FeeName { get; set; } = string.Empty; // e.g., "Tuition Fee"
+        public string FeeName { get; set; } = string.Empty;
 
         [MaxLength(500)]
         public string Description { get; set; } = string.Empty;
 
         [Required]
-        public Guid? ClassLevelId { get; set; }
-
-        [ForeignKey(nameof(ClassLevelId))]
-        public SchoolClass ClassLevel { get; set; } = null!;
-
-        [Required]
-        public Guid? AcademicSessionId { get; set; }
+        public Guid AcademicSessionId { get; set; }
 
         [ForeignKey(nameof(AcademicSessionId))]
         public AcademicSession AcademicSession { get; set; } = null!;
 
         [Required]
-        public Guid? TermId { get; set; }
+        public Guid TermId { get; set; }
 
         [ForeignKey(nameof(TermId))]
         public SchoolTerm Term { get; set; } = null!;
+
+        // A Fee is a catalogue entry — the classes it applies to live in ClassFeePrices.
+        // These are optional metadata for reporting/filtering.
+
         public Guid? SchoolClassId { get; set; }
 
         [ForeignKey(nameof(SchoolClassId))]
-        public virtual SchoolClass SchoolClass { get; set; } = null!;
-       
-        public AcademicSection Section { get; set; }
-        public ClassStream ClassStream { get; set; }
-        // Navigation property for the many-to-many link to classes
-        public ICollection<ClassFeePrice> ClassFees { get; set; } = new List<ClassFeePrice>();
+        public virtual SchoolClass? SchoolClass { get; set; }
+
+        public AcademicSection? Section { get; set; }
+        public ClassStream? ClassStream { get; set; }
+
+        public bool IsDeleted { get; set; }
+        public DateTime? DeletedAt { get; set; }
+
+        public ICollection<ClassFeePrice> ClassFeePrices { get; set; } = new List<ClassFeePrice>();
     }
 }
-

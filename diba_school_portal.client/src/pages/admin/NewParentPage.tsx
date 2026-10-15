@@ -1,9 +1,9 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserPlus, ArrowLeft } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
-  Button, Card, FormField, Input, Select, Avatar,
+  Button, Card, FormField, Input, Select, Skeleton,
 } from "../../components/ui";
 import { useToast } from "../../hooks/useToast";
 import api from "../../lib/api";
@@ -17,6 +17,13 @@ interface StudentRow {
   profilePictureUrl: string | null;
 }
 
+interface SchoolClass {
+  id: string;
+  name: string;
+  academicSection: string;
+  displayOrder?: number;
+}
+
 interface LinkResponse {
   userId: string;
   email: string | null;
@@ -24,31 +31,87 @@ interface LinkResponse {
   temporaryPassword: string;
 }
 
+// Order sections for the class picker
+const SECTION_ORDER: Record<string, number> = {
+  PreNursery: 0,
+  Nursery: 1,
+  Primary: 2,
+  JuniorSecondary: 3,
+  SeniorSecondary: 4,
+};
+
+function classRank(c: SchoolClass): number {
+  const sec = SECTION_ORDER[c.academicSection] ?? 99;
+  const match = c.name.match(/(\d+)/);
+  const num = match ? parseInt(match[1], 10) : 0;
+  return sec * 1000 + num;
+}
+
 export default function NewParentPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
+  const [loadingRefs, setLoadingRefs] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [selectedClassId, setSelectedClassId] = useState("");
+  const [selectedStudentId, setSelectedStudentId] = useState("");
+
   const [form, setForm] = useState({
-    studentProfileId: "",
     parentFirstName: "",
     parentLastName: "",
     parentPhone: "",
     parentEmail: "",
-    relationship: "Father",
+    relationship: "Guardian",
     isPrimaryContact: true,
   });
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<LinkResponse | null>(null);
 
+  // ---- Load classes + students in parallel ----
   useEffect(() => {
     (async () => {
-      const { data } = await api.get<ApiResponse<Paginated<StudentRow>>>(
-        "/student?pageNumber=1&pageSize=100"
-      );
-      if (data.success) setStudents(data.data.items);
+      try {
+        const [classRes, studentRes] = await Promise.allSettled([
+          api.get<ApiResponse<SchoolClass[]>>("/schoolclass/all"),
+          api.get<ApiResponse<Paginated<StudentRow>>>(
+            "/student?pageNumber=1&pageSize=200"
+          ),
+        ]);
+
+        if (classRes.status === "fulfilled" && classRes.value.data.success) {
+          const sorted = [...(classRes.value.data.data ?? [])].sort(
+            (a, b) => classRank(a) - classRank(b)
+          );
+          setClasses(sorted);
+        }
+
+        if (studentRes.status === "fulfilled" && studentRes.value.data.success) {
+          setStudents(studentRes.value.data.data.items ?? []);
+        } else {
+          setLoadError("Could not load students.");
+        }
+      } catch (err: any) {
+        setLoadError(
+          err?.response?.data?.message ?? "Could not load form data."
+        );
+      } finally {
+        setLoadingRefs(false);
+      }
     })();
   }, []);
+
+  // ---- Students filtered by class ----
+  const studentsInClass = useMemo(() => {
+    if (!selectedClassId) return [];
+    const cls = classes.find((c) => c.id === selectedClassId);
+    if (!cls) return [];
+    return students
+      .filter((s) => s.className === cls.name)
+      .sort((a, b) => a.fullName.localeCompare(b.fullName));
+  }, [students, classes, selectedClassId]);
 
   const change = (k: keyof typeof form) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -57,7 +120,7 @@ export default function NewParentPage() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!form.studentProfileId) {
+    if (!selectedStudentId) {
       toast({ variant: "error", title: "Pick a student to link" });
       return;
     }
@@ -71,7 +134,7 @@ export default function NewParentPage() {
       const { data } = await api.post<ApiResponse<LinkResponse>>(
         "/auth/link-parent",
         {
-          studentProfileId: form.studentProfileId,
+          studentProfileId: selectedStudentId,
           parentFirstName: form.parentFirstName.trim(),
           parentLastName: form.parentLastName.trim(),
           parentPhone: form.parentPhone.trim(),
@@ -99,6 +162,7 @@ export default function NewParentPage() {
     }
   };
 
+  // ---- Success screen ----
   if (created) {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
@@ -113,8 +177,8 @@ export default function NewParentPage() {
               Parent account ready
             </h2>
             <p className="text-[13px] text-surface-500 mt-1">
-              Share these credentials with the parent. They can log in
-              at <code className="font-mono">/auth/parent</code>.
+              Share these credentials with the parent. They can log in at{" "}
+              <code className="font-mono">/auth/parent</code>.
             </p>
           </div>
 
@@ -130,13 +194,14 @@ export default function NewParentPage() {
               fullWidth
               onClick={() => {
                 setCreated(null);
+                setSelectedClassId("");
+                setSelectedStudentId("");
                 setForm({
-                  studentProfileId: "",
                   parentFirstName: "",
                   parentLastName: "",
                   parentPhone: "",
                   parentEmail: "",
-                  relationship: "Father",
+                  relationship: "Guardian",
                   isPrimaryContact: true,
                 });
               }}
@@ -152,6 +217,7 @@ export default function NewParentPage() {
     );
   }
 
+  // ---- Form ----
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <button
@@ -170,23 +236,78 @@ export default function NewParentPage() {
       />
 
       <form onSubmit={submit} className="space-y-6">
+        {/* ---------- Link to which student ---------- */}
         <Card>
           <h3 className="text-[15px] font-semibold text-surface-900 mb-5">
             Link to which student?
           </h3>
-          <FormField label="Student" required>
-            <Select
-              value={form.studentProfileId}
-              onChange={change("studentProfileId")}
-              placeholder="Choose a student"
-              options={students.map((s) => ({
-                value: s.id,
-                label: `${s.fullName} - ${s.admissionNumber} (${s.className})`,
-              }))}
-            />
-          </FormField>
+
+          {loadError && (
+            <div className="mb-4 p-3 rounded-xl bg-flame-50 border border-flame-100 text-[12px] text-flame-800">
+              {loadError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField
+              label="Class"
+              required
+              hint="Pick the class first"
+            >
+              {loadingRefs ? (
+                <Skeleton className="h-11" />
+              ) : (
+                <Select
+                  value={selectedClassId}
+                  onChange={(e) => {
+                    setSelectedClassId(e.target.value);
+                    setSelectedStudentId("");
+                  }}
+                  placeholder="Choose a class"
+                  options={classes.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                  }))}
+                />
+              )}
+            </FormField>
+
+            <FormField
+              label="Student"
+              required
+              hint={
+                !selectedClassId
+                  ? "Select a class first."
+                  : studentsInClass.length === 0
+                  ? "No students in this class."
+                  : `${studentsInClass.length} available.`
+              }
+            >
+              {loadingRefs ? (
+                <Skeleton className="h-11" />
+              ) : (
+                <Select
+                  value={selectedStudentId}
+                  onChange={(e) => setSelectedStudentId(e.target.value)}
+                  placeholder={
+                    !selectedClassId
+                      ? "Choose a class first"
+                      : studentsInClass.length === 0
+                      ? "No students"
+                      : "Choose a student"
+                  }
+                  disabled={!selectedClassId || studentsInClass.length === 0}
+                  options={studentsInClass.map((s) => ({
+                    value: s.id,
+                    label: `${s.fullName} — ${s.admissionNumber}`,
+                  }))}
+                />
+              )}
+            </FormField>
+          </div>
         </Card>
 
+        {/* ---------- Parent details ---------- */}
         <Card>
           <h3 className="text-[15px] font-semibold text-surface-900 mb-5">
             Parent details
@@ -194,10 +315,16 @@ export default function NewParentPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="First name" required>
-              <Input value={form.parentFirstName} onChange={change("parentFirstName")} />
+              <Input
+                value={form.parentFirstName}
+                onChange={change("parentFirstName")}
+              />
             </FormField>
             <FormField label="Last name" required>
-              <Input value={form.parentLastName} onChange={change("parentLastName")} />
+              <Input
+                value={form.parentLastName}
+                onChange={change("parentLastName")}
+              />
             </FormField>
             <FormField
               label="Phone number"
@@ -225,6 +352,9 @@ export default function NewParentPage() {
                   { value: "Father", label: "Father" },
                   { value: "Mother", label: "Mother" },
                   { value: "Guardian", label: "Guardian" },
+                  { value: "Uncle", label: "Uncle" },
+                  { value: "Aunt", label: "Aunt" },
+                  { value: "Grandparent", label: "Grandparent" },
                   { value: "Sibling", label: "Sibling" },
                   { value: "Other", label: "Other" },
                 ]}

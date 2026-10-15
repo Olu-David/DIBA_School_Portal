@@ -48,14 +48,18 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     options.Password.RequiredLength = 8;
 
     // Lockout
-    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    ////options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     options.Lockout.MaxFailedAccessAttempts = 5;
     options.Lockout.AllowedForNewUsers = true;
 
     // User
-    options.User.RequireUniqueEmail = false; // students have no email
+    options.User.RequireUniqueEmail = false;
+
+    // ★ ADD THIS — permit '/' so admission numbers like DIBA/2026/009 work
+    options.User.AllowedUserNameCharacters =
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+/";
 })
-.AddRoles<IdentityRole>() // <--- ADD THIS LINE HERE
+.AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 // ==========================================================
@@ -351,6 +355,10 @@ app.UseAuthentication();
 // WHAT you can do
 app.UseAuthorization();
 
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage(); // ← Add this temporarily
+}
 // Controllers
 app.MapControllers();
 

@@ -2,11 +2,11 @@ import { Link } from "react-router-dom";
 import {
   ArrowRight, BookOpen, Baby, Sparkles, GraduationCap, FlaskConical,
   Calculator, Languages, Globe2, Palette, Music, Dumbbell, Cpu,
-  ScrollText, Award, CheckCircle2, BookMarked, type LucideIcon,
+  ScrollText, CheckCircle2, type LucideIcon,
 } from "lucide-react";
 
 interface SectionBlock {
-  key: "nursery" | "primary" | "jss" | "sss";
+  key: "earlyYears" | "primary" | "jss" | "sss";
   title: string;
   ages: string;
   bar: string;
@@ -19,23 +19,23 @@ interface SectionBlock {
 
 const blocks: SectionBlock[] = [
   {
-    key: "nursery",
-    title: "Nursery",
-    ages: "Ages 3 - 5",
-    bar: "from-pink-400 to-pink-600",
-    badgeBg: "bg-pink-50",
-    badgeText: "text-pink-700",
+    key: "earlyYears",
+    title: "Early Years",
+    ages: "18 months - 5",
+    bar: "from-rose-300 to-rose-500",
+    badgeBg: "bg-rose-50",
+    badgeText: "text-rose-700",
     intro:
-      "Play is the work of childhood. Our Nursery programme channels natural curiosity into early literacy, numeracy, motor skills, and social confidence - guided by faith and kindness.",
+      "Pre-Nursery and Nursery in one place. Small groups, patient carers, songs in Hausa and English, and a nap room that actually gets used. The work of this stage is play, and we take it seriously.",
     curriculum: [
       "Early literacy & phonics (Jolly Phonics)",
       "Early numeracy & pattern work",
-      "Creative arts, music & movement",
-      "Sensorial play & fine-motor skills",
-      "Social & emotional learning",
-      "Hausa songs & story-time",
+      "Sensory play & fine-motor skills",
+      "Songs, rhymes & story-time",
+      "Sharing, waiting & gentle routines",
+      "Hausa & English language exposure",
     ],
-    examPath: "Continuous assessment - No formal examinations",
+    examPath: "Observation-based continuous assessment - No formal testing",
   },
   {
     key: "primary",
@@ -45,7 +45,7 @@ const blocks: SectionBlock[] = [
     badgeBg: "bg-sky-50",
     badgeText: "text-sky-700",
     intro:
-      "The foundational years. We build fluent readers, confident mathematicians, and curious scientists - while never losing the joy of learning.",
+      "Six years to build fluent readers and confident mathematicians. We mark every exercise. Twice a week, every week. By Primary 6, your child will write, count, and reason without hesitation.",
     curriculum: [
       "English Language & Reading",
       "Mathematics & Mental Maths",
@@ -67,7 +67,7 @@ const blocks: SectionBlock[] = [
     badgeBg: "bg-violet-50",
     badgeText: "text-violet-700",
     intro:
-      "Three years preparing for the BECE. Broad enough to keep every door open, rigorous enough to hold real academic weight.",
+      "The BECE years. A broad curriculum, guided choices, and a proper introduction to labs — not just a diagram of one. Three years to find out what your child is good at, before choosing a stream.",
     curriculum: [
       "English Language",
       "Mathematics",
@@ -91,7 +91,7 @@ const blocks: SectionBlock[] = [
     badgeBg: "bg-brand-50",
     badgeText: "text-brand-700",
     intro:
-      "Three streams. One high standard. Whether Science, Commercial, or Arts, our SS pupils leave prepared for university and for life.",
+      "Science, Commercial, or Arts. Three streams, one standard. WAEC and NECO — and after that, university or trade or wherever they're headed. The choice is theirs; the preparation is ours.",
     curriculum: [
       "English Language & Literature",
       "Mathematics (General & Further)",
@@ -125,10 +125,10 @@ const coCurricular: { name: string; icon: LucideIcon }[] = [
 ];
 
 const results = [
-  { stat: "95%", label: "WAEC credit rate (5+ subjects, 2024)" },
+  { stat: "21 of 24", label: "WAEC candidates with 5+ credits (2024)" },
   { stat: "88%", label: "BECE pass rate (2024)" },
-  { stat: "21", label: "WAEC candidates with 5+ credits (2024)" },
-  { stat: "12", label: "University admissions (2023 cohort)" },
+  { stat: "12", label: "Federal university admissions (2023 cohort)" },
+  { stat: "100%", label: "Pupils who sat JSS1 stream guidance" },
 ];
 
 export default function AcademicsPage() {
@@ -140,13 +140,13 @@ export default function AcademicsPage() {
             Academics
           </p>
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-[1.05] tracking-tight max-w-4xl">
-            A curriculum built for{" "}
-            <span className="italic text-flame-300">the whole child.</span>
+            What we teach, by year group —{" "}
+            <span className="italic text-flame-300">no surprises.</span>
           </h1>
           <p className="mt-6 text-white/75 text-[16px] leading-relaxed max-w-2xl">
-            From the Nursery sandbox in Old Airport to the Senior Secondary science
-            laboratory, every stage at DIBA is intentional - designed to stretch,
-            support, and prepare our pupils for Sokoto and beyond.
+            From the Pre-Nursery sandbox in Old Airport to the Senior Secondary
+            science laboratory, every stage at DIBA is intentional - designed to
+            stretch, support, and prepare our pupils for Sokoto and beyond.
           </p>
         </div>
       </section>
@@ -214,12 +214,12 @@ export default function AcademicsPage() {
             Senior Secondary
           </p>
           <h2 className="font-serif text-3xl sm:text-4xl text-surface-950 tracking-tight">
-            Three streams. One standard.
+            Choose a stream in SS1. Choose it properly.
           </h2>
           <p className="mt-5 text-[15px] text-surface-600 leading-relaxed">
-            SS1 pupils choose a stream at the start of the academic year after a
-            guided conversation with our careers counsellor. Our aim is fit - not
-            prestige.
+            Every SS1 pupil sits with our careers counsellor before picking a
+            stream. We aim for fit — not prestige. A pupil who thrives in
+            Commercial beats one who struggles through Science.
           </p>
         </div>
 
@@ -285,7 +285,7 @@ export default function AcademicsPage() {
               Beyond the classroom
             </p>
             <h2 className="font-serif text-3xl sm:text-4xl text-surface-950 tracking-tight">
-              Clubs, societies, and everything after 3pm.
+              What happens after 3pm.
             </h2>
           </div>
 

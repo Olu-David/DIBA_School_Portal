@@ -21,6 +21,7 @@ namespace DIBA_School_Portal.Server.Services
         private readonly IAuditLog _auditLog;
         private readonly INotificationLog _notification;
         private readonly IHttpContextAccessor _http;
+        private readonly IPdfReportService _pdfService;        // ← add
 
         private static readonly string[] AdminOverrideRoles =
             { "SuperAdmin", "Principal", "VicePrincipal", "Headmaster", "Headmistress" };
@@ -32,7 +33,8 @@ namespace DIBA_School_Portal.Server.Services
             ILogger<TermSubjectResultService> logger,
             IAuditLog auditLog,
             INotificationLog notification,
-            IHttpContextAccessor http)
+            IHttpContextAccessor http,
+            IPdfReportService pdfService)                       // ← add
         {
             _context = context;
             _userManager = userManager;
@@ -41,8 +43,8 @@ namespace DIBA_School_Portal.Server.Services
             _auditLog = auditLog;
             _notification = notification;
             _http = http;
+            _pdfService = pdfService;                            // ← add
         }
-
         private string Ip =>
             _http.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
 
@@ -545,6 +547,80 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================================
+        // REPORT CARD PDF — fetch + map + generate, one call
+        // ==========================================================
+        public async Task<ServiceResponse<byte[]>> GenerateReportCardPdfAsync(
+            string studentId, Guid termId, Guid academicSessionId)
+        {
+            var response = new ServiceResponse<byte[]>();
+            try
+            {
+                // 1. Reuse the existing report-card builder
+                var card = await GetStudentReportCardAsync(studentId, termId, academicSessionId);
+                if (!card.Success || card.Data == null)
+                {
+                    response.Success = false;
+                    response.Message = card.Message ?? "Report card not found.";
+                    response.StatusCode = card.StatusCode;
+                    return response;
+                }
+
+                var dto = card.Data;
+
+                // 2. Map to the PDF DTO
+                var pdfDto = new StudentTermReportDto
+                {
+                    StudentName = dto.StudentName??"",
+                    AdmissionNumber = dto.AdmissionNumber,
+                    ProfilePictureUrl = dto.ProfilePictureUrl,
+                    ClassName = dto.ClassName??"",
+                    Stream = dto.Stream,
+                    TermName = dto.TermName??"",
+                    SessionName = dto.SessionName??"",
+                    AverageScore = dto.AverageScore,
+                    ClassPosition = dto.ClassPosition,
+                    OverallGrade = dto.OverallGrade!,
+                    SubjectResults = (dto.SubjectResults ?? new List<SubjectScoreDto>())
+                        .Select(s => new TermSubjectResultDto
+                        {
+                            SubjectName = s.SubjectName??"",
+                            Test1Score = s.Test1Score,
+                            Test2Score = s.Test2Score,
+                            ExamScore = s.ExamScore,
+                            TotalScore = s.TotalScore,
+                            Grade = s.Grade!,
+                            SubjectPosition = s.SubjectPosition,
+                            Remark = s.Remark??"",
+                        }).ToList(),
+                };
+
+                // 3. Generate
+                var bytes = _pdfService.GenerateReportCardPdf(pdfDto);
+
+                if (bytes == null || bytes.Length == 0)
+                {
+                    response.Success = false;
+                    response.Message = "PDF service returned no content.";
+                    response.StatusCode = 500;
+                    return response;
+                }
+
+                response.Success = true;
+                response.StatusCode = 200;
+                response.Data = bytes;
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Report card PDF failed for {StudentId}", studentId);
+                response.Success = false;
+                response.Message = ex.Message;
+                response.StatusCode = 500;
+                return response;
+            }
+        }
+
+        // ==========================================================
         // UPDATE SINGLE RESULT
         // ==========================================================
         public async Task<ServiceResponse<string>> UpdateTermSubjectResultAsync(
@@ -1020,7 +1096,196 @@ namespace DIBA_School_Portal.Server.Services
                 return response;
             }
         }
+        // ==========================================================
+        // CLASS + SUBJECT RESULTS — teacher or admin
+        // ==========================================================
+        public async Task<ServiceResponse<ClassSubjectResultDto>> GetClassSubjectResultsAsync(
+            Guid classId, Guid subjectId, Guid termId, Guid academicSessionId, string currentUserId)
+        {
+            var response = new ServiceResponse<ClassSubjectResultDto>();
+            try
+            {
+                // ---- 1. Authorization ----
+                var (authorized, reason) = await IsTeacherAuthorizedForClassSubjectAsync(
+                    currentUserId, classId, subjectId);
+                if (!authorized)
+                {
+                    response.Success = false;
+                    response.Message = reason;
+                    response.StatusCode = 403;
+                    return response;
+                }
 
+                // ---- 2. Load class, subject, term ----
+                var schoolClass = await _context.SchoolClasses
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.Id == classId);
+                if (schoolClass == null)
+                {
+                    response.Success = false;
+                    response.Message = "Class not found.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                var subject = await _context.Subjects
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.Id == subjectId);
+                if (subject == null)
+                {
+                    response.Success = false;
+                    response.Message = "Subject not found.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                var term = await _context.SchoolTerms
+                    .AsNoTracking()
+                    .Include(t => t.AcademicSession)
+                    .FirstOrDefaultAsync(t => t.Id == termId && t.AcademicSessionId == academicSessionId);
+                if (term == null)
+                {
+                    response.Success = false;
+                    response.Message = "Term not found or wrong session.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                // ---- 3. Caller name (for the header) ----
+                var caller = await _userManager.FindByIdAsync(currentUserId);
+                var callerRoles = caller != null
+                    ? await _userManager.GetRolesAsync(caller)
+                    : new List<string>();
+
+                var isAdmin = callerRoles.Any(r => AdminOverrideRoles.Contains(r));
+
+                string teacherName;
+                if (isAdmin && caller != null)
+                {
+                    teacherName = $"{caller.FirstName} {caller.LastName}".Trim();
+                }
+                else
+                {
+                    var teacher = await _context.Teachers
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(t => t.UserId == currentUserId);
+                    teacherName = teacher != null
+                        ? $"{teacher.FirstName} {teacher.LastName}".Trim()
+                        : "—";
+                }
+
+                // ---- 4. Load students in the class ----
+                var students = await _context.Students
+                    .AsNoTracking()
+                    .Include(s => s.User)
+                    .Where(s => s.SchoolClassId == classId
+                             && s.User != null
+                             && !s.User.IsDeleted)
+                    .OrderBy(s => s.FirstName)
+                    .ThenBy(s => s.LastName)
+                    .ToListAsync();
+
+                var studentUserIds = students.Select(s => s.UserId).ToList();
+
+                // ---- 5. Load existing subject results ----
+                var subjectResults = await _context.TermSubjectResults
+                    .AsNoTracking()
+                    .Include(tsr => tsr.TermResult)
+                    .Where(tsr => tsr.SubjectId == subjectId
+                               && tsr.TermResult.ClassId == classId
+                               && tsr.TermResult.TermId == termId
+                               && tsr.TermResult.AcademicSessionId == academicSessionId
+                               && studentUserIds.Contains(tsr.TermResult.StudentId))
+                    .ToListAsync();
+
+                var resultByStudent = subjectResults
+                    .GroupBy(tsr => tsr.TermResult.StudentId)
+                    .ToDictionary(g => g.Key, g => g.First());
+
+                // ---- 6. Build rows ----
+                var rows = students.Select(s =>
+                {
+                    resultByStudent.TryGetValue(s.UserId, out var tsr);
+
+                    return new ClassSubjectResultRowDto
+                    {
+                        StudentId = s.UserId,
+                        AdmissionNumber = s.AdmissionNumber,
+                        StudentName = $"{s.FirstName} {s.LastName}".Trim(),
+                        ProfilePictureUrl = s.User?.ProfilePictureUrl,
+                        Test1Score = tsr?.Test1Score ?? 0m,
+                        Test2Score = tsr?.Test2Score ?? 0m,
+                        ExamScore = tsr?.ExamScore ?? 0m,
+                        TotalScore = tsr?.TotalScore ?? 0m,
+                        Grade = tsr?.Grade ?? "",
+                        Remark = tsr?.Remark ?? "",
+                        SubjectPosition = tsr?.SubjectPosition ?? 0,
+                        IsDraft = tsr?.IsDraft ?? false,
+                    };
+                }).ToList();
+
+                // ---- 7. Stats ----
+                var scored = rows.Where(r => r.TotalScore > 0).ToList();
+
+                var classAvg = scored.Any()
+                    ? Math.Round(scored.Average(r => r.TotalScore), 2)
+                    : 0m;
+
+                var passCount = scored.Count(r => r.TotalScore >= 40);
+                var failCount = scored.Count(r => r.TotalScore > 0 && r.TotalScore < 40);
+
+                // ---- 8. Submission status ----
+                // "Submitted" when every student has a non-draft result.
+                var submittedResults = subjectResults.Where(tsr => !tsr.IsDraft).ToList();
+                string status = "NotStarted";
+                if (subjectResults.Any()) status = "Draft";
+                if (students.Count > 0 && submittedResults.Count >= students.Count)
+                    status = "Submitted";
+
+                // ---- 9. Response ----
+                response.Success = true;
+                response.StatusCode = 200;
+                response.Data = new ClassSubjectResultDto
+                {
+                    ClassId = schoolClass.Id,
+                    ClassName = schoolClass.Name,
+                    Section = schoolClass.AcademicSection,
+
+                    SubjectId = subject.Id,
+                    SubjectName = subject.Name,
+                    SubjectCode = subject.Code,
+
+                    TermId = term.Id,
+                    TermName = term.Name,
+                    AcademicSessionId = term.AcademicSessionId,
+                    AcademicSessionName = term.AcademicSession?.Name ?? "—",
+
+                    TeacherName = teacherName,
+                    SubmissionStatus = status,
+
+                    StudentCount = students.Count,
+                    ScoredCount = scored.Count,
+                    ClassAverage = classAvg,
+                    HighestScore = scored.Any() ? scored.Max(r => r.TotalScore) : 0m,
+                    LowestScore = scored.Any() ? scored.Min(r => r.TotalScore) : 0m,
+                    PassCount = passCount,
+                    FailCount = failCount,
+
+                    Students = rows,
+                };
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error fetching class-subject results for {ClassId}/{SubjectId}",
+                    classId, subjectId);
+                response.Success = false;
+                response.Message = ex.Message;
+                response.StatusCode = 500;
+                return response;
+            }
+        }
         // ==========================================================
         // OUTSTANDING SUBMISSIONS — who hasn't submitted yet
         // ==========================================================

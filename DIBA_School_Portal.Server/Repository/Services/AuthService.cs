@@ -481,6 +481,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
 
             // ---------- 2b. STREAM validation (students only) ----------
+            // request.Stream is string? — parse it manually into ClassStream?
             ClassStream? parsedStream = null;
 
             if (isStudent)
@@ -508,10 +509,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         return response;
                     }
 
-                    if (!Enum.TryParse<ClassStream>(request.Stream.Trim(), ignoreCase: true, out var s))
+                    // request.Stream is a string here — Trim works
+                    if (!Enum.TryParse<ClassStream>(
+                            request.Stream.Trim(), ignoreCase: true, out var s))
                     {
                         response.Success = false;
-                        response.Message = $"Invalid stream '{request.Stream}'. Valid values: Science, Arts, Commercial.";
+                        response.Message =
+                            $"Invalid stream '{request.Stream}'. Valid values: Science, Arts, Commercial.";
                         response.StatusCode = 400;
                         return response;
                     }
@@ -557,7 +561,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             if (isStudent)
             {
                 admissionNumber = await GenerateAdmissionNumberAsync();
-                username = admissionNumber;
+                username = admissionNumber;            // e.g. "DIBA/2026/009"
             }
             else if (isParent)
             {
@@ -599,18 +603,23 @@ namespace DIBA_School_Portal.Server.Repository.Services
             await _userManager.AddToRoleAsync(newUser, request.Role);
 
             // ---------- 6. Role-specific records ----------
+            Guid? studentProfileId = null;   // ← capture for the response
+
             if (isStudent)
             {
-                _context.Students.Add(new Student
+                var studentProfile = new Student
                 {
                     UserId = newUser.Id,
                     AdmissionNumber = admissionNumber!,
                     FirstName = newUser.FirstName!,
                     LastName = newUser.LastName!,
                     SchoolClassId = request.SchoolClassId!.Value,
-                    Stream = parsedStream,                       // ← NOW PERSISTED
+                    Stream = parsedStream,
                     CreatedAt = DateTime.UtcNow,
-                });
+                };
+
+                _context.Students.Add(studentProfile);
+                studentProfileId = studentProfile.Id;
             }
             else if (request.Role == "Teacher" || request.Role == "FormTeacher")
             {
@@ -674,6 +683,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             response.Data = new CreateAccountResponseDto
             {
                 UserId = newUser.Id,
+                StudentProfileId = studentProfileId?.ToString(),   // ← for the View Student link
                 Email = newUser.Email,
                 PhoneNumber = newUser.PhoneNumber ?? "",
                 AdmissionNumber = admissionNumber,
@@ -684,7 +694,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             return response;
         }
         #endregion
-
         #region Link Parent To Student
         public async Task<ServiceResponse<CreateAccountResponseDto>> LinkParentToStudentAsync(
             LinkParentToStudentDto request, string currentUserId, string ipAddress)

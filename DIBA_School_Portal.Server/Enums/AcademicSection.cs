@@ -8,6 +8,7 @@ namespace DIBA_School_Portal.Server.Enums
         Nursery,
         Primary,
         JuniorSecondary,
-        SeniorSecondary
+        SeniorSecondary,
+        PreNursery
     }
 }

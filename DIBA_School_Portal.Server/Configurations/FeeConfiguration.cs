@@ -17,39 +17,17 @@ namespace DIBA_School_Portal.Server.Configurations
             builder.Property(x => x.Description)
                    .HasMaxLength(500);
 
-            //builder.Property(x => x.Amount)
-            //       .HasColumnType("decimal(18,2)");
+            builder.Property(x => x.IsDeleted)
+                   .HasDefaultValue(false);
 
-            //builder.Property(x => x.MinimumAmountToPay)
-            //       .HasColumnType("decimal(18,2)");
+            // Global query filter for soft delete
+            builder.HasQueryFilter(x => !x.IsDeleted);
 
-            // Relationship to ClassLevel (SchoolClass) - first FK
-            builder.HasOne(x => x.ClassLevel)
-                   .WithMany()
-                   .HasForeignKey(x => x.ClassLevelId)
-                   .OnDelete(DeleteBehavior.Restrict);
-
-            // Relationship to SchoolClass (second FK)
-            builder.HasOne(x => x.SchoolClass)
-                   .WithMany(sc => sc.Fees)
-                   .HasForeignKey(x => x.SchoolClassId)
-                   .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(x => x.AcademicSession)
-                   .WithMany(a => a.Fees)
-                   .HasForeignKey(x => x.AcademicSessionId)
-                   .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasOne(x => x.Term)
-                   .WithMany(t => t.Fees)
-                   .HasForeignKey(x => x.TermId)
-                   .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasMany(x => x.ClassFees)
-                   .WithOne(cf => cf.Fee)
-                   .HasForeignKey(cf => cf.FeeId)
+            // Only configure the collection relationship here (foreign keys are handled by annotations on the properties)
+            builder.HasMany(x => x.ClassFeePrices)
+                   .WithOne(cp => cp.Fee)
+                   .HasForeignKey(cp => cp.FeeId)
                    .OnDelete(DeleteBehavior.Cascade);
-
         }
     }
 }

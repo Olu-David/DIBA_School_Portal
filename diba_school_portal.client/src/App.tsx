@@ -63,6 +63,7 @@ import FeesPage from "./pages/finance/FeesPage";
 
 // Teacher
 import ScoreEntryPage from "./pages/teacher/ScoreEntryPage";
+import ClassSubjectResultsPage from "./pages/teacher/ClassSubjectResultsPage";
 
 // Student
 import StudentDashboard from "./pages/student/StudentDashboard";
@@ -78,7 +79,6 @@ import ProfilePage from "./pages/shared/ProfilePage";
 import ReportCardViewer from "./pages/shared/ReportCardViewer";
 import NotificationsPage from "./pages/shared/NotificationsPage";
 
-// Roles allowed to CREATE records (staff management tier)
 const MANAGERS = [
   "SuperAdmin",
   "Principal",
@@ -120,30 +120,24 @@ export default function App() {
                 <Route path="profile" element={<ProfilePage />} />
 
                 {/* ---------- CLASSES ---------- */}
-                {/* "new" MUST come before ":classId" */}
                 <Route path="classes" element={<ClassesPage />} />
                 <Route
-                  element={
-                    <ProtectedRoute allowedRoles={[...MANAGERS] as any} />
-                  }
+                  element={<ProtectedRoute allowedRoles={[...MANAGERS] as any} />}
                 >
                   <Route path="classes/new" element={<NewClassPage />} />
                 </Route>
                 <Route path="classes/:classId" element={<ClassDetailPage />} />
 
                 {/* ---------- STUDENTS ---------- */}
-                {/* "new" MUST come before ":id" */}
                 <Route path="students" element={<StudentsPage />} />
                 <Route
-                  element={
-                    <ProtectedRoute allowedRoles={[...MANAGERS] as any} />
-                  }
+                  element={<ProtectedRoute allowedRoles={[...MANAGERS] as any} />}
                 >
                   <Route path="students/new" element={<NewStudentPage />} />
                 </Route>
                 <Route path="students/:id" element={<StudentDetailPage />} />
 
-                {/* ---------- TEACHERS (any staff can view list) ---------- */}
+                {/* ---------- TEACHERS ---------- */}
                 <Route path="teachers" element={<TeachersPage />} />
                 <Route path="teachers/:id" element={<TeacherDetailPage />} />
 
@@ -152,11 +146,7 @@ export default function App() {
                 <Route
                   element={
                     <ProtectedRoute
-                      allowedRoles={[
-                        "SuperAdmin",
-                        "Principal",
-                        "Registrar",
-                      ] as any}
+                      allowedRoles={["SuperAdmin", "Principal", "Registrar"] as any}
                     />
                   }
                 >
@@ -165,11 +155,7 @@ export default function App() {
 
                 {/* ---------- SUBJECTS ---------- */}
                 <Route path="subjects" element={<SubjectsPage />} />
-                <Route
-                  element={
-                    <ProtectedRoute allowedRoles={ADMIN_ROLES} />
-                  }
-                >
+                <Route element={<ProtectedRoute allowedRoles={ADMIN_ROLES} />}>
                   <Route path="subjects/new" element={<NewSubjectPage />} />
                 </Route>
 
@@ -178,7 +164,7 @@ export default function App() {
                   <Route path="sessions" element={<AcademicSessionsPage />} />
                 </Route>
 
-                {/* ---------- RESULTS ---------- */}
+                {/* ---------- RESULTS (admin tier) ---------- */}
                 <Route element={<ProtectedRoute allowedRoles={RESULT_VIEWERS} />}>
                   <Route path="results" element={<SchoolResultsPage />} />
                   <Route path="report-cards" element={<ReportCardsPage />} />
@@ -188,6 +174,7 @@ export default function App() {
                   />
                 </Route>
 
+                {/* ---------- SCORE ENTRY (teachers + leadership) ---------- */}
                 <Route
                   element={
                     <ProtectedRoute
@@ -210,6 +197,10 @@ export default function App() {
                 <Route element={<ProtectedRoute allowedRoles={TEACHING_ROLES} />}>
                   <Route path="my-assignments" element={<MyAssignmentsPage />} />
                   <Route path="my-results" element={<SubmittedResultsPage />} />
+                  <Route
+                    path="class-subject-results"
+                    element={<ClassSubjectResultsPage />}
+                  />
                 </Route>
 
                 {/* ---------- FINANCE ---------- */}

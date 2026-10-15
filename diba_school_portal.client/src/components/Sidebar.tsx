@@ -2,7 +2,7 @@
 import {
   LayoutDashboard, Users, Wallet, GraduationCap, LogOut, ScrollText,
   BookOpen, CalendarDays, ClipboardCheck, FileText, UserCog, Inbox,
-  AlertTriangle, Receipt, BarChart3, Bell, User, Send,
+  AlertTriangle, Receipt, BarChart3, Bell, User, Send, CheckCircle2,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
@@ -14,7 +14,6 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   end?: boolean;
-  /** Roles allowed to see this item. If omitted, all staff see it. */
   roles?: UserRole[];
 }
 
@@ -23,53 +22,42 @@ interface NavGroup {
   items: NavItem[];
 }
 
-// ---- Role groups (mirror lib/roles.ts) ----
 const R = {
-  // Anyone with a staff account
   all: [
     "SuperAdmin", "Principal", "Headmaster", "Headmistress",
     "VicePrincipal", "SchoolAdmin", "Accountant", "Registrar",
     "Teacher", "FormTeacher",
   ] as UserRole[],
 
-  // Top of the hierarchy
   leadership: [
     "SuperAdmin", "Principal", "Headmaster", "Headmistress", "VicePrincipal",
   ] as UserRole[],
 
-  // Admin + registrar (people management)
   people: [
     "SuperAdmin", "Principal", "Headmaster", "Headmistress",
     "VicePrincipal", "SchoolAdmin", "Registrar",
   ] as UserRole[],
 
-  // Admin only (settings tier)
   admin: [
     "SuperAdmin", "Principal", "Headmaster", "Headmistress",
     "VicePrincipal", "SchoolAdmin",
   ] as UserRole[],
 
-  // Finance
   finance: [
     "SuperAdmin", "Principal", "VicePrincipal", "Accountant",
   ] as UserRole[],
 
-  // Enquiries
   registrar: ["SuperAdmin", "Principal", "Registrar"] as UserRole[],
 
-  // Audit
   audit: ["SuperAdmin", "Principal"] as UserRole[],
 
-  // Teachers + leadership (score entry)
   score: [
     "SuperAdmin", "Principal", "VicePrincipal", "Headmaster",
     "Headmistress", "Teacher", "FormTeacher",
   ] as UserRole[],
 
-  // Teachers only (their own assignments)
   teaching: ["Teacher", "FormTeacher"] as UserRole[],
 
-  // Anyone allowed to view results
   results: [
     "SuperAdmin", "Principal", "Headmaster", "Headmistress",
     "VicePrincipal", "SchoolAdmin", "Teacher", "FormTeacher",
@@ -85,7 +73,20 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // ---- Visible only to staff with people-management rights ----
+  // ---- My Classroom — teachers only ----
+  {
+    label: "My Classroom",
+    items: [
+      { to: "/admin/classes", label: "My Classes", icon: GraduationCap, roles: R.teaching },
+      { to: "/admin/students", label: "My Students", icon: Users, roles: R.teaching },
+      { to: "/admin/my-assignments", label: "My Assignments", icon: BookOpen, roles: R.teaching },
+      { to: "/admin/score-entry", label: "Score Entry", icon: ClipboardCheck, roles: R.teaching },
+      { to: "/admin/class-subject-results", label: "Class Results", icon: BarChart3, roles: R.teaching },
+      { to: "/admin/my-results", label: "My Submitted Results", icon: CheckCircle2, roles: R.teaching },
+    ],
+  },
+
+  // ---- People — admin + registrar ----
   {
     label: "People",
     items: [
@@ -95,36 +96,26 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // ---- Teacher + admin view: their own classes & students ----
-  {
-    label: "My Classrooms",
-    items: [
-      { to: "/admin/classes", label: "My Classes", icon: GraduationCap, roles: R.score },
-      { to: "/admin/students", label: "My Students", icon: Users, roles: R.teaching },
-    ],
-  },
-
-  // ---- Academic setup (admin only) ----
+  // ---- Academics — admin only ----
   {
     label: "Academics",
     items: [
       { to: "/admin/subjects", label: "Subjects", icon: BookOpen, roles: R.admin },
       { to: "/admin/sessions", label: "Sessions & Terms", icon: CalendarDays, roles: R.admin },
+      { to: "/admin/classes", label: "Classes", icon: GraduationCap, roles: R.admin },
     ],
   },
 
-  // ---- Results & Scores ----
+  // ---- Results — admins view school-wide; teachers use My Classroom ----
   {
     label: "Results",
     items: [
-      { to: "/admin/score-entry", label: "Score Entry", icon: ClipboardCheck, roles: R.score },
-      { to: "/admin/my-assignments", label: "My Assignments", icon: BookOpen, roles: R.teaching },
       { to: "/admin/results", label: "School Results", icon: BarChart3, roles: R.results },
       { to: "/admin/report-cards", label: "Report Cards", icon: FileText, roles: R.results },
     ],
   },
 
-  // ---- Finance (finance roles only) ----
+  // ---- Finance ----
   {
     label: "Finance",
     items: [
@@ -136,7 +127,7 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // ---- Communications (leadership only) ----
+  // ---- Communications ----
   {
     label: "Communications",
     items: [
@@ -149,7 +140,7 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // ---- Admissions (registrar and above) ----
+  // ---- Admissions ----
   {
     label: "Admissions",
     items: [
@@ -157,7 +148,7 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // ---- System (audit tier only) ----
+  // ---- System ----
   {
     label: "System",
     items: [
@@ -175,7 +166,6 @@ export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
   const { user, logout } = useAuth();
   const { role } = useRole();
 
-  // Filter: hide any group whose items are all hidden for this role
   const visibleGroups = NAV_GROUPS
     .map((group) => ({
       ...group,
@@ -195,7 +185,6 @@ export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
           : "hidden lg:flex flex-col w-64 xl:w-72 h-full bg-surface-950 border-r border-surface-800 shrink-0"
       }
     >
-      {/* Brand */}
       <div className="h-16 px-5 flex items-center border-b border-white/10 shrink-0">
         <img
           src="/images/logo.png"
@@ -212,7 +201,6 @@ export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
         </div>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 p-3 overflow-y-auto space-y-6">
         {visibleGroups.map((group) => (
           <div key={group.label}>
@@ -244,7 +232,6 @@ export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
         ))}
       </nav>
 
-      {/* User footer */}
       <div className="p-3 border-t border-white/10 shrink-0">
         <NavLink
           to="/admin/profile"

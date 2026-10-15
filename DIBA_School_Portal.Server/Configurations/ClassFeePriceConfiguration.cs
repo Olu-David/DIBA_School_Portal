@@ -14,8 +14,11 @@ public class ClassFeePriceConfiguration : IEntityTypeConfiguration<ClassFeePrice
         builder.Property(x => x.MinimumAmountToPay)
                .HasColumnType("decimal(18,2)");
 
+        // Add matching query filter for soft-deleted parent fees
+        builder.HasQueryFilter(x => !x.Fee.IsDeleted);
+
         builder.HasOne(x => x.Fee)
-               .WithMany(f => f.ClassFees)
+               .WithMany(f => f.ClassFeePrices)
                .HasForeignKey(x => x.FeeId)
                .OnDelete(DeleteBehavior.Cascade);
 

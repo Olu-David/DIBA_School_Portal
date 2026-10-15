@@ -25,16 +25,23 @@ import { downloadPdf } from "../../lib/downloadPdf";
 import api from "../../lib/api";
 import type { ApiResponse } from "../../types/common";
 
+type SectionKey =
+  | "PreNursery"
+  | "Nursery"
+  | "Primary"
+  | "JuniorSecondary"
+  | "SeniorSecondary";
+
 interface Assignment {
   classId: string;
   className: string;
-  section: number;
+  section: SectionKey;             // ← string, not number
   subjectId: string;
   subjectName: string;
   subjectCode: string;
   studentCount: number;
   scoredCount: number;
-  submissionStatus: string;   // "NotStarted" | "Draft" | "Submitted"
+  submissionStatus: string;        // "NotStarted" | "Draft" | "Submitted"
 }
 
 interface Session {
@@ -44,12 +51,12 @@ interface Session {
   terms: { id: string; name: string; isCurrentTerm: boolean }[];
 }
 
-const SECTION_LABEL: Record<number, string> = {
-  0: "Pre-Nursery",
-  1: "Nursery",
-  2: "Primary",
-  3: "Junior Secondary",
-  4: "Senior Secondary",
+const SECTION_LABEL: Record<SectionKey, string> = {
+  PreNursery: "Pre-Nursery",
+  Nursery: "Nursery",
+  Primary: "Primary",
+  JuniorSecondary: "Junior Secondary",
+  SeniorSecondary: "Senior Secondary",
 };
 
 export default function SubmittedResultsPage() {
@@ -101,7 +108,7 @@ export default function SubmittedResultsPage() {
 
   const session = sessions.find((s) => s.id === sessionId);
 
-  // ---- Only show Submitted (or at least Draft, if you want to preview) ----
+  // ---- Only show Submitted ----
   const submitted = useMemo(
     () => assignments.filter((a) => a.submissionStatus === "Submitted"),
     [assignments]
@@ -111,11 +118,15 @@ export default function SubmittedResultsPage() {
   const grouped = useMemo(() => {
     const map = new Map<
       string,
-      { className: string; section: number; items: Assignment[] }
+      { className: string; section: SectionKey; items: Assignment[] }
     >();
     for (const a of submitted) {
       if (!map.has(a.classId)) {
-        map.set(a.classId, { className: a.className, section: a.section, items: [] });
+        map.set(a.classId, {
+          className: a.className,
+          section: a.section,
+          items: [],
+        });
       }
       map.get(a.classId)!.items.push(a);
     }
@@ -126,7 +137,6 @@ export default function SubmittedResultsPage() {
 
   const totals = useMemo(() => {
     const classes = new Set(submitted.map((a) => a.classId));
-    const students = new Set<string>(); // can't dedupe across subjects w/o row data
     return {
       subjects: submitted.length,
       classes: classes.size,
@@ -138,13 +148,15 @@ export default function SubmittedResultsPage() {
   const downloadClassSheet = async (a: Assignment) => {
     setDownloadingId(a.subjectId);
     try {
-      // Fetch the sheet data first (structured DTO), then POST to PDF service
       const { data: sheetRes } = await api.get<ApiResponse<any>>(
         `/termsubjectresult/class-sheet?classId=${a.classId}&subjectId=${a.subjectId}` +
           `&termId=${termId}&academicSessionId=${sessionId}`
       );
       if (!sheetRes.success || !sheetRes.data) {
-        toast({ variant: "error", title: sheetRes.message ?? "Sheet not available" });
+        toast({
+          variant: "error",
+          title: sheetRes.message ?? "Sheet not available",
+        });
         return;
       }
 

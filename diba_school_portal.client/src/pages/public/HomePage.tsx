@@ -1,9 +1,9 @@
 import { Link } from "react-router-dom";
 import {
   ArrowRight, ArrowUpRight, BookOpen, Baby, Sparkles, GraduationCap,
-  Trophy, Users, Building2, FlaskConical, Palette, Music, Globe2,
+  Trophy, Users, Building2, FlaskConical, Globe2,
   Calendar, Award, Quote, HeartHandshake, Target, ShieldCheck,
-  ScrollText, Beaker, BookMarked, LucideIcon,
+  ScrollText, Beaker, BookMarked, type LucideIcon,
 } from "lucide-react";
 import HeroCarousel from "../../components/public/HeroCarousel";
 
@@ -20,19 +20,21 @@ interface SectionCard {
 
 const sections: SectionCard[] = [
   {
-    title: "Nursery",
-    ages: "Ages 3 - 5",
-    blurb: "A warm, play-based start. Early literacy, numeracy, and social confidence in a safe, faith-guided setting.",
+    title: "Early Years",
+    ages: "18 months - 5",
+    blurb:
+      "Pre-Nursery and Nursery under one roof. Small groups, patient carers, songs in Hausa and English, and a nap room that actually gets used.",
     icon: Baby,
-    bar: "from-pink-400 to-pink-600",
-    bg: "bg-pink-50/60",
-    ring: "hover:border-pink-200",
+    bar: "from-rose-300 to-rose-500",
+    bg: "bg-rose-50/60",
+    ring: "hover:border-rose-200",
     badge: "rose",
   },
   {
     title: "Primary",
     ages: "Primary 1 - 6",
-    blurb: "Strong foundations in English, Mathematics, Science, and Character. Small classes, personal attention.",
+    blurb:
+      "Six years to build fluent readers and confident mathematicians. We mark every exercise. Twice a week, every week.",
     icon: Sparkles,
     bar: "from-sky-400 to-sky-600",
     bg: "bg-sky-50/60",
@@ -42,7 +44,8 @@ const sections: SectionCard[] = [
   {
     title: "Junior Secondary",
     ages: "JSS 1 - 3",
-    blurb: "The BECE years. A broad curriculum, guided discovery, and the discipline that carries into senior school.",
+    blurb:
+      "The BECE years. Broad curriculum, guided choices, and a proper introduction to labs — not just a diagram of one.",
     icon: BookOpen,
     bar: "from-violet-400 to-violet-600",
     bg: "bg-violet-50/60",
@@ -52,7 +55,8 @@ const sections: SectionCard[] = [
   {
     title: "Senior Secondary",
     ages: "SS 1 - 3",
-    blurb: "Science, Commercial, and Arts streams. WAEC and NECO examination pathways - prepared for university and for life.",
+    blurb:
+      "Science, Commercial, or Arts. Three streams, one standard. WAEC and NECO — and after that, university or trade or wherever they're headed.",
     icon: GraduationCap,
     bar: "from-brand-400 to-brand-600",
     bg: "bg-brand-50/60",
@@ -64,67 +68,67 @@ const sections: SectionCard[] = [
 const distinctions: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: Target,
-    title: "Small classes. Big attention.",
-    body: "Average class size of twenty. Every child is known by name, by need, and by progress.",
+    title: "Classes of twenty. Not fifty.",
+    body: "We cap every class at twenty pupils. Not because it's trendy — because it's the only way a teacher can mark every exercise twice a week and still know who struggled with question seven.",
   },
   {
     icon: HeartHandshake,
-    title: "Founded on faith and character",
-    body: "Established in 2015 by the Evangelical Church International, Sokoto. Weekly moral instruction and devotion sit alongside academics.",
+    title: "A church school, and proud of it.",
+    body: "We were founded by the Evangelical Church International in 2015. Morning devotion, weekly chapel, and Christian Religious Knowledge are part of every pupil's week — from Pre-Nursery to SS3.",
   },
   {
     icon: FlaskConical,
-    title: "STEM-first curriculum",
-    body: "Equipped science and ICT laboratories. Physics, Chemistry, and Biology taught as lived subjects, not just exam papers.",
+    title: "The Bunsen burners light.",
+    body: "Physics, Chemistry and Biology labs with working apparatus — including a fume hood that was actually installed by a contractor, not just pictured in a brochure.",
   },
   {
     icon: Globe2,
-    title: "Bilingual, northern, and proud",
-    body: "English is the language of instruction. Hausa and cultural studies keep students rooted in the Sokoto they call home.",
+    title: "English taught. Hausa spoken.",
+    body: "Instruction is in English. Break-time is not. Our pupils leave fluent in the language of the classroom and comfortable in the language of the market.",
   },
   {
     icon: BookMarked,
-    title: "CRK and IRK offered side by side",
-    body: "Every student learns the values of their own faith. Christian and Islamic instruction are both available from Primary.",
+    title: "CRK every year. Chapel every week.",
+    body: "Not an optional extra — a core subject. Pupils sit CRK through primary and secondary, and every section gathers for chapel once a week. Parents know what they're signing up for.",
   },
   {
     icon: ShieldCheck,
-    title: "Safe, gated campus",
-    body: "Perimeter wall, supervised gates, resident nurse, CCTV at entrances, and a disciplined pastoral team.",
+    title: "The gateman knows every name.",
+    body: "So does the bursar, the matron, and the Head. No child slips through. That's not a slogan — it's what happens when you stay this size on purpose.",
   },
 ];
 
 const stats = [
-  { value: "500+", label: "Pupils enrolled" },
-  { value: "40", label: "Teaching & support staff" },
-  { value: "10", label: "Years of service to Sokoto" },
-  { value: "95%", label: "WAEC credit rate (2024 cohort)" },
+  { value: "487", label: "Pupils enrolled" },
+  { value: "37", label: "Teaching & support staff" },
+  { value: "10", label: "Years in Sokoto" },
+  { value: "21 of 24", label: "WAEC candidates with 5+ credits (2024)" },
 ];
 
 const achievements = [
   {
     year: "2024",
-    title: "Sokoto State Science Fair - 1st Place (Senior)",
-    body: "A three-person SS2 team took first place in the senior category with a solar-powered irrigation prototype.",
+    title: "First place, Sokoto State Science Fair (Senior)",
+    body: "Three SS2 pupils built a solar-powered irrigation pump out of a car battery and a second-hand panel. It works. It's still in the Biology lab.",
     icon: Beaker,
   },
   {
     year: "2024",
-    title: "Sokoto Metro Inter-School Debate Champions",
-    body: "Our senior debate team defeated eleven schools across Sokoto and Kebbi states to lift the cup.",
+    title: "Sokoto Metro Debate Cup — winners",
+    body: "Four pupils from SS2 and SS3 went eleven rounds without dropping a single debate. They beat eleven schools across Sokoto and Kebbi to take it.",
     icon: Quote,
   },
   {
     year: "2023",
-    title: "Best Private Nursery & Primary School - Sokoto Metro",
-    body: "Awarded by the Evangelical Church International regional synod at its annual education review.",
-    icon: Award,
+    title: "Twelve graduates into federal universities",
+    body: "UDUS, ABU Zaria, and BUK between them. Three went for Medicine, two for Engineering, the rest for Accounting and Education.",
+    icon: Trophy,
   },
   {
     year: "2023",
-    title: "12 graduates admitted to federal universities",
-    body: "Usmanu Danfodiyo University Sokoto, Ahmadu Bello University Zaria, and Bayero University Kano.",
-    icon: Trophy,
+    title: "Best Private Nursery & Primary School, Sokoto Metro",
+    body: "Awarded by the ECI regional synod at their annual education review. We've framed it. It's in the reception.",
+    icon: Award,
   },
 ];
 
@@ -138,25 +142,25 @@ const events = [
 const news = [
   {
     tag: "Facilities",
-    title: "Newly equipped science laboratory opens this term",
+    title: "New science labs open this term — with a working fume hood",
     excerpt:
-      "Fresh apparatus for Physics, Chemistry, and Biology - including microscopes and a functioning fume hood.",
+      "Three rooms refitted for Physics, Chemistry and Biology. Microscopes that focus, burners that light, and a fume hood installed by a contractor who has done this before.",
     image:
       "https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=800&q=80",
   },
   {
     tag: "Debate",
-    title: "DIBA senior team wins the Sokoto Metro Debate Cup",
+    title: "Senior team takes the Sokoto Metro Debate Cup",
     excerpt:
-      "Four students from SS2 and SS3 won every round, defeating schools from across Sokoto and Kebbi states.",
+      "Eleven rounds. Eleven wins. Three pupils from SS2, one from SS3. They'll be defending the cup in December.",
     image:
       "https://images.unsplash.com/photo-1544531585-9847b68c8c86?auto=format&fit=crop&w=800&q=80",
   },
   {
     tag: "Admissions",
-    title: "2025/2026 admissions now open across all sections",
+    title: "2025/2026 admissions open — JSS1 and SS1 nearly full",
     excerpt:
-      "Entrance assessments hold every Saturday from 9am. Limited places in JSS1 and SS1.",
+      "Entrance assessments every Saturday at 9am. JSS1 has nine places left. SS1 has six. Early applicants get first pick of streams.",
     image:
       "https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=800&q=80",
   },
@@ -212,23 +216,21 @@ export default function HomePage() {
               Welcome to DIBA
             </p>
             <h2 className="font-serif text-3xl sm:text-4xl lg:text-[40px] leading-tight text-surface-950 tracking-tight">
-              A Sokoto school that takes{" "}
-              <span className="italic text-flame-600">intelligence</span> and{" "}
-              <span className="italic text-flame-600">character</span> seriously.
+              Twenty-four pupils in 2015.{" "}
+              <span className="italic text-flame-600">Four hundred and eighty-seven</span>{" "}
+              today. Same bungalow-standard of care.
             </h2>
           </div>
           <div className="lg:col-span-7 lg:pt-4">
             <p className="text-[16px] leading-relaxed text-surface-700">
-              Dominion Intelligent Builders' Academy was founded on 6 November 2015
-              by the Evangelical Church International, Sokoto - on the conviction
-              that every child carries within them the capacity for excellence:
-              academic, moral, and personal.
+              DIBA opened on 6 November 2015 with twenty-four pupils in a rented
+              bungalow off Trade Fair Road. Three of those twenty-four graduated
+              in our first WAEC cohort in 2023.
             </p>
             <p className="mt-5 text-[16px] leading-relaxed text-surface-700">
-              From our Nursery section off the Trade Fair Complex to Senior Secondary
-              at Old Airport Area, our pupils learn in small classes, are taught by
-              teachers who know them personally, and are prepared not only for WAEC
-              and NECO but for a life of purpose in Sokoto and beyond.
+              We are still small enough to know every child's name. Still large
+              enough to run three senior streams and a proper science lab. The
+              bungalow is gone. The way we teach has not changed.
             </p>
             <div className="mt-8 flex items-center gap-4">
               <Link
@@ -536,13 +538,12 @@ export default function HomePage() {
                 </div>
               </div>
               <h2 className="font-serif text-3xl sm:text-4xl lg:text-[44px] leading-tight tracking-tight">
-                Give your child a school worth{" "}
-                <span className="italic text-flame-300">growing into.</span>
+                Come see a class in session.
               </h2>
               <p className="mt-5 text-white/75 text-[15px] leading-relaxed max-w-2xl">
-                Places are limited. Book an entrance assessment, take a tour of the
-                Old Airport campus, or speak with our admissions team - we'd love
-                to meet you.
+                Saturdays at 9am, or any weekday between 10 and 2. No appointment
+                needed — walk in, ask for the Head, and we'll take you round
+                ourselves.
               </p>
             </div>
 

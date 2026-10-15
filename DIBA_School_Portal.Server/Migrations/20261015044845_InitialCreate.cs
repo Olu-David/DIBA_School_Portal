@@ -284,12 +284,13 @@ namespace DIBA_School_Portal.Server.Migrations
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     FeeName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    ClassLevelId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     AcademicSessionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     TermId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     SchoolClassId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     Section = table.Column<int>(type: "int", nullable: false),
-                    ClassStream = table.Column<int>(type: "int", nullable: false)
+                    ClassStream = table.Column<int>(type: "int", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    DeletedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -298,12 +299,6 @@ namespace DIBA_School_Portal.Server.Migrations
                         name: "FK_Fees_AcademicSessions_AcademicSessionId",
                         column: x => x.AcademicSessionId,
                         principalTable: "AcademicSessions",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Fees_SchoolClasses_ClassLevelId",
-                        column: x => x.ClassLevelId,
-                        principalTable: "SchoolClasses",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -317,7 +312,7 @@ namespace DIBA_School_Portal.Server.Migrations
                         column: x => x.TermId,
                         principalTable: "SchoolTerms",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -812,6 +807,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     TotalScore = table.Column<decimal>(type: "decimal(5,2)", nullable: false),
                     SubjectPosition = table.Column<int>(type: "int", nullable: false),
                     Grade = table.Column<string>(type: "nvarchar(5)", maxLength: 5, nullable: false),
+                    IsDraft = table.Column<bool>(type: "bit", nullable: false),
                     Remark = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
@@ -929,11 +925,6 @@ namespace DIBA_School_Portal.Server.Migrations
                 name: "IX_Fees_AcademicSessionId",
                 table: "Fees",
                 column: "AcademicSessionId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Fees_ClassLevelId",
-                table: "Fees",
-                column: "ClassLevelId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Fees_SchoolClassId",

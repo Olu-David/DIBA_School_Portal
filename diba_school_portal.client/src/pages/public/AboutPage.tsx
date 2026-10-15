@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import {
-  ArrowRight, Target, Eye, Heart, BookOpen, Award, Users,
+  ArrowRight, Target, Eye, Heart, Award, Users,
   Building2, Microscope, Library, Trees, Trophy, BookMarked,
   Quote, Church,
 } from "lucide-react";
@@ -10,6 +10,11 @@ const timeline = [
     year: "2015",
     title: "The founding",
     body: "On 6 November 2015, the Evangelical Church International, Sokoto, registered Dominion Intelligent Builders' Academy (RC-2372959). Twenty-four pupils, four teachers, and one rented bungalow off Trade Fair Road.",
+  },
+  {
+    year: "2016",
+    title: "Pre-Nursery opens",
+    body: "In response to parent demand, DIBA opened its first Pre-Nursery classroom for toddlers aged 18 months to 3 years. Small groups, patient carers, a play-first curriculum.",
   },
   {
     year: "2017",
@@ -24,7 +29,7 @@ const timeline = [
   {
     year: "2021",
     title: "Senior Secondary opens",
-    body: "DIBA became a full Nursery to SS institution. The first SS1 stream of twenty-two pupils began the Science pathway.",
+    body: "DIBA became a full Pre-Nursery to SS institution. The first SS1 stream of twenty-two pupils began the Science pathway.",
   },
   {
     year: "2023",
@@ -33,8 +38,8 @@ const timeline = [
   },
   {
     year: "2025",
-    title: "Five hundred pupils strong",
-    body: "Across four sections with forty teaching and support staff. The school now serves families from across Sokoto and neighbouring Kebbi State.",
+    title: "Four hundred and eighty-seven pupils",
+    body: "Across five sections with thirty-seven teaching and support staff. The school now serves families from across Sokoto and neighbouring Kebbi State.",
   },
 ];
 
@@ -42,7 +47,7 @@ const values = [
   {
     icon: Heart,
     title: "Faith",
-    body: "We are a school founded by the Evangelical Church International. Weekly devotion, moral instruction, and pastoral care shape the character of every pupil - Christian and Muslim alike.",
+    body: "We are a school founded by the Evangelical Church International. Weekly devotion, chapel, Christian Religious Knowledge, and pastoral care shape the character of every pupil.",
   },
   {
     icon: BookMarked,
@@ -57,12 +62,12 @@ const values = [
 ];
 
 const facilities = [
-  { icon: Microscope, name: "Science laboratories", body: "Physics, Chemistry, and Biology labs with functioning apparatus and a fume hood." },
+  { icon: Microscope, name: "Science laboratories", body: "Physics, Chemistry, and Biology labs with functioning apparatus and a fume hood that was installed by a contractor, not just pictured in a brochure." },
   { icon: Library, name: "Library & reading room", body: "Several thousand titles covering Nigerian and international curricula." },
   { icon: Building2, name: "ICT suite", body: "Thirty workstations for Computer Studies, coding, and digital literacy." },
   { icon: Trees, name: "Sports field", body: "Football pitch, volleyball court, and open space for athletics." },
   { icon: Trophy, name: "Assembly hall", body: "Seats five hundred. Used for assemblies, drama, prize-giving, and chapel." },
-  { icon: Church, name: "Chapel & prayer rooms", body: "A chapel for Christian worship, plus a quiet room for Muslim prayers on campus." },
+  { icon: Church, name: "Chapel", body: "An on-campus chapel used for daily devotion, weekly section services, and end-of-term thanksgiving." },
 ];
 
 const leadership = [
@@ -76,7 +81,7 @@ const leadership = [
     name: "[Principal's Name]",
     role: "Principal",
     initials: "PN",
-    bio: "Academic leadership across all four sections. Placeholder - to be updated.",
+    bio: "Academic leadership across all sections. Placeholder - to be updated.",
   },
   {
     name: "[VP Academics' Name]",
@@ -86,7 +91,7 @@ const leadership = [
   },
   {
     name: "[Head Primary's Name]",
-    role: "Head, Nursery & Primary",
+    role: "Head, Early Years & Primary",
     initials: "HP",
     bio: "Leads the foundational years and the early literacy programme. Placeholder - to be updated.",
   },
@@ -102,20 +107,20 @@ export default function AboutPage() {
               About us
             </p>
             <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-[1.05] tracking-tight">
-              Ten years of building{" "}
-              <span className="italic text-flame-300">intelligent</span> men and women.
+              Ten years. Same street.{" "}
+              <span className="italic text-flame-300">Same families.</span>
             </h1>
             <p className="mt-6 text-white/75 text-[16px] leading-relaxed max-w-2xl">
               Founded in Sokoto in November 2015 by the Evangelical Church
               International, Dominion Intelligent Builders' Academy has grown
-              quietly and steadily into one of the most trusted private schools
-              in the Old Airport area.
+              from a rented bungalow off Trade Fair Road into one of the most
+              trusted private schools in the Old Airport area.
             </p>
           </div>
           <div className="lg:col-span-5 flex justify-center lg:justify-end">
             <div className="w-52 h-52 rounded-full bg-white/5 backdrop-blur grid place-items-center border border-white/10 overflow-hidden">
-              <img  
-                src="/images/logo1.png"  
+              <img
+                src="/images/logo1.png"
                 alt="Dominion Intelligent Builders' Academy"
                 className="w-32 h-32 object-contain"
               />
@@ -274,7 +279,7 @@ export default function AboutPage() {
             Leadership
           </p>
           <h2 className="font-serif text-3xl sm:text-4xl text-surface-950 tracking-tight">
-            The people in charge.
+            The people you'll actually meet.
           </h2>
         </div>
 
@@ -310,11 +315,11 @@ export default function AboutPage() {
       <section className="max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-24">
         <div className="text-center max-w-2xl mx-auto">
           <h2 className="font-serif text-3xl sm:text-4xl text-surface-950 tracking-tight leading-tight">
-            Come and see for yourself.
+            Come walk the corridors.
           </h2>
           <p className="mt-4 text-[15px] text-surface-600 leading-relaxed">
-            Nothing beats walking the corridors, meeting our teachers, and watching
-            a class in session. Tours run every weekday at 10am.
+            Tour any weekday at 10am — no booking needed. Meet the teachers, watch
+            a class in session, and see the school as it actually is.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             <Link

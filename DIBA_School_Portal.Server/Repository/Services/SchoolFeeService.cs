@@ -1,7 +1,6 @@
 ﻿using DIBA_School_Portal.Server.Configurations;
 using DIBA_School_Portal.Server.Contracts;
 using DIBA_School_Portal.Server.Contracts.FinanceDto;
-using DIBA_School_Portal.Server.Database_Entities;
 using DIBA_School_Portal.Server.DropDown;
 using DIBA_School_Portal.Server.Entities;
 using DIBA_School_Portal.Server.Enums;
@@ -18,7 +17,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private readonly IAuditLog _auditLog;
         private readonly IHttpContextAccessor _http;
 
-        #region Constructor
         public SchoolFeeService(
             AppDbContext context,
             ILogger<SchoolFeeService> logger,
@@ -33,9 +31,35 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
         private string Ip =>
             _http.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
-        #endregion
 
-        #region GetFeeCreationMetadataAsync
+        private string CallerId =>
+            _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? "System";
+
+        // ==========================================================
+        // SORT HELPER — Nursery 1, Nursery 2, ..., Primary 1, ..., SS 3
+        // ==========================================================
+        private static int ClassRank(AcademicSection section, string name)
+        {
+            int sec = section switch
+            {
+                AcademicSection.PreNursery => 0,
+                AcademicSection.Nursery => 1000,
+                AcademicSection.Primary => 2000,
+                AcademicSection.JuniorSecondary => 3000,
+                AcademicSection.SeniorSecondary => 4000,
+                _ => 9000,
+            };
+
+            var match = System.Text.RegularExpressions.Regex.Match(name ?? "", @"\d+");
+            int num = match.Success ? int.Parse(match.Value) : 0;
+
+            return sec + num;
+        }
+
+        // ==========================================================
+        // METADATA — sessions, classes (sorted), sections, streams
+        // ==========================================================
         public async Task<ServiceResponse<FeeCreationMetadataDto>> GetFeeCreationMetadataAsync()
         {
             var response = new ServiceResponse<FeeCreationMetadataDto>();
@@ -50,16 +74,18 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         Id = s.Id,
                         Name = s.Name,
                         IsCurrentSession = s.IsCurrentSession,
-                        Terms = s.Terms.Select(t => new TermDropdownItemDto
-                        {
-                            Id = t.Id,
-                            Name = t.Name,
-                            IsCurrentTerm = t.IsCurrentTerm
-                        }).ToList()
+                        Terms = s.Terms
+                            .OrderBy(t => t.StartDate)
+                            .Select(t => new TermDropdownItemDto
+                            {
+                                Id = t.Id,
+                                Name = t.Name,
+                                IsCurrentTerm = t.IsCurrentTerm
+                            }).ToList()
                     })
                     .ToListAsync();
 
-                var schoolClasses = await _context.SchoolClasses
+                var rawClasses = await _context.SchoolClasses
                     .AsNoTracking()
                     .Where(c => !c.IsDeleted)
                     .Select(c => new SchoolClassDropdownItemDto
@@ -69,6 +95,11 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         Section = c.AcademicSection
                     })
                     .ToListAsync();
+
+                var schoolClasses = rawClasses
+                    .OrderBy(c => ClassRank(c.Section, c.Name))
+                    .ThenBy(c => c.Name)
+                    .ToList();
 
                 var sections = Enum.GetValues(typeof(AcademicSection))
                     .Cast<AcademicSection>()
@@ -100,9 +131,10 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
             return response;
         }
-        #endregion
 
-        #region CreateFeeAsync
+        // ==========================================================
+        // CREATE FEE — a catalog entry + one ClassFeePrice per class
+        // ==========================================================
         public async Task<ServiceResponse<bool>> CreateFeeAsync(FeeDto feeDto)
         {
             var response = new ServiceResponse<bool>();
@@ -116,15 +148,23 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ✅ ClassPrices are now required — every fee needs at least one class price
-                if (feeDto.ClassPrices == null || !feeDto.ClassPrices.Any())
+                if (string.IsNullOrWhiteSpace(feeDto.FeeName))
                 {
                     response.Success = false;
-                    response.Message = "At least one class price (Amount + MinimumAmountToPay) is required.";
+                    response.Message = "Fee name is required.";
                     response.StatusCode = 400;
                     return response;
                 }
 
+                if (feeDto.ClassPrices == null || !feeDto.ClassPrices.Any())
+                {
+                    response.Success = false;
+                    response.Message = "At least one class price is required.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                // Validate term belongs to the session
                 var termExists = await _context.SchoolTerms
                     .AnyAsync(t => t.Id == feeDto.TermId && t.AcademicSessionId == feeDto.AcademicSessionId);
 
@@ -136,18 +176,23 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                var classExists = await _context.SchoolClasses
-                    .AnyAsync(c => c.Id == feeDto.SchoolClassId && !c.IsDeleted);
+                // Validate every class in the payload exists
+                var classIds = feeDto.ClassPrices.Select(cp => cp.SchoolClassId).Distinct().ToList();
+                var validClassIds = await _context.SchoolClasses
+                    .Where(c => classIds.Contains(c.Id) && !c.IsDeleted)
+                    .Select(c => c.Id)
+                    .ToListAsync();
 
-                if (!classExists)
+                var missing = classIds.Except(validClassIds).ToList();
+                if (missing.Any())
                 {
                     response.Success = false;
-                    response.Message = "The selected school class does not exist.";
+                    response.Message = $"The following class(es) do not exist: {string.Join(", ", missing)}.";
                     response.StatusCode = 400;
                     return response;
                 }
 
-                // ✅ Fee is now a catalog entry — no amounts here
+                // Fee catalog entry — no class / section / stream tied to the Fee itself
                 var fee = new Fee
                 {
                     Id = Guid.NewGuid(),
@@ -155,14 +200,14 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     Description = feeDto.Description?.Trim() ?? "",
                     AcademicSessionId = feeDto.AcademicSessionId,
                     TermId = feeDto.TermId,
-                    SchoolClassId = feeDto.SchoolClassId,
-                    Section = feeDto.Section,
-                    ClassStream = feeDto.Stream
+                    SchoolClassId = null,
+                    Section = null,
+                    ClassStream = null,
+                    IsDeleted = false,
                 };
 
                 await _context.Fees.AddAsync(fee);
 
-                // ✅ Money lives on ClassFeePrice
                 foreach (var cp in feeDto.ClassPrices)
                 {
                     var classFeePrice = new ClassFeePrice
@@ -171,7 +216,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         FeeId = fee.Id,
                         SchoolClassId = cp.SchoolClassId,
                         Amount = cp.Amount,
-                        MinimumAmountToPay = cp.MinimumAmountToPay
+                        MinimumAmountToPay = cp.MinimumAmountToPay,
                     };
 
                     await _context.ClassFeePrices.AddAsync(classFeePrice);
@@ -180,7 +225,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 await _context.SaveChangesAsync();
 
                 await _auditLog.LogActivityAsync(
-                    _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "System",
+                    CallerId,
                     "Fee Created",
                     $"Fee '{fee.FeeName}' created for term {fee.TermId} with {feeDto.ClassPrices.Count} class-price row(s).",
                     Ip);
@@ -189,6 +234,16 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 response.Message = "Fee structure created successfully.";
                 response.StatusCode = 200;
                 response.Data = true;
+            }
+            catch (DbUpdateException dbEx)
+            {
+                var inner = dbEx.InnerException;
+                while (inner?.InnerException != null) inner = inner.InnerException;
+
+                _logger.LogError(dbEx, "DB error creating fee structure.");
+                response.Success = false;
+                response.Message = $"Database error: {inner?.Message ?? dbEx.Message}";
+                response.StatusCode = 500;
             }
             catch (Exception ex)
             {
@@ -199,287 +254,199 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
             return response;
         }
-        #endregion
 
-        #region GetClassesForSubjectAsync
-        public async Task<ServiceResponse<IEnumerable<SchoolClassDTO>>> GetClassesForSubjectAsync(Guid subjectId)
+        // ==========================================================
+        // LIST FEES
+        // ==========================================================
+        public async Task<ServiceResponse<IEnumerable<FeeListItemDto>>> GetFeesAsync(
+            Guid? sessionId, Guid? termId, bool includeDeleted)
         {
-            var response = new ServiceResponse<IEnumerable<SchoolClassDTO>>();
+            var response = new ServiceResponse<IEnumerable<FeeListItemDto>>();
             try
             {
-                var classes = await _context.ClassSubjects
-                    .AsNoTracking()
-                    .Where(cs => cs.SubjectId == subjectId)
-                    .Include(cs => cs.SchoolClass)
-                    .Where(cs => cs.SchoolClass != null && !cs.SchoolClass.IsDeleted)
-                    .Select(cs => new SchoolClassDTO
+                var query = _context.Fees.AsNoTracking().AsQueryable();
+
+                if (includeDeleted) query = query.IgnoreQueryFilters();
+
+                if (sessionId.HasValue)
+                    query = query.Where(f => f.AcademicSessionId == sessionId.Value);
+
+                if (termId.HasValue)
+                    query = query.Where(f => f.TermId == termId.Value);
+
+                var fees = await query
+                    .OrderBy(f => f.FeeName)
+                    .Select(f => new FeeListItemDto
                     {
-                        Id = cs.SchoolClass.Id,
-                        Name = cs.SchoolClass.Name,
-                        AcademicSection = cs.SchoolClass.AcademicSection
+                        Id = f.Id,
+                        FeeName = f.FeeName,
+                        Description = f.Description,
+                        AcademicSessionId = f.AcademicSessionId,
+                        TermId = f.TermId,
+                        IsDeleted = f.IsDeleted,
+                        ClassPrices = f.ClassFeePrices.Select(p => new FeeClassPriceDto
+                        {
+                            SchoolClassId = p.SchoolClassId,
+                            ClassName = p.SchoolClass != null ? p.SchoolClass.Name : "—",
+                            Amount = p.Amount,
+                            MinimumAmountToPay = p.MinimumAmountToPay,
+                        }).ToList(),
                     })
                     .ToListAsync();
 
                 response.Success = true;
-                response.Data = classes;
+                response.Data = fees;
                 response.StatusCode = 200;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error fetching school classes for subject: {SubjectId}", subjectId);
+                _logger.LogError(ex, "Error listing fees.");
                 response.Success = false;
                 response.Message = ex.Message;
                 response.StatusCode = 500;
             }
             return response;
         }
-        #endregion
 
-        #region GetSchoolClassByIdAsync
-        public async Task<ServiceResponse<SchoolClassDTO>> GetSchoolClassByIdAsync(Guid id)
+        // ==========================================================
+        // GET FEE BY ID
+        // ==========================================================
+        public async Task<ServiceResponse<FeeListItemDto>> GetFeeByIdAsync(Guid id)
         {
-            var response = new ServiceResponse<SchoolClassDTO>();
+            var response = new ServiceResponse<FeeListItemDto>();
             try
             {
-                var schoolClass = await _context.SchoolClasses
+                var fee = await _context.Fees
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
-
-                if (schoolClass == null)
-                {
-                    response.Success = false;
-                    response.Message = "School class not found.";
-                    response.StatusCode = 404;
-                    return response;
-                }
-
-                response.Data = new SchoolClassDTO
-                {
-                    Id = schoolClass.Id,
-                    Name = schoolClass.Name,
-                    AcademicSection = schoolClass.AcademicSection
-                };
-                response.Success = true;
-                response.StatusCode = 200;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error fetching school class by ID: {Id}", id);
-                response.Success = false;
-                response.Message = ex.Message;
-                response.StatusCode = 500;
-            }
-            return response;
-        }
-        #endregion
-
-        #region UpdateSchoolClassAsync
-        public async Task<ServiceResponse<string>> UpdateSchoolClassAsync(SchoolClassDTO model, string currentUserId)
-        {
-            var response = new ServiceResponse<string>();
-            try
-            {
-                var schoolClass = await _context.SchoolClasses.FirstOrDefaultAsync(c => c.Id == model.Id && !c.IsDeleted);
-                if (schoolClass == null)
-                {
-                    response.Success = false;
-                    response.Message = "School class not found.";
-                    response.StatusCode = 404;
-                    return response;
-                }
-
-                schoolClass.Name = model.Name.Trim();
-                schoolClass.AcademicSection = model.AcademicSection;
-
-                _context.SchoolClasses.Update(schoolClass);
-                await _context.SaveChangesAsync();
-
-                await _auditLog.LogActivityAsync(
-                    currentUserId,
-                    "SchoolClass Updated (FeeSvc)",
-                    $"Class ID {schoolClass.Id} updated.",
-                    Ip);
-
-                response.Success = true;
-                response.Message = "School class updated successfully.";
-                response.StatusCode = 200;
-                response.Data = schoolClass.Id.ToString();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating school class: {Id}", model.Id);
-                response.Success = false;
-                response.Message = ex.Message;
-                response.StatusCode = 500;
-            }
-            return response;
-        }
-        #endregion
-
-        #region SoftDeleteSchoolClass
-        public async Task<bool> SoftDeleteSchoolClass(Guid id, string currentUserId)
-        {
-            try
-            {
-                var schoolClass = await _context.SchoolClasses.FirstOrDefaultAsync(c => c.Id == id);
-                if (schoolClass == null) return false;
-
-                schoolClass.IsDeleted = true;
-
-                _context.SchoolClasses.Update(schoolClass);
-                await _context.SaveChangesAsync();
-
-                await _auditLog.LogActivityAsync(currentUserId, "SchoolClass SoftDeleted", $"Class ID {id}.", Ip);
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error soft-deleting school class: {Id}", id);
-                return false;
-            }
-        }
-        #endregion
-
-        #region RestoreSchoolClass
-        public async Task<bool> RestoreSchoolClass(Guid id, string currentUserId)
-        {
-            try
-            {
-                var schoolClass = await _context.SchoolClasses.FirstOrDefaultAsync(c => c.Id == id);
-                if (schoolClass == null) return false;
-
-                schoolClass.IsDeleted = false;
-                _context.SchoolClasses.Update(schoolClass);
-                await _context.SaveChangesAsync();
-
-                await _auditLog.LogActivityAsync(currentUserId, "SchoolClass Restored", $"Class ID {id}.", Ip);
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error restoring school class: {Id}", id);
-                return false;
-            }
-        }
-        #endregion
-
-        #region GetSubjectsForClassAsync
-        public async Task<ServiceResponse<IEnumerable<SubjectDto>>> GetSubjectsForClassAsync(Guid classId)
-        {
-            var response = new ServiceResponse<IEnumerable<SubjectDto>>();
-            try
-            {
-                var subjects = await _context.ClassSubjects
-                    .Where(cs => cs.SchoolClassId == classId)
-                    .Include(cs => cs.Subject)
-                    .Select(cs => new SubjectDto
+                    .IgnoreQueryFilters()
+                    .Where(f => f.Id == id)
+                    .Select(f => new FeeListItemDto
                     {
-                        Id = cs.Subject.Id,
-                        Name = cs.Subject.Name
+                        Id = f.Id,
+                        FeeName = f.FeeName,
+                        Description = f.Description,
+                        AcademicSessionId = f.AcademicSessionId,
+                        TermId = f.TermId,
+                        IsDeleted = f.IsDeleted,
+                        ClassPrices = f.ClassFeePrices.Select(p => new FeeClassPriceDto
+                        {
+                            SchoolClassId = p.SchoolClassId,
+                            ClassName = p.SchoolClass != null ? p.SchoolClass.Name : "—",
+                            Amount = p.Amount,
+                            MinimumAmountToPay = p.MinimumAmountToPay,
+                        }).ToList(),
                     })
-                    .AsNoTracking()
-                    .ToListAsync();
+                    .FirstOrDefaultAsync();
 
-                response.Success = true;
-                response.Data = subjects;
-                response.StatusCode = 200;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error fetching subjects for class: {ClassId}", classId);
-                response.Success = false;
-                response.Message = ex.Message;
-                response.StatusCode = 500;
-            }
-            return response;
-        }
-        #endregion
-
-        #region GetClassSubjectsWithSelectionAsync
-        public async Task<ServiceResponse<IEnumerable<SubjectCheckboxDto>>> GetClassSubjectsWithSelectionAsync(Guid classId)
-        {
-            var response = new ServiceResponse<IEnumerable<SubjectCheckboxDto>>();
-            try
-            {
-                var assignedSubjectIds = await _context.ClassSubjects
-                    .Where(cs => cs.SchoolClassId == classId)
-                    .Select(cs => cs.SubjectId)
-                    .ToListAsync();
-
-                var allSubjects = await _context.Subjects
-                    .AsNoTracking()
-                    .ToListAsync();
-
-                var result = allSubjects.Select(s => new SubjectCheckboxDto
+                if (fee == null)
                 {
-                    SubjectId = s.Id,
-                    Name = s.Name,
-                    IsAssigned = assignedSubjectIds.Contains(s.Id)
-                }).ToList();
+                    response.Success = false;
+                    response.Message = "Fee not found.";
+                    response.StatusCode = 404;
+                    return response;
+                }
 
                 response.Success = true;
-                response.Data = result;
+                response.Data = fee;
                 response.StatusCode = 200;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error fetching class subjects with selection for class: {ClassId}", classId);
+                _logger.LogError(ex, "Error fetching fee {Id}.", id);
                 response.Success = false;
                 response.Message = ex.Message;
                 response.StatusCode = 500;
             }
             return response;
         }
-        #endregion
 
-        #region UpdateClassSubjectsAsync
-        public async Task<ServiceResponse<string>> UpdateClassSubjectsAsync(Guid classId, List<Guid> subjectIds, string currentUserId)
+        // ==========================================================
+        // SOFT DELETE FEE
+        // ==========================================================
+        public async Task<ServiceResponse<string>> SoftDeleteFeeAsync(
+            Guid id, string currentUserId, string ip)
         {
             var response = new ServiceResponse<string>();
             try
             {
-                var existingClassSubjects = await _context.ClassSubjects
-                    .Where(cs => cs.SchoolClassId == classId)
-                    .ToListAsync();
-
-                _context.ClassSubjects.RemoveRange(existingClassSubjects);
-
-                if (subjectIds != null && subjectIds.Any())
+                var fee = await _context.Fees.FirstOrDefaultAsync(f => f.Id == id);
+                if (fee == null)
                 {
-                    var newClassSubjects = subjectIds.Select(subjectId => new ClassSubject
-                    {
-                        Id = Guid.NewGuid(),
-                        SchoolClassId = classId,
-                        SubjectId = subjectId
-                    });
-
-                    await _context.ClassSubjects.AddRangeAsync(newClassSubjects);
+                    response.Success = false;
+                    response.Message = "Fee not found.";
+                    response.StatusCode = 404;
+                    return response;
                 }
 
+                fee.IsDeleted = true;
+                fee.DeletedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
-                await _auditLog.LogActivityAsync(
-                    currentUserId,
-                    "ClassSubjects Updated",
-                    $"Class ID {classId} → {subjectIds?.Count ?? 0} subject(s).",
-                    Ip);
+                await _auditLog.LogActivityAsync(currentUserId,
+                    "Fee SoftDeleted", $"Fee '{fee.FeeName}' (ID {id}) deleted.", ip);
 
                 response.Success = true;
-                response.Message = "Class subjects updated successfully.";
+                response.Message = "Fee deleted.";
                 response.StatusCode = 200;
-                response.Data = classId.ToString();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating class subjects for class: {ClassId}", classId);
+                _logger.LogError(ex, "Error deleting fee {Id}.", id);
                 response.Success = false;
                 response.Message = ex.Message;
                 response.StatusCode = 500;
             }
             return response;
         }
-        #endregion
+
+        // ==========================================================
+        // RESTORE FEE
+        // ==========================================================
+        public async Task<ServiceResponse<string>> RestoreFeeAsync(
+            Guid id, string currentUserId, string ip)
+        {
+            var response = new ServiceResponse<string>();
+            try
+            {
+                var fee = await _context.Fees
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(f => f.Id == id);
+
+                if (fee == null)
+                {
+                    response.Success = false;
+                    response.Message = "Fee not found.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                if (!fee.IsDeleted)
+                {
+                    response.Success = false;
+                    response.Message = "Fee is not deleted.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                fee.IsDeleted = false;
+                fee.DeletedAt = null;
+                await _context.SaveChangesAsync();
+
+                await _auditLog.LogActivityAsync(currentUserId,
+                    "Fee Restored", $"Fee '{fee.FeeName}' (ID {id}) restored.", ip);
+
+                response.Success = true;
+                response.Message = "Fee restored.";
+                response.StatusCode = 200;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error restoring fee {Id}.", id);
+                response.Success = false;
+                response.Message = ex.Message;
+                response.StatusCode = 500;
+            }
+            return response;
+        }
     }
 }
