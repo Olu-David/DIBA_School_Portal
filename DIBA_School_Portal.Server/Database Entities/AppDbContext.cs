@@ -27,7 +27,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
         // ---- Finance ----
         public DbSet<Fee> Fees { get; set; }
         public DbSet<ClassFeePrice> ClassFeePrices { get; set; }
-        public DbSet<ClassBook> ClassBooks { get; set; }
+        public DbSet<StudentPaymentItem> StudentPaymentItems { get; set; }
         public DbSet<StudentPayment> StudentPayments { get; set; }
         public DbSet<PaymentLog> PaymentLogs { get; set; }
 

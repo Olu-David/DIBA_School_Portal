@@ -92,12 +92,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     .AsNoTracking()
                     .ToListAsync();
 
-                var classBooks = await _context.ClassBooks
-                    .Where(cb => cb.SchoolClassId == student.SchoolClassId
-                              && cb.TermId == termId)
-                    .AsNoTracking()
-                    .ToListAsync();
-
                 var successfulPayments = await _context.StudentPayments
                     .Include(p => p.PaymentItems)
                     .Where(p => p.StudentProfileId == studentProfileId
@@ -131,25 +125,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     });
                 }
 
-                var bookBreakdowns = new List<BookItemBreakdownDto>();
-                foreach (var book in classBooks)
-                {
-                    currentTermBilled += book.Price;
-
-                    bool isBookPaid = successfulPayments
-                        .SelectMany(p => p.PaymentItems)
-                        .Any(pi => pi.ClassBookId == book.Id);
-
-                    bookBreakdowns.Add(new BookItemBreakdownDto
-                    {
-                        ClassBookId = book.Id,
-                        Title = book.Title,
-                        Description = book.Description,
-                        Price = book.Price,
-                        IsPurchased = isBookPaid
-                    });
-                }
-
                 decimal totalBilled = currentTermBilled + previousDebt;
                 decimal totalPaidSoFar = successfulPayments.Sum(p => p.AmountPaid);
                 decimal balanceRemaining = Math.Max(0, totalBilled - totalPaidSoFar);
@@ -179,7 +154,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     TotalBalanceRemaining = balanceRemaining,
                     MinimumAmountRequired = totalMinimumRequired,
                     FeeItems = feeBreakdowns,
-                    AvailableBooks = bookBreakdowns,
                     PaymentHistory = paymentHistory
                 };
 
@@ -218,12 +192,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                                && cfp.Fee.TermId == pastEnrollment.TermId)
                     .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0;
 
-                var pastBooks = await _context.ClassBooks
-                    .Where(cb => cb.SchoolClassId == pastEnrollment.SchoolClassId
-                              && cb.TermId == pastEnrollment.TermId)
-                    .SumAsync(cb => (decimal?)cb.Price) ?? 0;
-
-                totalPastBilled += (pastFees + pastBooks);
+                totalPastBilled += pastFees;
 
                 var pastPayments = await _context.StudentPayments
                     .Where(p => p.StudentProfileId == studentProfileId
@@ -235,6 +204,103 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
 
             return Math.Max(0, totalPastBilled - totalPastPaid);
+        }
+        #endregion
+
+        // ==========================================================
+        // HELPER — Allocate a successful payment across the term's fees
+        //   Pass 1: hit each fee's minimum (in order)
+        //   Pass 2: fill each fee up to its full amount
+        //   Pass 3: any overflow goes to the first fee
+        // ==========================================================
+        #region AllocatePaymentToFeesAsync
+        private async Task AllocatePaymentToFeesAsync(StudentPayment payment)
+        {
+            // Idempotent — wipe any existing allocations for this payment
+            var existing = await _context.StudentPaymentItems
+                .Where(pi => pi.StudentPaymentId == payment.Id)
+                .ToListAsync();
+            if (existing.Any())
+                _context.StudentPaymentItems.RemoveRange(existing);
+
+            var student = await _context.Students
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == payment.StudentProfileId);
+            if (student == null) return;
+
+            var fees = await _context.ClassFeePrices
+                .Include(cfp => cfp.Fee)
+                .Where(cfp => cfp.SchoolClassId == student.SchoolClassId
+                           && cfp.Fee.TermId == payment.TermId)
+                .OrderBy(cfp => cfp.Fee.FeeName)
+                .ToListAsync();
+
+            if (!fees.Any()) return;
+
+            // How much prior successful payments already paid toward each fee
+            var priorByFee = await _context.StudentPaymentItems
+     .Where(pi => pi.StudentPayment != null
+               && pi.StudentPayment.StudentProfileId == payment.StudentProfileId
+               && pi.StudentPayment.TermId == payment.TermId
+               && pi.StudentPayment.Status == PaymentStatus.Successful
+               && pi.StudentPaymentId != payment.Id
+               && pi.FeeId != null)                       // ← filter nulls
+     .GroupBy(pi => pi.FeeId!.Value)                      // ← unwrap to Guid
+     .Select(g => new { FeeId = g.Key, Total = g.Sum(pi => pi.AmountAllocated) })
+     .ToDictionaryAsync(x => x.FeeId, x => x.Total);
+
+            var remaining = payment.AmountPaid;
+            var allocations = new Dictionary<Guid, decimal>();
+
+            // Pass 1 — meet minimums
+            foreach (var cfp in fees)
+            {
+                if (remaining <= 0) break;
+                priorByFee.TryGetValue(cfp.FeeId, out var alreadyPaid);
+                var toMin = Math.Max(0, cfp.MinimumAmountToPay - alreadyPaid);
+                var take = Math.Min(remaining, toMin);
+                if (take > 0)
+                {
+                    allocations[cfp.FeeId] = take;
+                    remaining -= take;
+                }
+            }
+
+            // Pass 2 — fill to full amount
+            foreach (var cfp in fees)
+            {
+                if (remaining <= 0) break;
+                priorByFee.TryGetValue(cfp.FeeId, out var alreadyPaid);
+                allocations.TryGetValue(cfp.FeeId, out var paidSoFar);
+
+                var toFull = Math.Max(0, cfp.Amount - alreadyPaid - paidSoFar);
+                var take = Math.Min(remaining, toFull);
+                if (take > 0)
+                {
+                    allocations[cfp.FeeId] = paidSoFar + take;
+                    remaining -= take;
+                }
+            }
+
+            // Pass 3 — overflow
+            if (remaining > 0)
+            {
+                var firstId = fees.First().FeeId;
+                allocations.TryGetValue(firstId, out var current);
+                allocations[firstId] = current + remaining;
+            }
+
+            // Persist
+            foreach (var (feeId, amount) in allocations)
+            {
+                _context.StudentPaymentItems.Add(new StudentPaymentItem
+                {
+                    Id = Guid.NewGuid(),
+                    StudentPaymentId = payment.Id,
+                    FeeId = feeId,
+                    AmountAllocated = amount,
+                });
+            }
         }
         #endregion
 
@@ -279,25 +345,16 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                var classFeePrice = await _context.ClassFeePrices
-                    .Include(cfp => cfp.Fee)
-                    .FirstOrDefaultAsync(cfp => cfp.SchoolClassId == studentProfile.SchoolClassId
-                                             && cfp.Fee.TermId == paymentDto.TermId
-                                             && (cfp.Fee.FeeName.ToLower().Contains("tuition")
-                                              || cfp.Fee.FeeName.ToLower().Contains("school fee")));
+                // Minimum check — sum ALL minimums for the class/term
+                var totalMinimumRequired = await _context.ClassFeePrices
+                    .Where(cfp => cfp.SchoolClassId == studentProfile.SchoolClassId
+                               && cfp.Fee.TermId == paymentDto.TermId)
+                    .SumAsync(cfp => (decimal?)cfp.MinimumAmountToPay) ?? 0m;
 
-                if (classFeePrice == null)
-                {
-                    classFeePrice = await _context.ClassFeePrices
-                        .Include(cfp => cfp.Fee)
-                        .FirstOrDefaultAsync(cfp => cfp.SchoolClassId == studentProfile.SchoolClassId
-                                                 && cfp.Fee.TermId == paymentDto.TermId);
-                }
-
-                if (classFeePrice != null && paymentDto.AmountPaid < classFeePrice.MinimumAmountToPay)
+                if (totalMinimumRequired > 0 && paymentDto.AmountPaid < totalMinimumRequired)
                 {
                     response.Success = false;
-                    response.Message = $"Payment amount ({paymentDto.AmountPaid:N2}) is less than the minimum required amount ({classFeePrice.MinimumAmountToPay:N2}).";
+                    response.Message = $"Payment amount (₦{paymentDto.AmountPaid:N2}) is less than the minimum required (₦{totalMinimumRequired:N2}).";
                     response.StatusCode = 400;
                     return response;
                 }
@@ -489,6 +546,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 // ---------- Transition to Successful → apply & recompute ----------
                 if (oldStatus != PaymentStatus.Successful && status == PaymentStatus.Successful)
                 {
+                    // Allocate across fees
+                    await AllocatePaymentToFeesAsync(payment);
+
                     var enrollment = await _context.StudentEnrollments
                         .FirstOrDefaultAsync(e => e.StudentProfileId == payment.StudentProfileId
                                                && e.TermId == payment.TermId
@@ -534,7 +594,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                     if (enrollment != null)
                     {
-                        // Sum all other successful payments (exclude this one from DB to avoid double count)
                         var pastPaid = await _context.StudentPayments
                             .Where(p => p.StudentProfileId == payment.StudentProfileId
                                      && p.TermId == payment.TermId
@@ -553,26 +612,14 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         enrollment.TotalAmountPaid = newTotalPaid;
                         enrollment.OutstandingBalance = Math.Max(0, totalRequiredFee - newTotalPaid);
 
-                        var tuitionFeePrice = await _context.ClassFeePrices
-                            .Include(cfp => cfp.Fee)
-                            .FirstOrDefaultAsync(cfp =>
-                                cfp.SchoolClassId == enrollment.SchoolClassId &&
-                                cfp.Fee.TermId == payment.TermId &&
-                                (cfp.Fee.FeeName.ToLower().Contains("tuition") ||
-                                 cfp.Fee.FeeName.ToLower().Contains("school fee")));
+                        var totalMinimum = await _context.ClassFeePrices
+                            .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId
+                                       && cfp.Fee.TermId == payment.TermId)
+                            .SumAsync(cfp => (decimal?)cfp.MinimumAmountToPay) ?? 0m;
 
-                        if (tuitionFeePrice == null)
+                        if (totalMinimum > 0)
                         {
-                            tuitionFeePrice = await _context.ClassFeePrices
-                                .Include(cfp => cfp.Fee)
-                                .FirstOrDefaultAsync(cfp =>
-                                    cfp.SchoolClassId == enrollment.SchoolClassId &&
-                                    cfp.Fee.TermId == payment.TermId);
-                        }
-
-                        if (tuitionFeePrice != null)
-                        {
-                            if (newTotalPaid < tuitionFeePrice.MinimumAmountToPay)
+                            if (newTotalPaid < totalMinimum)
                             {
                                 enrollment.Status = StudentEnrollmentStatus.Pending;
                                 enrollment.IsActive = false;
@@ -593,6 +640,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 // ---------- Transition FROM Successful → reverse ----------
                 if (oldStatus == PaymentStatus.Successful && status != PaymentStatus.Successful)
                 {
+                    // Drop allocations since this payment is no longer valid
+                    var allocations = await _context.StudentPaymentItems
+                        .Where(pi => pi.StudentPaymentId == payment.Id)
+                        .ToListAsync();
+                    if (allocations.Any())
+                        _context.StudentPaymentItems.RemoveRange(allocations);
+
                     var enrollment = await _context.StudentEnrollments
                         .FirstOrDefaultAsync(e => e.StudentProfileId == payment.StudentProfileId
                                                && e.TermId == payment.TermId
@@ -789,18 +843,16 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 paymentRecord.Status = PaymentStatus.Successful;
                 _context.StudentPayments.Update(paymentRecord);
 
-                // ==========================================================
-                // 1. LOOK UP ENROLLMENT
-                // ==========================================================
+                // Allocate across fees
+                await AllocatePaymentToFeesAsync(paymentRecord);
+
+                // ---------- Enrollment: lookup or create ----------
                 var enrollment = await _context.StudentEnrollments
                     .FirstOrDefaultAsync(e =>
                         e.StudentProfileId == paymentRecord.StudentProfileId &&
                         e.TermId == paymentRecord.TermId &&
                         e.AcademicSessionId == paymentRecord.AcademicSessionId);
 
-                // ==========================================================
-                // 2. IF NULL → CREATE IT (billed from ClassFeePrices)
-                // ==========================================================
                 if (enrollment == null)
                 {
                     var student = await _context.Students
@@ -850,9 +902,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         student.Id, paymentRecord.TermId, billedAmount);
                 }
 
-                // ==========================================================
-                // 3. APPLY THIS PAYMENT + RECALCULATE (both paths)
-                // ==========================================================
+                // ---------- Apply & recompute ----------
                 var pastPaid = await _context.StudentPayments
                     .Where(p => p.StudentProfileId == paymentRecord.StudentProfileId &&
                                 p.TermId == paymentRecord.TermId &&
@@ -871,29 +921,14 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 enrollment.TotalAmountPaid = newTotalPaid;
                 enrollment.OutstandingBalance = Math.Max(0, totalRequiredFee - newTotalPaid);
 
-                // ==========================================================
-                // 4. STATUS FLAGS
-                // ==========================================================
-                var tuitionFeePrice = await _context.ClassFeePrices
-                    .Include(cfp => cfp.Fee)
-                    .FirstOrDefaultAsync(cfp =>
-                        cfp.SchoolClassId == enrollment.SchoolClassId &&
-                        cfp.Fee.TermId == paymentRecord.TermId &&
-                        (cfp.Fee.FeeName.ToLower().Contains("tuition") ||
-                         cfp.Fee.FeeName.ToLower().Contains("school fee")));
+                var totalMinimum = await _context.ClassFeePrices
+                    .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId &&
+                                  cfp.Fee.TermId == paymentRecord.TermId)
+                    .SumAsync(cfp => (decimal?)cfp.MinimumAmountToPay) ?? 0m;
 
-                if (tuitionFeePrice == null)
+                if (totalMinimum > 0)
                 {
-                    tuitionFeePrice = await _context.ClassFeePrices
-                        .Include(cfp => cfp.Fee)
-                        .FirstOrDefaultAsync(cfp =>
-                            cfp.SchoolClassId == enrollment.SchoolClassId &&
-                            cfp.Fee.TermId == paymentRecord.TermId);
-                }
-
-                if (tuitionFeePrice != null)
-                {
-                    if (newTotalPaid < tuitionFeePrice.MinimumAmountToPay)
+                    if (newTotalPaid < totalMinimum)
                     {
                         enrollment.Status = StudentEnrollmentStatus.Pending;
                         enrollment.IsActive = false;
