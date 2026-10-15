@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DIBA_School_Portal.Server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261015120534_AddPaymentItem")]
-    partial class AddPaymentItem
+    [Migration("20261015125003_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -682,6 +682,9 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("StudentEnrollmentsId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("StudentProfileId")
                         .HasColumnType("uniqueidentifier");
 
@@ -697,9 +700,14 @@ namespace DIBA_School_Portal.Server.Migrations
 
                     b.HasIndex("EnrollmentId");
 
-                    b.HasIndex("StudentProfileId");
+                    b.HasIndex("ReferenceNumber")
+                        .IsUnique();
+
+                    b.HasIndex("StudentEnrollmentsId");
 
                     b.HasIndex("TermId");
+
+                    b.HasIndex("StudentProfileId", "TermId");
 
                     b.ToTable("StudentPayments");
                 });
@@ -1315,13 +1323,17 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasOne("DIBA_School_Portal.Server.Entities.AcademicSession", "AcademicSession")
                         .WithMany()
                         .HasForeignKey("AcademicSessionId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("DIBA_School_Portal.Server.Entities.StudentEnrollments", "StudentEnrollment")
-                        .WithMany("StudentPayment")
+                        .WithMany()
                         .HasForeignKey("EnrollmentId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("DIBA_School_Portal.Server.Entities.StudentEnrollments", null)
+                        .WithMany("StudentPayment")
+                        .HasForeignKey("StudentEnrollmentsId");
 
                     b.HasOne("DIBA_School_Portal.Server.Entities.Student", "StudentProfile")
                         .WithMany("StudentPayments")
@@ -1332,7 +1344,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasOne("DIBA_School_Portal.Server.Entities.SchoolTerm", "Term")
                         .WithMany()
                         .HasForeignKey("TermId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("AcademicSession");
@@ -1348,8 +1360,7 @@ namespace DIBA_School_Portal.Server.Migrations
                 {
                     b.HasOne("DIBA_School_Portal.Server.Entities.Fee", "Fee")
                         .WithMany()
-                        .HasForeignKey("FeeId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .HasForeignKey("FeeId");
 
                     b.HasOne("DIBA_School_Portal.Server.Entities.StudentPayment", "StudentPayment")
                         .WithMany("PaymentItems")

@@ -243,41 +243,6 @@ namespace DIBA_School_Portal.Server.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "ClassBooks",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Title = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: false),
-                    Price = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    SchoolClassId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    AcademicSessionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TermId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ClassBooks", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_ClassBooks_AcademicSessions_AcademicSessionId",
-                        column: x => x.AcademicSessionId,
-                        principalTable: "AcademicSessions",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_ClassBooks_SchoolClasses_SchoolClassId",
-                        column: x => x.SchoolClassId,
-                        principalTable: "SchoolClasses",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_ClassBooks_SchoolTerms_TermId",
-                        column: x => x.TermId,
-                        principalTable: "SchoolTerms",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "Fees",
                 columns: table => new
                 {
@@ -287,7 +252,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     AcademicSessionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     TermId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     SchoolClassId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    Section = table.Column<int>(type: "int", nullable: false),
+                    Section = table.Column<int>(type: "int", nullable: true),
                     ClassStream = table.Column<int>(type: "int", nullable: true),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
                     DeletedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
@@ -545,7 +510,8 @@ namespace DIBA_School_Portal.Server.Migrations
                     IsFullyPaid = table.Column<bool>(type: "bit", nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),
                     EnrolledAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false)
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    EnrollmentId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -568,6 +534,11 @@ namespace DIBA_School_Portal.Server.Migrations
                         principalTable: "SchoolTerms",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentEnrollments_StudentEnrollments_EnrollmentId",
+                        column: x => x.EnrollmentId,
+                        principalTable: "StudentEnrollments",
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_StudentEnrollments_Students_StudentProfileId",
                         column: x => x.StudentProfileId,
@@ -663,16 +634,17 @@ namespace DIBA_School_Portal.Server.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     StudentProfileId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    AcademicSessionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TermId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    EnrollmentId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     AmountPaid = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     ReferenceNumber = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     Gateway = table.Column<int>(type: "int", nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),
-                    AcademicSessionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TermId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    FeeId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     PaymentDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ProofOfPaymentUrl = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
-                    EnrollmentID = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
+                    StudentEnrollmentsId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -684,23 +656,22 @@ namespace DIBA_School_Portal.Server.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_StudentPayments_Fees_FeeId",
-                        column: x => x.FeeId,
-                        principalTable: "Fees",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
-                    table.ForeignKey(
                         name: "FK_StudentPayments_SchoolTerms_TermId",
                         column: x => x.TermId,
                         principalTable: "SchoolTerms",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_StudentPayments_StudentEnrollments_EnrollmentID",
-                        column: x => x.EnrollmentID,
+                        name: "FK_StudentPayments_StudentEnrollments_EnrollmentId",
+                        column: x => x.EnrollmentId,
                         principalTable: "StudentEnrollments",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentPayments_StudentEnrollments_StudentEnrollmentsId",
+                        column: x => x.StudentEnrollmentsId,
+                        principalTable: "StudentEnrollments",
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_StudentPayments_Students_StudentProfileId",
                         column: x => x.StudentProfileId,
@@ -763,30 +734,24 @@ namespace DIBA_School_Portal.Server.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "StudentPaymentItem",
+                name: "StudentPaymentItems",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     StudentPaymentId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     FeeId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    ClassBookId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     AmountAllocated = table.Column<decimal>(type: "decimal(18,2)", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_StudentPaymentItem", x => x.Id);
+                    table.PrimaryKey("PK_StudentPaymentItems", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_StudentPaymentItem_ClassBooks_ClassBookId",
-                        column: x => x.ClassBookId,
-                        principalTable: "ClassBooks",
-                        principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_StudentPaymentItem_Fees_FeeId",
+                        name: "FK_StudentPaymentItems_Fees_FeeId",
                         column: x => x.FeeId,
                         principalTable: "Fees",
                         principalColumn: "Id");
                     table.ForeignKey(
-                        name: "FK_StudentPaymentItem_StudentPayments_StudentPaymentId",
+                        name: "FK_StudentPaymentItems_StudentPayments_StudentPaymentId",
                         column: x => x.StudentPaymentId,
                         principalTable: "StudentPayments",
                         principalColumn: "Id",
@@ -885,21 +850,6 @@ namespace DIBA_School_Portal.Server.Migrations
                 filter: "[NormalizedUserName] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClassBooks_AcademicSessionId",
-                table: "ClassBooks",
-                column: "AcademicSessionId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_ClassBooks_SchoolClassId",
-                table: "ClassBooks",
-                column: "SchoolClassId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_ClassBooks_TermId",
-                table: "ClassBooks",
-                column: "TermId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_ClassFeePrices_FeeId_SchoolClassId",
                 table: "ClassFeePrices",
                 columns: new[] { "FeeId", "SchoolClassId" },
@@ -969,6 +919,11 @@ namespace DIBA_School_Portal.Server.Migrations
                 column: "AcademicSessionId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_StudentEnrollments_EnrollmentId",
+                table: "StudentEnrollments",
+                column: "EnrollmentId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_StudentEnrollments_SchoolClassId",
                 table: "StudentEnrollments",
                 column: "SchoolClassId");
@@ -985,18 +940,13 @@ namespace DIBA_School_Portal.Server.Migrations
                 column: "TermId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentPaymentItem_ClassBookId",
-                table: "StudentPaymentItem",
-                column: "ClassBookId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_StudentPaymentItem_FeeId",
-                table: "StudentPaymentItem",
+                name: "IX_StudentPaymentItems_FeeId",
+                table: "StudentPaymentItems",
                 column: "FeeId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentPaymentItem_StudentPaymentId",
-                table: "StudentPaymentItem",
+                name: "IX_StudentPaymentItems_StudentPaymentId",
+                table: "StudentPaymentItems",
                 column: "StudentPaymentId");
 
             migrationBuilder.CreateIndex(
@@ -1005,19 +955,25 @@ namespace DIBA_School_Portal.Server.Migrations
                 column: "AcademicSessionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentPayments_EnrollmentID",
+                name: "IX_StudentPayments_EnrollmentId",
                 table: "StudentPayments",
-                column: "EnrollmentID");
+                column: "EnrollmentId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentPayments_FeeId",
+                name: "IX_StudentPayments_ReferenceNumber",
                 table: "StudentPayments",
-                column: "FeeId");
+                column: "ReferenceNumber",
+                unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentPayments_StudentProfileId",
+                name: "IX_StudentPayments_StudentEnrollmentsId",
                 table: "StudentPayments",
-                column: "StudentProfileId");
+                column: "StudentEnrollmentsId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPayments_StudentProfileId_TermId",
+                table: "StudentPayments",
+                columns: new[] { "StudentProfileId", "TermId" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_StudentPayments_TermId",
@@ -1175,7 +1131,7 @@ namespace DIBA_School_Portal.Server.Migrations
                 name: "PaymentLogs");
 
             migrationBuilder.DropTable(
-                name: "StudentPaymentItem");
+                name: "StudentPaymentItems");
 
             migrationBuilder.DropTable(
                 name: "StudentSubjects");
@@ -1193,7 +1149,7 @@ namespace DIBA_School_Portal.Server.Migrations
                 name: "AspNetRoles");
 
             migrationBuilder.DropTable(
-                name: "ClassBooks");
+                name: "Fees");
 
             migrationBuilder.DropTable(
                 name: "StudentPayments");
@@ -1206,9 +1162,6 @@ namespace DIBA_School_Portal.Server.Migrations
 
             migrationBuilder.DropTable(
                 name: "TermResults");
-
-            migrationBuilder.DropTable(
-                name: "Fees");
 
             migrationBuilder.DropTable(
                 name: "StudentEnrollments");

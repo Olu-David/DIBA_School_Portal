@@ -4,26 +4,47 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace DIBA_School_Portal.Server.Configurations
 {
-    public class StudentPaymentItemConfiguration : IEntityTypeConfiguration<StudentPaymentItem>
+    public class StudentPaymentConfiguration : IEntityTypeConfiguration<StudentPayment>
     {
-        public void Configure(EntityTypeBuilder<StudentPaymentItem> builder)
+        public void Configure(EntityTypeBuilder<StudentPayment> builder)
         {
             builder.HasKey(x => x.Id);
 
-            builder.HasOne(x => x.StudentPayment)
-                   .WithMany(p => p.PaymentItems)
-                   .HasForeignKey(x => x.StudentPaymentId)
-                   .OnDelete(DeleteBehavior.Cascade);
+            builder.HasIndex(x => x.ReferenceNumber)
+                   .IsUnique();
 
-            // ★ Optional relationship — LEFT JOIN, payment item survives fee filter
-            builder.HasOne(x => x.Fee)
+            builder.HasIndex(x => new { x.StudentProfileId, x.TermId });
+
+            // ---------- Student ----------
+            builder.HasOne(x => x.StudentProfile)
                    .WithMany()
-                   .HasForeignKey(x => x.FeeId)
-                   .OnDelete(DeleteBehavior.Restrict)
+                   .HasForeignKey(x => x.StudentProfileId)
+                   .OnDelete(DeleteBehavior.Restrict);       // ← NO ACTION
+
+            // ---------- Session ----------
+            builder.HasOne(x => x.AcademicSession)
+                   .WithMany()
+                   .HasForeignKey(x => x.AcademicSessionId)
+                   .OnDelete(DeleteBehavior.Restrict);       // ← NO ACTION
+
+            // ---------- Term ----------
+            builder.HasOne(x => x.Term)
+                   .WithMany()
+                   .HasForeignKey(x => x.TermId)
+                   .OnDelete(DeleteBehavior.Restrict);       // ← NO ACTION
+
+            // ---------- Enrollment (optional) ----------
+            builder.HasOne(x => x.StudentEnrollment)
+                   .WithMany()
+                   .HasForeignKey(x => x.EnrollmentId)
+                   .OnDelete(DeleteBehavior.Restrict)        // ← NO ACTION
                    .IsRequired(false);
 
-            builder.HasIndex(x => x.StudentPaymentId);
-            builder.HasIndex(x => x.FeeId);
+            // ---------- Payment items ----------
+            builder.HasMany(x => x.PaymentItems)
+                   .WithOne(pi => pi.StudentPayment)
+                   .HasForeignKey(pi => pi.StudentPaymentId)
+                   .OnDelete(DeleteBehavior.Cascade);        // ← OK, cascade here is fine (child owns nothing else)
         }
     }
 }

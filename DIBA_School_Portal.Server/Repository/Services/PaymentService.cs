@@ -239,14 +239,15 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             // How much prior successful payments already paid toward each fee
             var priorByFee = await _context.StudentPaymentItems
-            .Where(pi => pi.StudentPayment != null
-                      && pi.StudentPayment.StudentProfileId == payment.StudentProfileId
-                      && pi.StudentPayment.TermId == payment.TermId
-                      && pi.StudentPayment.Status == PaymentStatus.Successful
-                      && pi.StudentPaymentId != payment.Id)
-            .GroupBy(pi => pi.FeeId)                    // no ! .Value
-            .Select(g => new { FeeId = g.Key, Total = g.Sum(pi => pi.AmountAllocated) })
-            .ToDictionaryAsync(x => x.FeeId, x => x.Total);
+      .Where(pi => pi.StudentPayment != null
+                && pi.StudentPayment.StudentProfileId == payment.StudentProfileId
+                && pi.StudentPayment.TermId == payment.TermId
+                && pi.StudentPayment.Status == PaymentStatus.Successful
+                && pi.StudentPaymentId != payment.Id
+                && pi.FeeId != null)                  // ← ADD this line
+      .GroupBy(pi => pi.FeeId!.Value)                 // ← FeeId!.Value, not just FeeId
+      .Select(g => new { FeeId = g.Key, Total = g.Sum(pi => pi.AmountAllocated) })
+      .ToDictionaryAsync(x => x.FeeId, x => x.Total);
 
             var remaining = payment.AmountPaid;
             var allocations = new Dictionary<Guid, decimal>();
