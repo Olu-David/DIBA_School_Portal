@@ -14,7 +14,6 @@ namespace DIBA_School_Portal.Server.Contracts.StudentDTO
         public decimal TotalPaidSoFar { get; set; }
         public decimal TotalBalanceRemaining { get; set; }
         public List<FeeItemBreakdownDto> FeeItems { get; set; } = new List<FeeItemBreakdownDto>();
-        public List<BookItemBreakdownDto> AvailableBooks { get; set; }= new List<BookItemBreakdownDto>();   
         public ICollection<PaymentHistoryDto>? PaymentHistory { get; set; }
         public decimal MinimumAmountRequired { get;  set; }
     }

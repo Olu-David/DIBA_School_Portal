@@ -367,18 +367,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ==========================================================
-                // 1. LOOK UP ENROLLMENT
-                // ==========================================================
+                // ---------- 1. Enrollment: lookup or create ----------
                 var enrollment = await _context.StudentEnrollments
                     .FirstOrDefaultAsync(e =>
                         e.StudentProfileId == request.StudentProfileId &&
                         e.TermId == request.TermId &&
                         e.AcademicSessionId == request.AcademicSessionId);
 
-                // ==========================================================
-                // 2. IF NULL → CREATE IT (billed from ClassFeePrices)
-                // ==========================================================
                 if (enrollment == null)
                 {
                     var billedAmount = await _context.ClassFeePrices
@@ -412,9 +407,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         student.Id, request.TermId, billedAmount);
                 }
 
-                // ==========================================================
-                // 3. CREATE THE PAYMENT RECORD
-                // ==========================================================
+                // ---------- 2. Create the payment record ----------
                 var reference = !string.IsNullOrWhiteSpace(request.ExternalReference)
                     ? request.ExternalReference.Trim()
                     : $"CASH-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..6].ToUpper()}";
@@ -429,12 +422,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     Status = PaymentStatus.Successful,
                     AcademicSessionId = request.AcademicSessionId,
                     TermId = request.TermId,
+                    EnrollmentId = enrollment.Id,       // ← set the FK (nullable but we know it here)
                     PaymentDate = DateTime.UtcNow,
                 };
 
                 _context.StudentPayments.Add(payment);
 
-                // Optional allocation items
+                // ---------- 3. Allocate to fees ----------
                 if (request.Items != null && request.Items.Any())
                 {
                     foreach (var item in request.Items)
@@ -444,14 +438,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
                             Id = Guid.NewGuid(),
                             StudentPaymentId = payment.Id,
                             FeeId = item.FeeId,
-                            ClassBookId = item.ClassBookId,
                             AmountAllocated = item.AmountAllocated,
                         });
                     }
                 }
                 else
                 {
-                    // Auto-allocate to tuition/school fee first
+                    // Auto-allocate: tuition first, else first available fee
                     var tuitionFee = await _context.Fees
                         .FirstOrDefaultAsync(f =>
                             f.SchoolClassId == enrollment.SchoolClassId &&
@@ -479,9 +472,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     }
                 }
 
-                // ==========================================================
-                // 4. APPLY PAYMENT + RECALCULATE (both paths)
-                // ==========================================================
+                // ---------- 4. Recompute enrollment totals ----------
                 var pastPaid = await _context.StudentPayments
                     .Where(p => p.StudentProfileId == request.StudentProfileId &&
                                 p.TermId == request.TermId &&
@@ -499,29 +490,15 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 enrollment.TotalAmountPaid = newTotalPaid;
                 enrollment.OutstandingBalance = Math.Max(0, totalRequiredFee - newTotalPaid);
 
-                // ==========================================================
-                // 5. STATUS FLAGS
-                // ==========================================================
-                var tuitionFeePrice = await _context.ClassFeePrices
-                    .Include(cfp => cfp.Fee)
-                    .FirstOrDefaultAsync(cfp =>
-                        cfp.SchoolClassId == enrollment.SchoolClassId &&
-                        cfp.Fee.TermId == request.TermId &&
-                        (cfp.Fee.FeeName.ToLower().Contains("tuition") ||
-                         cfp.Fee.FeeName.ToLower().Contains("school fee")));
+                // ---------- 5. Status flags ----------
+                var totalMinimum = await _context.ClassFeePrices
+                    .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId &&
+                                  cfp.Fee.TermId == request.TermId)
+                    .SumAsync(cfp => (decimal?)cfp.MinimumAmountToPay) ?? 0m;
 
-                if (tuitionFeePrice == null)
+                if (totalMinimum > 0)
                 {
-                    tuitionFeePrice = await _context.ClassFeePrices
-                        .Include(cfp => cfp.Fee)
-                        .FirstOrDefaultAsync(cfp =>
-                            cfp.SchoolClassId == enrollment.SchoolClassId &&
-                            cfp.Fee.TermId == request.TermId);
-                }
-
-                if (tuitionFeePrice != null)
-                {
-                    if (newTotalPaid < tuitionFeePrice.MinimumAmountToPay)
+                    if (newTotalPaid < totalMinimum)
                     {
                         enrollment.Status = StudentEnrollmentStatus.Pending;
                         enrollment.IsActive = false;

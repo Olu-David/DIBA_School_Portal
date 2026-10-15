@@ -191,45 +191,6 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.ToTable("AuditLogs");
                 });
 
-            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.ClassBook", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("AcademicSessionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<decimal>("Price")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid>("SchoolClassId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("TermId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AcademicSessionId");
-
-                    b.HasIndex("SchoolClassId");
-
-                    b.HasIndex("TermId");
-
-                    b.ToTable("ClassBooks");
-                });
-
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.ClassFeePrice", b =>
                 {
                     b.Property<Guid>("Id")
@@ -381,7 +342,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Property<Guid?>("SchoolClassId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<int>("Section")
+                    b.Property<int?>("Section")
                         .HasColumnType("int");
 
                     b.Property<Guid>("TermId")
@@ -642,6 +603,9 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Property<DateTime>("EnrolledAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("EnrollmentId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -670,6 +634,8 @@ namespace DIBA_School_Portal.Server.Migrations
 
                     b.HasIndex("AcademicSessionId");
 
+                    b.HasIndex("EnrollmentId");
+
                     b.HasIndex("SchoolClassId");
 
                     b.HasIndex("TermId");
@@ -692,10 +658,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Property<decimal>("AmountPaid")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<Guid>("EnrollmentID")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("FeeId")
+                    b.Property<Guid?>("EnrollmentId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Gateway")
@@ -722,19 +685,44 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Property<Guid>("TermId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AcademicSessionId");
 
-                    b.HasIndex("EnrollmentID");
-
-                    b.HasIndex("FeeId");
+                    b.HasIndex("EnrollmentId");
 
                     b.HasIndex("StudentProfileId");
 
                     b.HasIndex("TermId");
 
                     b.ToTable("StudentPayments");
+                });
+
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.StudentPaymentItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AmountAllocated")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("FeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("StudentPaymentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FeeId");
+
+                    b.HasIndex("StudentPaymentId");
+
+                    b.ToTable("StudentPaymentItems");
                 });
 
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.StudentSubject", b =>
@@ -1149,35 +1137,6 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("StudentPaymentItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("AmountAllocated")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid?>("ClassBookId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("FeeId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("StudentPaymentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClassBookId");
-
-                    b.HasIndex("FeeId");
-
-                    b.HasIndex("StudentPaymentId");
-
-                    b.ToTable("StudentPaymentItem");
-                });
-
             modelBuilder.Entity("DIBA_School_Portal.Server.Database_Entities.ApplicationUser", b =>
                 {
                     b.HasOne("DIBA_School_Portal.Server.Entities.SchoolClass", "SchoolClass")
@@ -1185,33 +1144,6 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasForeignKey("ClassId");
 
                     b.Navigation("SchoolClass");
-                });
-
-            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.ClassBook", b =>
-                {
-                    b.HasOne("DIBA_School_Portal.Server.Entities.AcademicSession", "AcademicSession")
-                        .WithMany()
-                        .HasForeignKey("AcademicSessionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("DIBA_School_Portal.Server.Entities.SchoolClass", "SchoolClass")
-                        .WithMany()
-                        .HasForeignKey("SchoolClassId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("DIBA_School_Portal.Server.Entities.SchoolTerm", "Term")
-                        .WithMany()
-                        .HasForeignKey("TermId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("AcademicSession");
-
-                    b.Navigation("SchoolClass");
-
-                    b.Navigation("Term");
                 });
 
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.ClassFeePrice", b =>
@@ -1342,6 +1274,10 @@ namespace DIBA_School_Portal.Server.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("DIBA_School_Portal.Server.Entities.StudentEnrollments", "StudentEnrollment")
+                        .WithMany()
+                        .HasForeignKey("EnrollmentId");
+
                     b.HasOne("DIBA_School_Portal.Server.Entities.SchoolClass", "SchoolClass")
                         .WithMany()
                         .HasForeignKey("SchoolClassId")
@@ -1364,6 +1300,8 @@ namespace DIBA_School_Portal.Server.Migrations
 
                     b.Navigation("SchoolClass");
 
+                    b.Navigation("StudentEnrollment");
+
                     b.Navigation("StudentProfile");
 
                     b.Navigation("Term");
@@ -1374,18 +1312,12 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasOne("DIBA_School_Portal.Server.Entities.AcademicSession", "AcademicSession")
                         .WithMany()
                         .HasForeignKey("AcademicSessionId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("DIBA_School_Portal.Server.Entities.StudentEnrollments", "StudentEnrollment")
                         .WithMany("StudentPayment")
-                        .HasForeignKey("EnrollmentID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("DIBA_School_Portal.Server.Entities.Fee", "Fee")
-                        .WithMany()
-                        .HasForeignKey("FeeId")
+                        .HasForeignKey("EnrollmentId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("DIBA_School_Portal.Server.Entities.Student", "StudentProfile")
@@ -1397,18 +1329,34 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasOne("DIBA_School_Portal.Server.Entities.SchoolTerm", "Term")
                         .WithMany()
                         .HasForeignKey("TermId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("AcademicSession");
-
-                    b.Navigation("Fee");
 
                     b.Navigation("StudentEnrollment");
 
                     b.Navigation("StudentProfile");
 
                     b.Navigation("Term");
+                });
+
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.StudentPaymentItem", b =>
+                {
+                    b.HasOne("DIBA_School_Portal.Server.Entities.Fee", "Fee")
+                        .WithMany()
+                        .HasForeignKey("FeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("DIBA_School_Portal.Server.Entities.StudentPayment", "StudentPayment")
+                        .WithMany("PaymentItems")
+                        .HasForeignKey("StudentPaymentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Fee");
+
+                    b.Navigation("StudentPayment");
                 });
 
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.StudentSubject", b =>
@@ -1596,29 +1544,6 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("StudentPaymentItem", b =>
-                {
-                    b.HasOne("DIBA_School_Portal.Server.Entities.ClassBook", "ClassBook")
-                        .WithMany()
-                        .HasForeignKey("ClassBookId");
-
-                    b.HasOne("DIBA_School_Portal.Server.Entities.Fee", "Fee")
-                        .WithMany()
-                        .HasForeignKey("FeeId");
-
-                    b.HasOne("DIBA_School_Portal.Server.Entities.StudentPayment", "StudentPayment")
-                        .WithMany("PaymentItems")
-                        .HasForeignKey("StudentPaymentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ClassBook");
-
-                    b.Navigation("Fee");
-
-                    b.Navigation("StudentPayment");
                 });
 
             modelBuilder.Entity("DIBA_School_Portal.Server.Database_Entities.ApplicationUser", b =>

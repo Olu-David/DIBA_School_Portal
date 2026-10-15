@@ -45,5 +45,10 @@ namespace DIBA_School_Portal.Server.Entities
 
         public ICollection<StudentPayment> StudentPayment { get; set; } = new List<StudentPayment>();
         public ICollection<TermResult> TermResults { get; set; } = new List<TermResult>();
+
+        public Guid? EnrollmentId { get; set; }
+
+        [ForeignKey(nameof(EnrollmentId))]
+        public StudentEnrollments? StudentEnrollment { get; set; }
     }
 }

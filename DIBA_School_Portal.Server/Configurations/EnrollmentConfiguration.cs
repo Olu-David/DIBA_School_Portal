@@ -38,7 +38,7 @@ namespace DIBA_School_Portal.Server.Configurations
 
             builder.HasMany(x => x.StudentPayment)
                    .WithOne(sp => sp.StudentEnrollment)
-                   .HasForeignKey(sp => sp.EnrollmentID)
+                   .HasForeignKey(sp => sp.EnrollmentId)
                    .OnDelete(DeleteBehavior.SetNull);
 
             builder.HasMany(x => x.TermResults)
