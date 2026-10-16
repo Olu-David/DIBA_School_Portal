@@ -26,5 +26,7 @@ namespace DIBA_School_Portal.Server.Repository.IServices
 
         Task<ServiceResponse<bool>> RestoreStudentAsync(
             Guid id, string currentUserId, string ipAddress);
+
+        Task<ServiceResponse<StudentBillDto>> GetMyBillAsync( string userId,Guid? termId = null, Guid? academicSessionId = null);
     }
 }

@@ -1,7 +1,9 @@
 ﻿using DIBA_School_Portal.Server.Configurations;
 using DIBA_School_Portal.Server.Contracts;
+using DIBA_School_Portal.Server.Contracts.FinanceDto;
 using DIBA_School_Portal.Server.Contracts.StudentDTO;
 using DIBA_School_Portal.Server.Database_Entities;
+using DIBA_School_Portal.Server.Enums;
 using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -734,5 +736,172 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
         }
         #endregion
+
+        public async Task<ServiceResponse<StudentBillDto>> GetMyBillAsync(
+    string userId,
+    Guid? termId = null,
+    Guid? academicSessionId = null)
+        {
+            var response = new ServiceResponse<StudentBillDto>();
+
+            try
+            {
+                // ---------- 1. Resolve "me" → Student profile ----------
+                var student = await _context.Students
+                    .AsNoTracking()
+                    .Include(s => s.SchoolClass)
+                    .FirstOrDefaultAsync(s => s.UserId == userId);
+
+                if (student == null)
+                {
+                    response.Success = false;
+                    response.Message = "Student profile not found.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                // ---------- 2. Resolve session ----------
+                Guid resolvedSessionId;
+                if (academicSessionId.HasValue && academicSessionId.Value != Guid.Empty)
+                {
+                    resolvedSessionId = academicSessionId.Value;
+                }
+                else
+                {
+                    var currentSession = await _context.AcademicSessions
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(s => s.IsCurrentSession);
+
+                    if (currentSession == null)
+                    {
+                        response.Success = false;
+                        response.Message = "No active academic session.";
+                        response.StatusCode = 404;
+                        return response;
+                    }
+                    resolvedSessionId = currentSession.Id;
+                }
+
+                // ---------- 3. Resolve term ----------
+                Guid resolvedTermId;
+                if (termId.HasValue && termId.Value != Guid.Empty)
+                {
+                    resolvedTermId = termId.Value;
+                }
+                else
+                {
+                    var currentTerm = await _context.SchoolTerms
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(t =>
+                            t.AcademicSessionId == resolvedSessionId && t.IsCurrentTerm);
+
+                    if (currentTerm == null)
+                    {
+                        response.Success = false;
+                        response.Message = "No current term.";
+                        response.StatusCode = 404;
+                        return response;
+                    }
+                    resolvedTermId = currentTerm.Id;
+                }
+
+                var term = await _context.SchoolTerms
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.Id == resolvedTermId);
+
+                if (term == null)
+                {
+                    response.Success = false;
+                    response.Message = "Term not found.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                // ---------- 4. Fee items for this student's class ----------
+                // The bill = sum of ClassFeePrice.Amount for their class in this term.
+                var classFees = await _context.ClassFeePrices
+                    .AsNoTracking()
+                    .Include(cfp => cfp.Fee)
+                    .Where(cfp =>
+                        cfp.SchoolClassId == student.SchoolClassId &&
+                        cfp.Fee.TermId == resolvedTermId &&
+                        cfp.Fee.AcademicSessionId == resolvedSessionId)
+                    .ToListAsync();
+
+                // ---------- 5. Successful payments ----------
+                var payments = await _context.StudentPayments
+                    .AsNoTracking()
+                    .Where(p =>
+                        p.StudentProfileId == student.Id &&
+                        p.TermId == resolvedTermId &&
+                        p.AcademicSessionId == resolvedSessionId &&
+                        p.Status == PaymentStatus.Successful)
+                    .OrderByDescending(p => p.PaymentDate)
+                    .ToListAsync();
+
+                // ---------- 6. Allocations: how much each payment was tagged to each fee ----------
+                var paymentIds = payments.Select(p => p.Id).ToList();
+
+                var allocations = await _context.StudentPaymentItems
+                    .AsNoTracking()
+                    .Where(item => paymentIds.Contains(item.StudentPaymentId))
+                    .ToListAsync();
+
+                var paidByFee = allocations
+                    .GroupBy(a => a.FeeId)
+                    .ToDictionary(g => g.Key, g => g.Sum(a => a.AmountAllocated));
+
+                // ---------- 7. Build fee items ----------
+                var feeItems = classFees
+                    .Where(cfp => cfp.Fee != null)
+                    .Select(cfp =>
+                    {
+                        var paidTowardThis = paidByFee.TryGetValue(cfp.FeeId, out var v) ? v : 0m;
+                        return new FeeItemBreakdownDto
+                        {
+                            FeeId = cfp.FeeId,
+                            FeeName = cfp.Fee!.FeeName,
+                            Description = cfp.Fee.Description,
+                            Amount = cfp.Amount,
+                            AmountPaidTowardThis = paidTowardThis,
+                            IsFullyPaid = cfp.Amount > 0 && paidTowardThis >= cfp.Amount,
+                        };
+                    })
+                    .OrderBy(f => f.FeeName)
+                    .ToList();
+
+                // ---------- 8. Totals ----------
+                var totalBilled = feeItems.Sum(f => f.Amount);
+                var totalPaid = payments.Sum(p => p.AmountPaid);
+                var balance = Math.Max(0, totalBilled - totalPaid);
+
+                response.Success = true;
+                response.StatusCode = 200;
+                response.Data = new StudentBillDto
+                {
+                    TermName = term.Name,
+                    TotalBilledAmount = totalBilled,
+                    TotalPaidSoFar = totalPaid,
+                    TotalBalanceRemaining = balance,
+                    FeeItems = feeItems,
+                    PaymentHistory = payments.Select(p => new PaymentHistoryDto
+                    {
+                        PaymentId = p.Id,
+                        ReferenceNumber = p.ReferenceNumber,
+                        AmountPaid = p.AmountPaid,
+                        PaymentDate = p.PaymentDate,
+                    }).ToList(),
+                };
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading student bill for user {UserId}", userId);
+                response.Success = false;
+                response.Message = ex.Message;
+                response.StatusCode = 500;
+                return response;
+            }
+        }
     }
 }

@@ -101,5 +101,18 @@ namespace DIBA_School_Portal.Server.Controllers
             var result = await _studentService.RestoreStudentAsync(id, CurrentUserId, Ip);
             return StatusCode(result.StatusCode, result);
         }
+        // ==========================================================
+        // MY BILL — current student's bill for the current term
+        // ==========================================================
+        [HttpGet("me/bill")]
+        [Authorize(Roles = "Student")]
+        public async Task<IActionResult> GetMyBill(
+            [FromQuery] Guid? termId = null,
+            [FromQuery] Guid? academicSessionId = null)
+        {
+            var result = await _studentService.GetMyBillAsync(
+                CurrentUserId, termId, academicSessionId);
+            return StatusCode(result.StatusCode, result);
+        }
     }
 }

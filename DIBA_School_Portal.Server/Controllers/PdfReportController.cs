@@ -60,5 +60,21 @@ namespace DIBA_School_Portal.Server.Controllers
             var safe = (batch.ClassName ?? "Class").Replace(" ", "_");
             return File(pdf, "application/pdf", $"Receipts_{safe}_{batch.TermName}.pdf");
         }
+
+        // ---------- Teacher class sheet (subject score sheet) ----------
+        [HttpPost("teacher-class-sheet")]
+        [Authorize(Roles = "Teacher,FormTeacher,Principal,VicePrincipal,Headmaster,Headmistress,SuperAdmin,SchoolAdmin")]
+        public IActionResult TeacherClassSheet([FromBody] TeacherClassSheetDto sheet)
+        {
+            if (sheet.Students == null || sheet.Students.Count == 0)
+                return BadRequest(new { success = false, message = "No students in this class sheet." });
+
+            var pdf = _pdfService.GenerateTeacherClassSheetPdf(sheet);
+
+            var safeClass = (sheet.ClassName ?? "Class").Replace(" ", "_");
+            var safeSubject = (sheet.SubjectName ?? "Subject").Replace(" ", "_");
+
+            return File(pdf, "application/pdf", $"ClassSheet_{safeClass}_{safeSubject}.pdf");
+        }
     }
 }

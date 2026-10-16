@@ -14,6 +14,9 @@ import { useToast } from "../../hooks/useToast";
 import api from "../../lib/api";
 import type { ApiResponse } from "../../types/common";
 
+// ==========================================================
+// Types
+// ==========================================================
 interface SchoolClass {
   id: string;
   name: string;
@@ -24,9 +27,12 @@ interface Created {
   userId: string;
   admissionNumber: string;
   temporaryPassword: string;
+  // Present when role === "Student" — optional in case your backend
+  // adds it later without breaking older shapes.
+  studentProfileId?: string | null;
 }
 
-const STREAMS = ["Science", "Arts", "Commercial"];
+const STREAMS = ["Science", "Arts", "Commercial"] as const;
 
 // Detects a stream from a class name like "SS 1 Science" or "SS-1-ARTS"
 function detectStream(className: string | undefined): string | null {
@@ -38,6 +44,9 @@ function detectStream(className: string | undefined): string | null {
   return null;
 }
 
+// ==========================================================
+// Component
+// ==========================================================
 export default function NewStudentPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -58,11 +67,16 @@ export default function NewStudentPage() {
   // ---- Load classes ----
   useEffect(() => {
     (async () => {
-      const { data } = await api.get<ApiResponse<SchoolClass[]>>(
-        "/schoolclass/all"
-      );
-      if (data.success) setClasses(data.data);
+      try {
+        const { data } = await api.get<ApiResponse<SchoolClass[]>>(
+          "/schoolclass/all"
+        );
+        if (data.success) setClasses(data.data);
+      } catch {
+        toast({ variant: "error", title: "Could not load classes" });
+      }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const change =
@@ -81,11 +95,14 @@ export default function NewStudentPage() {
     setForm((p) => ({ ...p, schoolClassId: id, stream: detected ?? "" }));
   };
 
-  // ---- Submit (JSON) ----
+  // ==========================================================
+  // Submit — multipart/form-data
+  // ==========================================================
   const submit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!form.firstName || !form.lastName || !form.schoolClassId) {
+    // ---- Client-side guards ----
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.schoolClassId) {
       toast({ variant: "error", title: "Please fill required fields" });
       return;
     }
@@ -100,20 +117,36 @@ export default function NewStudentPage() {
 
     setSubmitting(true);
     try {
-      const payload = {
-        role: "Student",
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        email: form.email.trim() || null,
-        phoneNumber: form.phoneNumber.trim() || null,
-        schoolClassId: form.schoolClassId,
-        stream: isSenior && form.stream ? form.stream : null,
-      };
+      // ---------- Build FormData ----------
+      const fd = new FormData();
 
+      // Required
+      fd.append("role", "Student");
+      fd.append("firstName", form.firstName.trim());
+      fd.append("lastName", form.lastName.trim());
+      fd.append("schoolClassId", form.schoolClassId);
+
+      // Optional strings — only append when non-empty
+      const email = form.email.trim();
+      const phone = form.phoneNumber.trim();
+      if (email) fd.append("email", email);
+      if (phone) fd.append("phoneNumber", phone);
+
+      // Stream — only for Senior Secondary with a chosen value
+      if (isSenior && form.stream) fd.append("stream", form.stream);
+
+      // If you add a file picker later, append it here:
+      // if (photoFile) fd.append("profilePicture", photoFile);
+
+      // ---------- POST ----------
+      // ⚠️ IMPORTANT: no second argument.
+      // Axios sees FormData and lets the browser set:
+      //   Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryXXXX
+      // If you pass a headers object with "Content-Type": "multipart/form-data",
+      // the boundary gets dropped and the server returns 415 again.
       const { data } = await api.post<ApiResponse<Created>>(
         "/auth/create-account",
-        payload
-        // No headers override — axios will set application/json automatically
+        fd
       );
 
       if (!data.success) {
@@ -124,17 +157,29 @@ export default function NewStudentPage() {
       setCreated(data.data);
       toast({ variant: "success", title: "Student enrolled" });
     } catch (err: unknown) {
-      const e2 = err as { response?: { data?: { message?: string } } };
-      toast({
-        variant: "error",
-        title: e2?.response?.data?.message ?? "Could not enrol student",
-      });
+      const e2 = err as {
+        response?: { status?: number; data?: { message?: string } };
+      };
+      const status = e2?.response?.status;
+      const message =
+        e2?.response?.data?.message ??
+        (status === 415
+          ? "Server rejected content type — FormData is not being sent correctly."
+          : status === 403
+          ? "You don't have permission to enrol students."
+          : status === 409
+          ? "A user with this email already exists."
+          : "Could not enrol student");
+
+      toast({ variant: "error", title: message });
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ---- Success screen ----
+  // ==========================================================
+  // Success screen
+  // ==========================================================
   if (created) {
     return (
       <div className="max-w-2xl mx-auto">
@@ -181,7 +226,13 @@ export default function NewStudentPage() {
             </Button>
             <Button
               fullWidth
-              onClick={() => navigate(`/admin/students/${created.userId}`)}
+              onClick={() =>
+                navigate(
+                  `/admin/students/${
+                    created.studentProfileId ?? created.userId
+                  }`
+                )
+              }
             >
               View student
             </Button>
@@ -191,7 +242,9 @@ export default function NewStudentPage() {
     );
   }
 
-  // ---- Form ----
+  // ==========================================================
+  // Form
+  // ==========================================================
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <PageHeader
@@ -208,10 +261,7 @@ export default function NewStudentPage() {
 
           {/* Photo placeholder — uploader coming soon */}
           <div className="flex items-start gap-5 mb-6">
-            <Avatar
-              name={`${form.firstName} ${form.lastName}`}
-              size="xl"
-            />
+            <Avatar name={`${form.firstName} ${form.lastName}`} size="xl" />
             <div className="text-[12px] text-surface-400 pt-1">
               <p className="font-medium text-surface-600 flex items-center gap-1.5">
                 <ImageOff className="w-3.5 h-3.5" />
@@ -328,6 +378,9 @@ export default function NewStudentPage() {
   );
 }
 
+// ==========================================================
+// Small helper
+// ==========================================================
 function CredRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-50 border border-surface-100">
