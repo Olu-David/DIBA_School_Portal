@@ -1,71 +1,32 @@
-# ==========================================================
-# STAGE 1 — Base runtime
-# ==========================================================
+# See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
+
+# This stage is used when running from VS in fast mode (Default for Debug configuration)
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
+EXPOSE 8081
 
-# ==========================================================
-# STAGE 2 — SDK + Node (Node is needed for the SPA build)
-# ==========================================================
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS with-node
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
-    && curl -sL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
-# ==========================================================
-# STAGE 3 — Restore (cached layer)
-# ==========================================================
-FROM with-node AS restore
+# This stage is used to build the service project
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-
 COPY ["DIBA_School_Portal.Server/DIBA_School_Portal.Server.csproj", "DIBA_School_Portal.Server/"]
 COPY ["diba_school_portal.client/diba_school_portal.client.esproj", "diba_school_portal.client/"]
-COPY ["diba_school_portal.client/package.json", "diba_school_portal.client/"]
-COPY ["diba_school_portal.client/package-lock.json", "diba_school_portal.client/"]
-
+COPY ["DIBA_School_Portal.ServiceDefaults/DIBA_School_Portal.ServiceDefaults.csproj", "DIBA_School_Portal.ServiceDefaults/"]
 RUN dotnet restore "./DIBA_School_Portal.Server/DIBA_School_Portal.Server.csproj"
-
-# ==========================================================
-# STAGE 4 — Build (backend + frontend via esproj)
-# ==========================================================
-FROM restore AS build
-ARG BUILD_CONFIGURATION=Release
 COPY . .
 WORKDIR "/src/DIBA_School_Portal.Server"
-RUN dotnet build "./DIBA_School_Portal.Server.csproj" \
-    -c $BUILD_CONFIGURATION \
-    -o /app/build
+RUN dotnet build "./DIBA_School_Portal.Server.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
-# ==========================================================
-# STAGE 5 — Publish
-# ==========================================================
+# This stage is used to publish the service project to be copied to the final stage
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./DIBA_School_Portal.Server.csproj" \
-    -c $BUILD_CONFIGURATION \
-    -o /app/publish \
-    /p:UseAppHost=false
+RUN dotnet publish "./DIBA_School_Portal.Server.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
-# ==========================================================
-# STAGE 6 — Final runtime
-# ==========================================================
+# This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
 FROM base AS final
 WORKDIR /app
-
 COPY --from=publish /app/publish .
-
-# Non-root user (APP_UID is defined in .NET 8+ images)
-USER $APP_UID
-
-# Bind to Render's $PORT, fall back to 8080 locally
-ENV ASPNETCORE_URLS=http://+:${PORT:-8080} \
-    ASPNETCORE_ENVIRONMENT=Production \
-    DOTNET_RUNNING_IN_CONTAINER=true \
-    DOTNET_NOLOGO=true
-
 ENTRYPOINT ["dotnet", "DIBA_School_Portal.Server.dll"]
