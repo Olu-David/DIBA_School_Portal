@@ -1,27 +1,52 @@
-﻿export const formatNaira = (amount: number): string =>
-  `\u20A6${amount.toLocaleString("en-NG", {
+﻿/**
+ * Format a numeric value as Nigerian Naira.
+ * Safe against null, undefined, NaN, and non-numbers.
+ */
+export function formatNaira(value: number | null | undefined): string {
+  const n = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  return `₦${n.toLocaleString("en-NG", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+/**
+ * Short form for KPI tiles: ₦1.2M, ₦45K, etc.
+ * Safe against null, undefined, NaN, and non-numbers.
+ */
+export function formatNairaShort(value: number | null | undefined): string {
+  const n = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  if (Math.abs(n) >= 1_000_000_000) return `₦${(n / 1_000_000_000).toFixed(1)}B`;
+  if (Math.abs(n) >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000) return `₦${(n / 1_000).toFixed(1)}K`;
+  return `₦${n.toFixed(0)}`;
+}
 
-export const formatNairaShort = (amount: number): string => {
-  if (amount >= 1_000_000) return `\u20A6${(amount / 1_000_000).toFixed(1)}M`;
-  if (amount >= 1_000) return `\u20A6${(amount / 1_000).toFixed(1)}K`;
-  return `\u20A6${amount.toFixed(0)}`;
-};
-
-export const formatDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString("en-NG", {
-    day: "2-digit",
-    month: "short",
+/**
+ * Format a date string. Returns "-" for null/invalid.
+ */
+export function formatDate(value: string | Date | null | undefined): string {
+  if (!value) return "-";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("en-NG", {
     year: "numeric",
+    month: "short",
+    day: "numeric",
   });
+}
 
-export const formatDateTime = (iso: string): string =>
-  new Date(iso).toLocaleString("en-NG", {
-    day: "2-digit",
-    month: "short",
+/**
+ * Format date + time. Returns "-" for null/invalid.
+ */
+export function formatDateTime(value: string | Date | null | undefined): string {
+  if (!value) return "-";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (isNaN(d.getTime())) return "-";
+  return d.toLocaleString("en-NG", {
     year: "numeric",
+    month: "short",
+    day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });
+}

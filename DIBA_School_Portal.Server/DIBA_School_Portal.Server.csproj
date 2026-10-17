@@ -10,6 +10,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="AWSSDK.S3" Version="4.0.103.4" />
+		<PackageReference Include="Flutterwave.Net" Version="2.0.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
 		<PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.12" />
 		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
@@ -30,6 +31,7 @@
 		</PackageReference>
 		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.24.2-preview.1" />
 		<PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.EntityFrameworkCore" Version="10.0.2" />
+		<PackageReference Include="Npgsql" Version="10.0.3" />
 		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
 		<PackageReference Include="NuGet.Packaging" Version="7.9.0" />
 		<PackageReference Include="NuGet.Protocol" Version="7.9.0" />
@@ -37,6 +39,7 @@
 		<PackageReference Include="Resend" Version="0.22.0" />
 		<PackageReference Include="Scalar.AspNetCore" Version="2.17.13" />
 		<PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.2.3" />
+		<PackageReference Include="System.Security.Cryptography.Pkcs" Version="9.0.21" />
 	</ItemGroup>
 
 	<ItemGroup>

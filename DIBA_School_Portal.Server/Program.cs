@@ -18,6 +18,8 @@ builder.Services
     .AddExternalServices(builder.Configuration)
     .AddApplicationServices()
     .AddBackgroundServices();
+builder.Services.Configure<FlutterwaveSettings>(
+    builder.Configuration.GetSection("Flutterwave"));
 
 // ---------- Kestrel request body limit ----------
 builder.WebHost.AddKestrelLimits(builder.Configuration);

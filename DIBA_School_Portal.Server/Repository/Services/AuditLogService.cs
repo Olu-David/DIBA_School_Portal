@@ -49,7 +49,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             _context.AuditLogs.Add(log);
             await _context.SaveChangesAsync();
 
-            // ✅ Only SuperAdmin + Principal receive the live audit stream
+            // Only SuperAdmin + Principal receive the live audit stream
             await _hubContext.Clients
                 .Groups(new[] { SignalRGroups.SuperAdmins, SignalRGroups.Principals })
                 .SendAsync("ReceiveAuditLog", new
@@ -59,8 +59,41 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     action = log.Action,
                     details = log.Details,
                     ipAddress = log.IpAddress,
-                    tenantId = log.TenantId.HasValue ? log.TenantId.ToString() : "Global"
+                    // tenantId removed
                 });
+        }
+        public async Task<ServiceResponse<PaginatedViewModel<AuditLog>>> GetLogsPagedAsync(
+    int pageNumber = 1, int pageSize = 50)
+        {
+            var response = new ServiceResponse<PaginatedViewModel<AuditLog>>();
+
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Max(1, Math.Min(200, pageSize));
+
+            var query = _context.AuditLogs.AsNoTracking();
+
+            var totalCount = await query.CountAsync();
+
+            var items = await query
+                .OrderByDescending(l => l.Timestamp)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            response.Success = true;
+            response.StatusCode = 200;
+            response.Data = new PaginatedViewModel<AuditLog>
+            {
+                Items = items,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = totalCount > 0
+                    ? (int)Math.Ceiling(totalCount / (double)pageSize)
+                    : 0,
+            };
+
+            return response;
         }
     }
 }

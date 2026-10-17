@@ -174,9 +174,6 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasMaxLength(45)
                         .HasColumnType("nvarchar(45)");
 
-                    b.Property<Guid?>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<DateTime>("Timestamp")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")

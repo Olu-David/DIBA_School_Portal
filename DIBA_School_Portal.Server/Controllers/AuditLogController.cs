@@ -17,10 +17,12 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         [HttpGet("logs")]
-        public async Task<IActionResult> GetLogs([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 50)
+        public async Task<IActionResult> GetLogs(
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 50)
         {
-            var logs = await _auditLog.GetLogsAsync(pageNumber, pageSize);
-            return Ok(logs);
+            var result = await _auditLog.GetLogsPagedAsync(pageNumber, pageSize);
+            return StatusCode(result.StatusCode, result);
         }
     }
 }

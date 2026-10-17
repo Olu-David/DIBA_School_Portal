@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DIBA_School_Portal.Server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261016224048_InitialCreate")]
+    [Migration("20261017120744_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -176,9 +176,6 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Property<string>("IpAddress")
                         .HasMaxLength(45)
                         .HasColumnType("nvarchar(45)");
-
-                    b.Property<Guid?>("TenantId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("Timestamp")
                         .ValueGeneratedOnAdd()

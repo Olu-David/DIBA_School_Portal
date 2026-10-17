@@ -69,6 +69,7 @@ import ClassSubjectResultsPage from "./pages/teacher/ClassSubjectResultsPage";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import MyBillPage from "./pages/student/MyBillPage";
 import MyResultsPage from "./pages/student/MyResultsPage";
+import PaymentCallbackPage from "./pages/student/PaymentCallbackPage";  
 
 // Parent
 import ParentDashboard from "./pages/parent/ParentDashboard";
@@ -110,6 +111,28 @@ export default function App() {
               <Route path="staff" element={<StaffLogin />} />
               <Route path="student" element={<StudentLogin />} />
               <Route path="parent" element={<ParentLogin />} />
+            </Route>
+
+            {/* =====================================================
+                PAYMENT CALLBACK — SHARED ACROSS ROLES
+                Flutterwave redirects here after checkout.
+                Must work for Student, Parent, and Accountant.
+                No layout wrapper — it's a full-screen verification page.
+                ===================================================== */}
+            <Route
+              element={
+                <ProtectedRoute
+                  allowedRoles={[
+                    "Student",
+                    "Parent",
+                    "Accountant",
+                    "SuperAdmin",
+                    "Principal",
+                  ]}
+                />
+              }
+            >
+              <Route path="/student/payment/callback" element={<PaymentCallbackPage />} />
             </Route>
 
             {/* ADMIN (any staff) */}

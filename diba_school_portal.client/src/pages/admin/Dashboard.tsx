@@ -386,11 +386,11 @@ function AdminDashboard({
       icon: Receipt,
       to: "/admin/finance/record-cash",
     },
-    canManageScores && {
-      label: "Publish results",
-      icon: CheckCircle2,
-      to: "/admin/results-approval",
-    },
+    // canManageScores && {
+    //   label: "Publish results",
+    //   icon: CheckCircle2,
+    //   to: "/admin/results-approval",
+    // },
     {
       label: "Academic sessions",
       icon: BookOpen,

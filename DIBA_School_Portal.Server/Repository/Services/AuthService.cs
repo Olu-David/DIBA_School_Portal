@@ -27,20 +27,20 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private readonly IAuditLog _auditLog;
         private readonly ISupaBaseFileService _files;
         private readonly ILogger<AuthService> _logger;
+        private readonly INotificationLog _notification;
 
         // ---------- Profile picture config ----------
-        private const string ProfilePictureBucket = "profile-pictures";
-        private const long MaxProfilePictureBytes = 200 * 1024;   // 200 KB
+        private const string ProfilePictureBucket = "DibaSchool";
+        private const string ProfilePictureFolder = "profile-pictures";
+        private const long MaxProfilePictureBytes = 200 * 1024;
         private static readonly string[] AllowedImageMime =
         {
             "image/jpeg", "image/png", "image/webp"
         };
 
-        // Who can create accounts and link parents
         private static readonly string[] AccountCreators =
             { "SuperAdmin", "Principal", "Registrar" };
 
-        // Assignable roles (SuperAdmin cannot be created via this endpoint)
         private static readonly string[] AssignableRoles =
         {
             "Principal", "Headmaster", "Headmistress", "VicePrincipal",
@@ -49,7 +49,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             "Student", "Parent"
         };
 
-        // Portal access maps
         private static readonly string[] StudentPortalRoles = { "Student" };
         private static readonly string[] ParentPortalRoles = { "Parent" };
         private static readonly string[] StaffPortalRoles =
@@ -68,6 +67,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             IConfiguration config,
             IAuditLog auditLog,
             ISupaBaseFileService files,
+            INotificationLog notification,
             ILogger<AuthService> logger)
         {
             _userManager = userManager;
@@ -76,6 +76,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             _config = config;
             _auditLog = auditLog;
             _files = files;
+            _notification = notification;
             _logger = logger;
         }
         #endregion
@@ -480,8 +481,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            // ---------- 2b. STREAM validation (students only) ----------
-            // request.Stream is string? — parse it manually into ClassStream?
+            // ---------- 2b. Stream validation ----------
             ClassStream? parsedStream = null;
 
             if (isStudent)
@@ -509,7 +509,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         return response;
                     }
 
-                    // request.Stream is a string here — Trim works
                     if (!Enum.TryParse<ClassStream>(
                             request.Stream.Trim(), ignoreCase: true, out var s))
                     {
@@ -524,7 +523,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
                 else
                 {
-                    // Non-SS students must not have a stream
                     if (!string.IsNullOrWhiteSpace(request.Stream))
                     {
                         response.Success = false;
@@ -561,7 +559,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             if (isStudent)
             {
                 admissionNumber = await GenerateAdmissionNumberAsync();
-                username = admissionNumber;            // e.g. "DIBA/2026/009"
+                username = admissionNumber;
             }
             else if (isParent)
             {
@@ -603,7 +601,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             await _userManager.AddToRoleAsync(newUser, request.Role);
 
             // ---------- 6. Role-specific records ----------
-            Guid? studentProfileId = null;   // ← capture for the response
+            Guid? studentProfileId = null;
 
             if (isStudent)
             {
@@ -683,7 +681,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             response.Data = new CreateAccountResponseDto
             {
                 UserId = newUser.Id,
-                StudentProfileId = studentProfileId?.ToString(),   // ← for the View Student link
+                StudentProfileId = studentProfileId?.ToString(),
                 Email = newUser.Email,
                 PhoneNumber = newUser.PhoneNumber ?? "",
                 AdmissionNumber = admissionNumber,
@@ -694,13 +692,407 @@ namespace DIBA_School_Portal.Server.Repository.Services
             return response;
         }
         #endregion
+
+        #region Update Profile
+        public async Task<ServiceResponse<UserProfileDto>> UpdateProfileAsync(
+            string userId, UpdateProfileDto request, string ipAddress)
+        {
+            var response = new ServiceResponse<UserProfileDto>();
+
+            if (string.IsNullOrWhiteSpace(request.FirstName) ||
+                string.IsNullOrWhiteSpace(request.LastName))
+            {
+                response.Success = false;
+                response.Message = "First and last name are required.";
+                response.StatusCode = 400;
+                return response;
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                response.Success = false;
+                response.Message = "User not found.";
+                response.StatusCode = 404;
+                return response;
+            }
+
+            var oldName = $"{user.FirstName} {user.LastName}";
+            var oldPhone = user.PhoneNumber;
+
+            user.FirstName = request.FirstName.Trim();
+            user.LastName = request.LastName.Trim();
+            user.PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber)
+                ? null
+                : request.PhoneNumber.Trim();
+            user.UpdatedAt = DateTime.UtcNow;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+            {
+                response.Success = false;
+                response.Message = string.Join(", ", result.Errors.Select(e => e.Description));
+                response.StatusCode = 400;
+                return response;
+            }
+
+            // Sync to Teacher profile
+            var teacher = await _context.Teachers.FirstOrDefaultAsync(t => t.UserId == user.Id);
+            if (teacher != null)
+            {
+                teacher.FirstName = user.FirstName!;
+                teacher.LastName = user.LastName!;
+                await _context.SaveChangesAsync();
+            }
+
+            // Sync to Student profile
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == user.Id);
+            if (student != null)
+            {
+                student.FirstName = user.FirstName!;
+                student.LastName = user.LastName!;
+                await _context.SaveChangesAsync();
+            }
+
+            var roles = await _userManager.GetRolesAsync(user);
+            var primaryRole = user.PrimaryRole ?? roles.FirstOrDefault() ?? "Staff";
+
+            await _auditLog.LogActivityAsync(
+                userId,
+                "Profile Updated",
+                $"Name: '{oldName}' → '{user.FirstName} {user.LastName}'. " +
+                $"Phone: '{oldPhone ?? "—"}' → '{user.PhoneNumber ?? "—"}'. ",
+                ipAddress);
+
+            response.Success = true;
+            response.StatusCode = 200;
+            response.Message = "Profile updated.";
+            response.Data = new UserProfileDto
+            {
+                Id = user.Id,
+                Email = user.Email,
+                FirstName = user.FirstName ?? "",
+                LastName = user.LastName ?? "",
+                ProfilePictureUrl = user.ProfilePictureUrl,
+                Role = primaryRole,
+                ClassId = user.ClassId,
+            };
+            return response;
+        }
+        #endregion
+
+        #region Update Profile Picture
+        public async Task<ServiceResponse<string>> UpdateProfilePictureAsync(
+            string userId, IFormFile picture, string ipAddress)
+        {
+            var response = new ServiceResponse<string>();
+
+            if (picture == null || picture.Length == 0)
+            {
+                response.Success = false;
+                response.Message = "No picture uploaded.";
+                response.StatusCode = 400;
+                return response;
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                response.Success = false;
+                response.Message = "User not found.";
+                response.StatusCode = 404;
+                return response;
+            }
+
+            try
+            {
+                var roles = await _userManager.GetRolesAsync(user);
+                var primaryRole = user.PrimaryRole ?? roles.FirstOrDefault() ?? "Staff";
+
+                var url = await UploadProfilePictureAsync(user.Id, primaryRole, picture);
+
+                if (string.IsNullOrEmpty(url))
+                {
+                    response.Success = false;
+                    response.Message = "Upload failed.";
+                    response.StatusCode = 500;
+                    return response;
+                }
+
+                user.ProfilePictureUrl = url;
+                user.UpdatedAt = DateTime.UtcNow;
+                await _userManager.UpdateAsync(user);
+
+                await _auditLog.LogActivityAsync(
+                    userId, "Profile Picture Updated", $"New picture uploaded.", ipAddress);
+
+                response.Success = true;
+                response.StatusCode = 200;
+                response.Message = "Profile picture updated.";
+                response.Data = url;
+                return response;
+            }
+            catch (InvalidOperationException ex)
+            {
+                response.Success = false;
+                response.Message = ex.Message;
+                response.StatusCode = 400;
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to upload profile picture for user {UserId}", userId);
+                response.Success = false;
+                response.Message = "Could not upload profile picture.";
+                response.StatusCode = 500;
+                return response;
+            }
+        }
+        #endregion
+
+        #region Change Role
+        public async Task<ServiceResponse<UserProfileDto>> ChangeRoleAsync(
+            string targetUserId,
+            ChangeRoleDto request,
+            string currentUserId,
+            string ipAddress)
+        {
+            var response = new ServiceResponse<UserProfileDto>();
+
+            try
+            {
+                // ---------- 1. Authorize the caller ----------
+                var caller = await _userManager.FindByIdAsync(currentUserId);
+                if (caller == null)
+                {
+                    response.Success = false;
+                    response.Message = "Unauthorized.";
+                    response.StatusCode = 401;
+                    return response;
+                }
+
+                var callerRoles = await _userManager.GetRolesAsync(caller);
+                var isSuperAdmin = callerRoles.Contains("SuperAdmin");
+                var isPrincipal = callerRoles.Contains("Principal");
+
+                if (!isSuperAdmin && !isPrincipal)
+                {
+                    response.Success = false;
+                    response.Message = "Only SuperAdmin or Principal can change roles.";
+                    response.StatusCode = 403;
+                    return response;
+                }
+
+                // ---------- 2. Validate target role ----------
+                if (string.IsNullOrWhiteSpace(request.NewRole))
+                {
+                    response.Success = false;
+                    response.Message = "New role is required.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                var newRole = request.NewRole.Trim();
+
+                var roleWhitelist = new[]
+                {
+                    "Principal", "Headmaster", "Headmistress", "VicePrincipal",
+                    "SchoolAdmin", "Accountant", "Registrar",
+                    "Teacher", "FormTeacher",
+                };
+
+                if (!roleWhitelist.Contains(newRole))
+                {
+                    response.Success = false;
+                    response.Message = $"Role '{newRole}' cannot be assigned via this endpoint.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                // ---------- 3. Load target user ----------
+                var target = await _userManager.FindByIdAsync(targetUserId);
+                if (target == null)
+                {
+                    response.Success = false;
+                    response.Message = "User not found.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                var currentRoles = await _userManager.GetRolesAsync(target);
+
+                if (currentRoles.Contains("SuperAdmin"))
+                {
+                    response.Success = false;
+                    response.Message = "SuperAdmin accounts cannot be modified via this endpoint.";
+                    response.StatusCode = 403;
+                    return response;
+                }
+
+                if (currentRoles.Contains("Student") || currentRoles.Contains("Parent"))
+                {
+                    response.Success = false;
+                    response.Message = "Cannot change the role of a Student or Parent via this endpoint.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                if (!isSuperAdmin)
+                {
+                    var leadershipRoles = new[] { "Principal", "Headmaster", "Headmistress" };
+
+                    if (currentRoles.Any(r => leadershipRoles.Contains(r)))
+                    {
+                        response.Success = false;
+                        response.Message = "Only SuperAdmin can modify leadership accounts.";
+                        response.StatusCode = 403;
+                        return response;
+                    }
+
+                    if (leadershipRoles.Contains(newRole))
+                    {
+                        response.Success = false;
+                        response.Message = "Only SuperAdmin can assign leadership roles.";
+                        response.StatusCode = 403;
+                        return response;
+                    }
+                }
+
+                if (target.Id == caller.Id)
+                {
+                    response.Success = false;
+                    response.Message = "You cannot change your own role.";
+                    response.StatusCode = 403;
+                    return response;
+                }
+
+                // ---------- 4. No-op check ----------
+                var oldPrimaryRole = target.PrimaryRole
+                                     ?? currentRoles.FirstOrDefault()
+                                     ?? "";
+
+                if (currentRoles.Count == 1 && currentRoles[0] == newRole)
+                {
+                    response.Success = false;
+                    response.Message = $"User is already a {newRole}.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                // ---------- 5. Swap the roles ----------
+                var removeResult = await _userManager.RemoveFromRolesAsync(target, currentRoles);
+                if (!removeResult.Succeeded)
+                {
+                    response.Success = false;
+                    response.Message = "Failed to remove old roles: " +
+                        string.Join(", ", removeResult.Errors.Select(e => e.Description));
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                var addResult = await _userManager.AddToRoleAsync(target, newRole);
+                if (!addResult.Succeeded)
+                {
+                    await _userManager.AddToRolesAsync(target, currentRoles);
+                    response.Success = false;
+                    response.Message = "Failed to add new role: " +
+                        string.Join(", ", addResult.Errors.Select(e => e.Description));
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                // ---------- 6. Update PrimaryRole ----------
+                target.PrimaryRole = newRole;
+                target.UpdatedAt = DateTime.UtcNow;
+                await _userManager.UpdateAsync(target);
+
+                // ---------- 7. Sync Teacher profile ----------
+                var newIsTeaching = newRole is "Teacher" or "FormTeacher";
+                var oldWasTeaching = oldPrimaryRole is "Teacher" or "FormTeacher";
+
+                if (newIsTeaching && !oldWasTeaching)
+                {
+                    var existingTeacher = await _context.Teachers
+                        .FirstOrDefaultAsync(t => t.UserId == target.Id);
+
+                    if (existingTeacher == null)
+                    {
+                        var staffId = await GenerateStaffIdAsync();
+                        _context.Teachers.Add(new Teacher
+                        {
+                            UserId = target.Id,
+                            StaffId = staffId,
+                            FirstName = target.FirstName ?? "",
+                            LastName = target.LastName ?? "",
+                            Qualification = "",
+                            DateEmployed = DateTime.UtcNow,
+                        });
+                        await _context.SaveChangesAsync();
+                    }
+                }
+
+                // ---------- 8. Force token invalidation ----------
+                await _userManager.UpdateSecurityStampAsync(target);
+
+                // ---------- 9. Audit ----------
+                await _auditLog.LogActivityAsync(
+                    currentUserId,
+                    "User Role Changed",
+                    $"Changed {target.FirstName} {target.LastName} ({target.UserName}) " +
+                    $"from '{oldPrimaryRole}' to '{newRole}'.",
+                    ipAddress);
+
+                // ---------- 10. Notify affected user ----------
+                try
+                {
+                    await _notification.SendNotificationAsync(
+                        target.Id,
+                        "Your role has changed",
+                        $"Your role was updated from '{oldPrimaryRole}' to '{newRole}'. " +
+                        "Please log out and log back in for the changes to take effect.",
+                        category: "Account");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "Failed to notify user {UserId} about role change.", target.Id);
+                }
+
+                // ---------- 11. Response ----------
+                response.Success = true;
+                response.StatusCode = 200;
+                response.Message =
+                    $"Role changed from '{oldPrimaryRole}' to '{newRole}'. " +
+                    "The user must log out and log back in for the new permissions to apply.";
+                response.Data = new UserProfileDto
+                {
+                    Id = target.Id,
+                    Email = target.Email,
+                    FirstName = target.FirstName ?? "",
+                    LastName = target.LastName ?? "",
+                    ProfilePictureUrl = target.ProfilePictureUrl,
+                    Role = newRole,
+                    ClassId = target.ClassId,
+                };
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error changing role for user {UserId}", targetUserId);
+                response.Success = false;
+                response.Message = $"An error occurred: {ex.Message}";
+                response.StatusCode = 500;
+                return response;
+            }
+        }
+        #endregion
+
         #region Link Parent To Student
         public async Task<ServiceResponse<CreateAccountResponseDto>> LinkParentToStudentAsync(
             LinkParentToStudentDto request, string currentUserId, string ipAddress)
         {
             var response = new ServiceResponse<CreateAccountResponseDto>();
 
-            // ---- Caller authorization ----
             var caller = await _userManager.FindByIdAsync(currentUserId);
             if (caller == null)
             {
@@ -719,7 +1111,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            // ---- Validate student ----
             var student = await _context.Students
                 .Include(s => s.SchoolClass)
                 .FirstOrDefaultAsync(p => p.Id == request.StudentProfileId);
@@ -732,7 +1123,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            // ---- Validate parent details ----
             if (string.IsNullOrWhiteSpace(request.ParentPhone))
             {
                 response.Success = false;
@@ -746,7 +1136,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 ? null
                 : request.ParentEmail.Trim();
 
-            // ---- Find or create parent ----
             var parent = await _userManager.Users
                 .FirstOrDefaultAsync(u => u.PhoneNumber == parentPhone);
 
@@ -792,7 +1181,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 await _userManager.AddToRoleAsync(parent, "Parent");
                 parentWasCreated = true;
 
-                // ---- Optional picture upload for new parent ----
                 if (request.ParentProfilePicture != null &&
                     request.ParentProfilePicture.Length > 0)
                 {
@@ -819,7 +1207,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 await _userManager.AddToRoleAsync(parent, "Parent");
             }
 
-            // ---- Check for existing link ----
             var alreadyLinked = await _context.ParentStudents
                 .AnyAsync(ps => ps.ParentUserId == parent.Id
                              && ps.StudentProfileId == request.StudentProfileId);
@@ -832,7 +1219,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            // ---- Create the link ----
             _context.ParentStudents.Add(new ParentStudent
             {
                 ParentUserId = parent.Id,
@@ -979,21 +1365,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         #region Helper - Profile Picture Upload (Supabase)
-        /// <summary>
-        /// Uploads a profile picture to Supabase into a role-based folder:
-        ///   profile-pictures/students/{userId}/{guid}.jpg
-        ///   profile-pictures/teachers/{userId}/{guid}.jpg
-        ///   profile-pictures/parents/{userId}/{guid}.jpg
-        ///   profile-pictures/staff/{userId}/{guid}.jpg
-        /// Returns the public URL.
-        /// </summary>
         private async Task<string?> UploadProfilePictureAsync(
             string userId, string role, IFormFile picture)
         {
             if (picture == null || picture.Length == 0)
                 return null;
 
-            // ---- Validation ----
             if (picture.Length > MaxProfilePictureBytes)
                 throw new InvalidOperationException(
                     $"Profile picture must not exceed {MaxProfilePictureBytes / 1024} KB.");
@@ -1002,8 +1379,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 throw new InvalidOperationException(
                     "Only JPG, PNG, and WEBP images are allowed.");
 
-            // ---- Role-based folder ----
-            var folder = role switch
+            var roleFolder = role switch
             {
                 "Student" => "students",
                 "Teacher" or "FormTeacher" => "teachers",
@@ -1018,7 +1394,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 _ => ".jpg",
             };
 
-            var key = $"{folder}/{userId}/{Guid.NewGuid():N}{extension}";
+            // Path inside bucket: profile-pictures/{role}/{userId}/{guid}.ext
+            var key = $"{ProfilePictureFolder}/{roleFolder}/{userId}/{Guid.NewGuid():N}{extension}";
 
             await using var stream = picture.OpenReadStream();
 
@@ -1085,9 +1462,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
         #region Helpers - JWT
         private string GenerateJwtToken(
-     ApplicationUser user, IList<string> roles, string? primaryRoleOverride = null)
+            ApplicationUser user, IList<string> roles, string? primaryRoleOverride = null)
         {
-            // Use the exact same fallback values as Program.cs to avoid mismatches
             var jwtKey = _config["Jwt:Key"] ?? "THIS_IS_A_VERY_LONG_SECRET_KEY_THAT_IS_AT_LEAST_32_CHARACTERS_LONG_FOR_HMAC_SHA256";
             var issuer = _config["Jwt:Issuer"] ?? "DIBA_School_Portal";
             var audience = _config["Jwt:Audience"] ?? "DIBA_School_Portal_Clients";
@@ -1095,14 +1471,14 @@ namespace DIBA_School_Portal.Server.Repository.Services
             var primaryRole = primaryRoleOverride ?? user.PrimaryRole ?? roles.FirstOrDefault() ?? "";
 
             var claims = new List<Claim>
-    {
-        new(ClaimTypes.NameIdentifier, user.Id),
-        new(ClaimTypes.Email, user.Email ?? ""),
-        new(ClaimTypes.Name, user.UserName ?? ""),
-        new(ClaimTypes.GivenName, user.FirstName ?? ""),
-        new(ClaimTypes.Surname, user.LastName ?? ""),
-        new("primaryRole", primaryRole),
-    };
+            {
+                new(ClaimTypes.NameIdentifier, user.Id),
+                new(ClaimTypes.Email, user.Email ?? ""),
+                new(ClaimTypes.Name, user.UserName ?? ""),
+                new(ClaimTypes.GivenName, user.FirstName ?? ""),
+                new(ClaimTypes.Surname, user.LastName ?? ""),
+                new("primaryRole", primaryRole),
+            };
 
             foreach (var role in roles)
                 claims.Add(new Claim(ClaimTypes.Role, role));

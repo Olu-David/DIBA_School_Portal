@@ -9,12 +9,23 @@ using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace DIBA_School_Portal.Server.Repository.Services
 {
     public class PaymentService : IPaymentService
     {
+        // ==========================================================
+        // Constants
+        // ==========================================================
+        private const string DefaultFlutterwaveBaseUrl = "https://api.flutterwave.com/v3";
+        private const string DefaultFlutterwaveCurrency = "NGN";
+
+        // ==========================================================
+        // Fields + Constructor
+        // ==========================================================
         private readonly AppDbContext _context;
         private readonly ILogger<PaymentService> _logger;
         private readonly HttpClient _httpClient;
@@ -23,7 +34,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private readonly INotificationLog _notification;
         private readonly IHttpContextAccessor _http;
 
-        #region Constructor
         public PaymentService(
             AppDbContext context,
             ILogger<PaymentService> logger,
@@ -44,7 +54,27 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
         private string Ip =>
             _http.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
-        #endregion
+
+        private string CurrentUserId =>
+            _http.HttpContext?.User?.FindFirst(
+                System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? "System";
+
+        // ==========================================================
+        // Flutterwave configuration (single source of truth)
+        // ==========================================================
+        private string? FlutterwaveSecretKey =>
+            _configuration["Flutterwave:SecretKey"];
+
+        private string FlutterwaveBaseUrl =>
+            _configuration["Flutterwave:BaseUrl"] ?? DefaultFlutterwaveBaseUrl;
+
+        private string FlutterwaveCurrency =>
+            _configuration["Flutterwave:Currency"] ?? DefaultFlutterwaveCurrency;
+
+        private string FlutterwaveRedirectUrl =>
+            _configuration["Flutterwave:RedirectUrl"]
+            ?? "https://localhost:12050/student/payment/callback";
 
         // ==========================================================
         // BILL BREAKDOWN — works with or without enrollment
@@ -80,9 +110,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                var schoolClass = student.SchoolClass;
-
-                decimal previousDebt = await CalculatePreviousOutstandingDebtAsync(
+                var previousDebt = await CalculatePreviousOutstandingDebtAsync(
                     studentProfileId, term.StartDate);
 
                 var classFeePrices = await _context.ClassFeePrices
@@ -105,10 +133,10 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 foreach (var cfp in classFeePrices)
                 {
-                    decimal itemAmount = cfp.Amount;
+                    var itemAmount = cfp.Amount;
                     currentTermBilled += itemAmount;
 
-                    decimal paidTowardThis = successfulPayments
+                    var paidTowardThis = successfulPayments
                         .SelectMany(p => p.PaymentItems)
                         .Where(pi => pi.FeeId == cfp.FeeId)
                         .Sum(pi => pi.AmountAllocated);
@@ -121,7 +149,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         Amount = itemAmount,
                         MinimumAmountToPay = cfp.MinimumAmountToPay,
                         AmountPaidTowardThis = paidTowardThis,
-                        IsFullyPaid = paidTowardThis >= itemAmount
+                        IsFullyPaid = paidTowardThis >= itemAmount,
                     });
                 }
 
@@ -139,14 +167,14 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     ReferenceNumber = p.ReferenceNumber,
                     AmountPaid = p.AmountPaid,
                     Status = p.Status,
-                    PaymentDate = p.PaymentDate
+                    PaymentDate = p.PaymentDate,
                 }).ToList();
 
                 response.Data = new StudentBillResponseDto
                 {
                     StudentProfileId = student.Id,
                     StudentName = $"{student.FirstName} {student.LastName}",
-                    ClassName = schoolClass?.Name ?? "—",
+                    ClassName = student.SchoolClass?.Name ?? "—",
                     TermId = termId,
                     AcademicSessionId = term.AcademicSessionId,
                     TotalBilledAmount = totalBilled,
@@ -154,9 +182,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     TotalBalanceRemaining = balanceRemaining,
                     MinimumAmountRequired = totalMinimumRequired,
                     FeeItems = feeBreakdowns,
-                    PaymentHistory = paymentHistory
+                    PaymentHistory = paymentHistory,
                 };
-
                 response.Success = true;
                 response.StatusCode = 200;
             }
@@ -171,141 +198,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
-        #region Helper: CalculatePreviousOutstandingDebtAsync
-        private async Task<decimal> CalculatePreviousOutstandingDebtAsync(
-            Guid studentProfileId, DateTime? currentTermStartDate)
-        {
-            var pastEnrollments = await _context.StudentEnrollments
-                .Include(e => e.Term)
-                .Where(e => e.StudentProfileId == studentProfileId
-                         && e.Term.StartDate < currentTermStartDate)
-                .AsNoTracking()
-                .ToListAsync();
-
-            decimal totalPastBilled = 0;
-            decimal totalPastPaid = 0;
-
-            foreach (var pastEnrollment in pastEnrollments)
-            {
-                var pastFees = await _context.ClassFeePrices
-                    .Where(cfp => cfp.SchoolClassId == pastEnrollment.SchoolClassId
-                               && cfp.Fee.TermId == pastEnrollment.TermId)
-                    .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0;
-
-                totalPastBilled += pastFees;
-
-                var pastPayments = await _context.StudentPayments
-                    .Where(p => p.StudentProfileId == studentProfileId
-                             && p.TermId == pastEnrollment.TermId
-                             && p.Status == PaymentStatus.Successful)
-                    .SumAsync(p => (decimal?)p.AmountPaid) ?? 0;
-
-                totalPastPaid += pastPayments;
-            }
-
-            return Math.Max(0, totalPastBilled - totalPastPaid);
-        }
-        #endregion
-
         // ==========================================================
-        // HELPER — Allocate a successful payment across the term's fees
-        //   Pass 1: hit each fee's minimum (in order)
-        //   Pass 2: fill each fee up to its full amount
-        //   Pass 3: any overflow goes to the first fee
-        // ==========================================================
-        #region AllocatePaymentToFeesAsync
-        private async Task AllocatePaymentToFeesAsync(StudentPayment payment)
-        {
-            // Idempotent — wipe any existing allocations for this payment
-            var existing = await _context.StudentPaymentItems
-                .Where(pi => pi.StudentPaymentId == payment.Id)
-                .ToListAsync();
-            if (existing.Any())
-                _context.StudentPaymentItems.RemoveRange(existing);
-
-            var student = await _context.Students
-                .AsNoTracking()
-                .FirstOrDefaultAsync(s => s.Id == payment.StudentProfileId);
-            if (student == null) return;
-
-            var fees = await _context.ClassFeePrices
-                .Include(cfp => cfp.Fee)
-                .Where(cfp => cfp.SchoolClassId == student.SchoolClassId
-                           && cfp.Fee.TermId == payment.TermId)
-                .OrderBy(cfp => cfp.Fee.FeeName)
-                .ToListAsync();
-
-            if (!fees.Any()) return;
-
-            // How much prior successful payments already paid toward each fee
-            var priorByFee = await _context.StudentPaymentItems
-      .Where(pi => pi.StudentPayment != null
-                && pi.StudentPayment.StudentProfileId == payment.StudentProfileId
-                && pi.StudentPayment.TermId == payment.TermId
-                && pi.StudentPayment.Status == PaymentStatus.Successful
-                && pi.StudentPaymentId != payment.Id
-                && pi.FeeId != null)                  // ← ADD this line
-      .GroupBy(pi => pi.FeeId!.Value)                 // ← FeeId!.Value, not just FeeId
-      .Select(g => new { FeeId = g.Key, Total = g.Sum(pi => pi.AmountAllocated) })
-      .ToDictionaryAsync(x => x.FeeId, x => x.Total);
-
-            var remaining = payment.AmountPaid;
-            var allocations = new Dictionary<Guid, decimal>();
-
-            // Pass 1 — meet minimums
-            foreach (var cfp in fees)
-            {
-                if (remaining <= 0) break;
-                priorByFee.TryGetValue(cfp.FeeId, out var alreadyPaid);
-                var toMin = Math.Max(0, cfp.MinimumAmountToPay - alreadyPaid);
-                var take = Math.Min(remaining, toMin);
-                if (take > 0)
-                {
-                    allocations[cfp.FeeId] = take;
-                    remaining -= take;
-                }
-            }
-
-            // Pass 2 — fill to full amount
-            foreach (var cfp in fees)
-            {
-                if (remaining <= 0) break;
-                priorByFee.TryGetValue(cfp.FeeId, out var alreadyPaid);
-                allocations.TryGetValue(cfp.FeeId, out var paidSoFar);
-
-                var toFull = Math.Max(0, cfp.Amount - alreadyPaid - paidSoFar);
-                var take = Math.Min(remaining, toFull);
-                if (take > 0)
-                {
-                    allocations[cfp.FeeId] = paidSoFar + take;
-                    remaining -= take;
-                }
-            }
-
-            // Pass 3 — overflow
-            if (remaining > 0)
-            {
-                var firstId = fees.First().FeeId;
-                allocations.TryGetValue(firstId, out var current);
-                allocations[firstId] = current + remaining;
-            }
-
-            // Persist
-            foreach (var (feeId, amount) in allocations)
-            {
-                _context.StudentPaymentItems.Add(new StudentPaymentItem
-                {
-                    Id = Guid.NewGuid(),
-                    StudentPaymentId = payment.Id,
-                    FeeId = feeId,
-                    AmountAllocated = amount,
-                });
-            }
-        }
-        #endregion
-
-        // ==========================================================
-        // INITIALIZE PAYMENT
+        // INITIALIZE PAYMENT (generic — Cash, Manual, BankTransfer)
         // ==========================================================
         #region RecordPaymentAsync
         public async Task<ServiceResponse<string>> RecordPaymentAsync(CreatePaymentDto paymentDto)
@@ -345,7 +239,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // Minimum check — sum ALL minimums for the class/term
                 var totalMinimumRequired = await _context.ClassFeePrices
                     .Where(cfp => cfp.SchoolClassId == studentProfile.SchoolClassId
                                && cfp.Fee.TermId == paymentDto.TermId)
@@ -354,34 +247,39 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 if (totalMinimumRequired > 0 && paymentDto.AmountPaid < totalMinimumRequired)
                 {
                     response.Success = false;
-                    response.Message = $"Payment amount (₦{paymentDto.AmountPaid:N2}) is less than the minimum required (₦{totalMinimumRequired:N2}).";
+                    response.Message =
+                        $"Payment amount (₦{paymentDto.AmountPaid:N2}) is less than the " +
+                        $"minimum required (₦{totalMinimumRequired:N2}).";
                     response.StatusCode = 400;
                     return response;
                 }
 
-                string secureReference = $"DIBA-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}";
+                var reference =
+                    $"DIBA-{DateTime.UtcNow:yyyyMMdd}-" +
+                    $"{Guid.NewGuid().ToString()[..8].ToUpper()}";
 
                 var payment = new StudentPayment
                 {
                     Id = Guid.NewGuid(),
                     StudentProfileId = paymentDto.StudentProfileId,
                     AmountPaid = paymentDto.AmountPaid,
-                    ReferenceNumber = secureReference,
+                    ReferenceNumber = reference,
                     Gateway = paymentDto.Gateway,
                     Status = PaymentStatus.Pending,
                     AcademicSessionId = paymentDto.AcademicSessionId,
                     TermId = paymentDto.TermId,
                     PaymentDate = DateTime.UtcNow,
-                    ProofOfPaymentUrl = paymentDto.ProofOfPaymentUrl?.Trim()
+                    ProofOfPaymentUrl = paymentDto.ProofOfPaymentUrl?.Trim(),
                 };
 
-                await _context.StudentPayments.AddAsync(payment);
+                _context.StudentPayments.Add(payment);
                 await _context.SaveChangesAsync();
 
                 await _auditLog.LogActivityAsync(
-                    _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "System",
+                    CurrentUserId,
                     "Payment Initialized",
-                    $"Ref {secureReference}: ₦{paymentDto.AmountPaid:N2} by student {paymentDto.StudentProfileId} via {paymentDto.Gateway}.",
+                    $"Ref {reference}: ₦{paymentDto.AmountPaid:N2} by student " +
+                    $"{paymentDto.StudentProfileId} via {paymentDto.Gateway}.",
                     Ip);
 
                 if (!string.IsNullOrEmpty(studentProfile.UserId))
@@ -389,24 +287,22 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     await _notification.SendNotificationAsync(
                         studentProfile.UserId,
                         "Payment Initialized",
-                        $"Your payment of ₦{paymentDto.AmountPaid:N2} (Ref {secureReference}) is pending confirmation.",
+                        $"Your payment of ₦{paymentDto.AmountPaid:N2} " +
+                        $"(Ref {reference}) is pending confirmation.",
                         category: "Payment");
                 }
 
                 response.Success = true;
                 response.Message = "Payment initialized successfully.";
                 response.StatusCode = 200;
-                response.Data = secureReference;
+                response.Data = reference;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error recording student payment.");
 
                 await _auditLog.LogActivityAsync(
-                    _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "System",
-                    "Payment Init FAILED",
-                    ex.Message,
-                    Ip);
+                    CurrentUserId, "Payment Init FAILED", ex.Message, Ip);
 
                 response.Success = false;
                 response.Message = $"An error occurred: {ex.Message}";
@@ -420,7 +316,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
         // GET BY STUDENT
         // ==========================================================
         #region GetPaymentsByStudentAsync
-        public async Task<ServiceResponse<IEnumerable<StudentPaymentDto>>> GetPaymentsByStudentAsync(Guid studentProfileId)
+        public async Task<ServiceResponse<IEnumerable<StudentPaymentDto>>> GetPaymentsByStudentAsync(
+            Guid studentProfileId)
         {
             var response = new ServiceResponse<IEnumerable<StudentPaymentDto>>();
             try
@@ -446,7 +343,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         SessionName = p.AcademicSession != null ? p.AcademicSession.Name : "N/A",
                         TermName = p.Term != null ? p.Term.Name : "N/A",
                         PaymentDate = p.PaymentDate,
-                        ProofOfPaymentUrl = p.ProofOfPaymentUrl
+                        ProofOfPaymentUrl = p.ProofOfPaymentUrl,
                     })
                     .ToListAsync();
 
@@ -456,7 +353,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error fetching payments for student profile: {StudentProfileId}", studentProfileId);
+                _logger.LogError(ex,
+                    "Error fetching payments for student profile: {StudentProfileId}",
+                    studentProfileId);
                 response.Success = false;
                 response.Message = ex.Message;
                 response.StatusCode = 500;
@@ -500,10 +399,10 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     ReferenceNumber = p.ReferenceNumber,
                     Gateway = p.Gateway,
                     Status = p.Status,
-                    SessionName = p.AcademicSession != null ? p.AcademicSession.Name : "N/A",
-                    TermName = p.Term != null ? p.Term.Name : "N/A",
+                    SessionName = p.AcademicSession?.Name ?? "N/A",
+                    TermName = p.Term?.Name ?? "N/A",
                     PaymentDate = p.PaymentDate,
-                    ProofOfPaymentUrl = p.ProofOfPaymentUrl
+                    ProofOfPaymentUrl = p.ProofOfPaymentUrl,
                 };
                 response.Success = true;
                 response.StatusCode = 200;
@@ -520,211 +419,11 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // UPDATE STATUS — auto-creates / updates enrollment
-        // ==========================================================
-        #region UpdatePaymentStatusAsync
-        public async Task<ServiceResponse<bool>> UpdatePaymentStatusAsync(Guid paymentId, PaymentStatus status)
-        {
-            var response = new ServiceResponse<bool>();
-            try
-            {
-                var payment = await _context.StudentPayments
-                    .FirstOrDefaultAsync(p => p.Id == paymentId);
-
-                if (payment == null)
-                {
-                    response.Success = false;
-                    response.Message = "Payment record not found.";
-                    response.StatusCode = 404;
-                    return response;
-                }
-
-                var oldStatus = payment.Status;
-                payment.Status = status;
-                _context.StudentPayments.Update(payment);
-
-                // ---------- Transition to Successful → apply & recompute ----------
-                if (oldStatus != PaymentStatus.Successful && status == PaymentStatus.Successful)
-                {
-                    // Allocate across fees
-                    await AllocatePaymentToFeesAsync(payment);
-
-                    var enrollment = await _context.StudentEnrollments
-                        .FirstOrDefaultAsync(e => e.StudentProfileId == payment.StudentProfileId
-                                               && e.TermId == payment.TermId
-                                               && e.AcademicSessionId == payment.AcademicSessionId);
-
-                    if (enrollment == null)
-                    {
-                        var student = await _context.Students
-                            .AsNoTracking()
-                            .FirstOrDefaultAsync(s => s.Id == payment.StudentProfileId);
-
-                        if (student != null)
-                        {
-                            var billedAmount = await _context.ClassFeePrices
-                                .Include(cfp => cfp.Fee)
-                                .Where(cfp => cfp.SchoolClassId == student.SchoolClassId
-                                           && cfp.Fee.TermId == payment.TermId
-                                           && cfp.Fee.AcademicSessionId == payment.AcademicSessionId)
-                                .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
-
-                            enrollment = new StudentEnrollments
-                            {
-                                Id = Guid.NewGuid(),
-                                StudentProfileId = student.Id,
-                                AcademicSessionId = payment.AcademicSessionId,
-                                TermId = payment.TermId,
-                                SchoolClassId = student.SchoolClassId,
-                                TotalAmountPaid = 0m,
-                                OutstandingBalance = billedAmount,
-                                IsFullyPaid = false,
-                                Status = StudentEnrollmentStatus.Pending,
-                                IsActive = false,
-                                EnrolledAt = DateTime.UtcNow,
-                            };
-
-                            _context.StudentEnrollments.Add(enrollment);
-
-                            _logger.LogInformation(
-                                "Auto-created enrollment for student {StudentId} term {TermId} — billed ₦{Billed:N2}.",
-                                student.Id, payment.TermId, billedAmount);
-                        }
-                    }
-
-                    if (enrollment != null)
-                    {
-                        var pastPaid = await _context.StudentPayments
-                            .Where(p => p.StudentProfileId == payment.StudentProfileId
-                                     && p.TermId == payment.TermId
-                                     && p.Status == PaymentStatus.Successful
-                                     && p.Id != payment.Id)
-                            .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
-
-                        var newTotalPaid = pastPaid + payment.AmountPaid;
-
-                        var totalRequiredFee = await _context.ClassFeePrices
-                            .Include(cfp => cfp.Fee)
-                            .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId
-                                       && cfp.Fee.TermId == payment.TermId)
-                            .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
-
-                        enrollment.TotalAmountPaid = newTotalPaid;
-                        enrollment.OutstandingBalance = Math.Max(0, totalRequiredFee - newTotalPaid);
-
-                        var totalMinimum = await _context.ClassFeePrices
-                            .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId
-                                       && cfp.Fee.TermId == payment.TermId)
-                            .SumAsync(cfp => (decimal?)cfp.MinimumAmountToPay) ?? 0m;
-
-                        if (totalMinimum > 0)
-                        {
-                            if (newTotalPaid < totalMinimum)
-                            {
-                                enrollment.Status = StudentEnrollmentStatus.Pending;
-                                enrollment.IsActive = false;
-                            }
-                            else
-                            {
-                                enrollment.Status = StudentEnrollmentStatus.Active;
-                                enrollment.IsActive = true;
-                            }
-                        }
-
-                        enrollment.IsFullyPaid = totalRequiredFee > 0 && newTotalPaid >= totalRequiredFee;
-
-                        _context.StudentEnrollments.Update(enrollment);
-                    }
-                }
-
-                // ---------- Transition FROM Successful → reverse ----------
-                if (oldStatus == PaymentStatus.Successful && status != PaymentStatus.Successful)
-                {
-                    // Drop allocations since this payment is no longer valid
-                    var allocations = await _context.StudentPaymentItems
-                        .Where(pi => pi.StudentPaymentId == payment.Id)
-                        .ToListAsync();
-                    if (allocations.Any())
-                        _context.StudentPaymentItems.RemoveRange(allocations);
-
-                    var enrollment = await _context.StudentEnrollments
-                        .FirstOrDefaultAsync(e => e.StudentProfileId == payment.StudentProfileId
-                                               && e.TermId == payment.TermId
-                                               && e.AcademicSessionId == payment.AcademicSessionId);
-
-                    if (enrollment != null)
-                    {
-                        var remainingPaid = await _context.StudentPayments
-                            .Where(p => p.StudentProfileId == payment.StudentProfileId
-                                     && p.TermId == payment.TermId
-                                     && p.Status == PaymentStatus.Successful
-                                     && p.Id != payment.Id)
-                            .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
-
-                        var totalRequiredFee = await _context.ClassFeePrices
-                            .Include(cfp => cfp.Fee)
-                            .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId
-                                       && cfp.Fee.TermId == payment.TermId)
-                            .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
-
-                        enrollment.TotalAmountPaid = remainingPaid;
-                        enrollment.OutstandingBalance = Math.Max(0, totalRequiredFee - remainingPaid);
-                        enrollment.IsFullyPaid = totalRequiredFee > 0 && remainingPaid >= totalRequiredFee;
-
-                        _context.StudentEnrollments.Update(enrollment);
-                    }
-                }
-
-                await _context.SaveChangesAsync();
-
-                await _auditLog.LogActivityAsync(
-                    _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "System",
-                    "Payment Status Updated",
-                    $"Ref {payment.ReferenceNumber}: {oldStatus} → {status}.",
-                    Ip);
-
-                var studentUserId = await _context.Students
-                    .Where(s => s.Id == payment.StudentProfileId)
-                    .Select(s => s.UserId)
-                    .FirstOrDefaultAsync();
-
-                if (!string.IsNullOrEmpty(studentUserId))
-                {
-                    await _notification.SendNotificationAsync(
-                        studentUserId,
-                        $"Payment {status}",
-                        $"Your payment (Ref {payment.ReferenceNumber}) status is now: {status}.",
-                        category: "Payment");
-                }
-
-                response.Success = true;
-                response.Message = "Payment status updated successfully.";
-                response.StatusCode = 200;
-                response.Data = true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating payment status for ID: {PaymentId}", paymentId);
-
-                await _auditLog.LogActivityAsync(
-                    _http.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "System",
-                    "Payment Update FAILED",
-                    ex.Message,
-                    Ip);
-
-                response.Success = false;
-                response.Message = ex.Message;
-                response.StatusCode = 500;
-            }
-            return response;
-        }
-        #endregion
-
-        // ==========================================================
         // GET BY REFERENCE
         // ==========================================================
         #region GetPaymentByReferenceAsync
-        public async Task<ServiceResponse<StudentPaymentDto>> GetPaymentByReferenceAsync(string referenceNumber)
+        public async Task<ServiceResponse<StudentPaymentDto>> GetPaymentByReferenceAsync(
+            string referenceNumber)
         {
             var response = new ServiceResponse<StudentPaymentDto>();
             try
@@ -755,10 +454,10 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     ReferenceNumber = p.ReferenceNumber,
                     Gateway = p.Gateway,
                     Status = p.Status,
-                    SessionName = p.AcademicSession != null ? p.AcademicSession.Name : "N/A",
-                    TermName = p.Term != null ? p.Term.Name : "N/A",
+                    SessionName = p.AcademicSession?.Name ?? "N/A",
+                    TermName = p.Term?.Name ?? "N/A",
                     PaymentDate = p.PaymentDate,
-                    ProofOfPaymentUrl = p.ProofOfPaymentUrl
+                    ProofOfPaymentUrl = p.ProofOfPaymentUrl,
                 };
                 response.Success = true;
                 response.StatusCode = 200;
@@ -775,7 +474,321 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // FLUTTERWAVE VERIFY — auto-creates / updates enrollment
+        // UPDATE STATUS (manual — cash / bank transfer)
+        // ==========================================================
+        #region UpdatePaymentStatusAsync
+        public async Task<ServiceResponse<bool>> UpdatePaymentStatusAsync(
+            Guid paymentId, PaymentStatus status)
+        {
+            var response = new ServiceResponse<bool>();
+            try
+            {
+                var payment = await _context.StudentPayments
+                    .FirstOrDefaultAsync(p => p.Id == paymentId);
+
+                if (payment == null)
+                {
+                    response.Success = false;
+                    response.Message = "Payment record not found.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                var oldStatus = payment.Status;
+                payment.Status = status;
+                _context.StudentPayments.Update(payment);
+
+                // ---------- Transition INTO Successful ----------
+                if (oldStatus != PaymentStatus.Successful && status == PaymentStatus.Successful)
+                {
+                    await AllocatePaymentToFeesAsync(payment);
+
+                    var enrollment = await EnsureEnrollmentExistsAsync(
+                        payment.StudentProfileId,
+                        payment.AcademicSessionId,
+                        payment.TermId);
+
+                    if (enrollment != null)
+                    {
+                        await RecomputeEnrollmentTotalsAsync(
+                            enrollment,
+                            excludePaymentId: payment.Id,
+                            addPaymentAmount: payment.AmountPaid);
+                    }
+                }
+
+                // ---------- Transition OUT of Successful ----------
+                if (oldStatus == PaymentStatus.Successful && status != PaymentStatus.Successful)
+                {
+                    var allocations = await _context.StudentPaymentItems
+                        .Where(pi => pi.StudentPaymentId == payment.Id)
+                        .ToListAsync();
+                    if (allocations.Any())
+                        _context.StudentPaymentItems.RemoveRange(allocations);
+
+                    var enrollment = await _context.StudentEnrollments
+                        .FirstOrDefaultAsync(e =>
+                            e.StudentProfileId == payment.StudentProfileId &&
+                            e.TermId == payment.TermId &&
+                            e.AcademicSessionId == payment.AcademicSessionId);
+
+                    if (enrollment != null)
+                    {
+                        await RecomputeEnrollmentTotalsAsync(
+                            enrollment,
+                            excludePaymentId: payment.Id,
+                            addPaymentAmount: 0m);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                await _auditLog.LogActivityAsync(
+                    CurrentUserId,
+                    "Payment Status Updated",
+                    $"Ref {payment.ReferenceNumber}: {oldStatus} → {status}.",
+                    Ip);
+
+                var studentUserId = await _context.Students
+                    .Where(s => s.Id == payment.StudentProfileId)
+                    .Select(s => s.UserId)
+                    .FirstOrDefaultAsync();
+
+                if (!string.IsNullOrEmpty(studentUserId))
+                {
+                    await _notification.SendNotificationAsync(
+                        studentUserId,
+                        $"Payment {status}",
+                        $"Your payment (Ref {payment.ReferenceNumber}) status is now: {status}.",
+                        category: "Payment");
+                }
+
+                response.Success = true;
+                response.Message = "Payment status updated successfully.";
+                response.StatusCode = 200;
+                response.Data = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating payment status for ID: {PaymentId}", paymentId);
+
+                await _auditLog.LogActivityAsync(
+                    CurrentUserId, "Payment Update FAILED", ex.Message, Ip);
+
+                response.Success = false;
+                response.Message = ex.Message;
+                response.StatusCode = 500;
+            }
+            return response;
+        }
+        #endregion
+
+        // ==========================================================
+        // FLUTTERWAVE — INITIATE
+        // ==========================================================
+        #region InitiateFlutterwaveAsync
+        public async Task<ServiceResponse<InitiateFlutterwaveResponseDto>> InitiateFlutterwaveAsync(
+            InitiateFlutterwaveDto request, string currentUserId, string ipAddress)
+        {
+            var response = new ServiceResponse<InitiateFlutterwaveResponseDto>();
+
+            try
+            {
+                // ---------- 1. Config sanity ----------
+                var secretKey = FlutterwaveSecretKey;
+                if (string.IsNullOrWhiteSpace(secretKey) || secretKey.Contains("PASTE"))
+                {
+                    response.Success = false;
+                    response.Message =
+                        "Flutterwave is not configured. " +
+                        "Add Flutterwave:SecretKey to appsettings.json.";
+                    response.StatusCode = 500;
+                    return response;
+                }
+
+                // ---------- 2. Validate amount ----------
+                if (request.Amount <= 0)
+                {
+                    response.Success = false;
+                    response.Message = "Amount must be greater than zero.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                // ---------- 3. Load student ----------
+                var student = await _context.Students
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.Id == request.StudentProfileId);
+
+                if (student == null)
+                {
+                    response.Success = false;
+                    response.Message = "Student not found.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                // ---------- 4. Validate session + term ----------
+                var term = await _context.SchoolTerms
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t =>
+                        t.Id == request.TermId &&
+                        t.AcademicSessionId == request.AcademicSessionId);
+
+                if (term == null)
+                {
+                    response.Success = false;
+                    response.Message = "Invalid session or term.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                // ---------- 5. Resolve customer email ----------
+                var email = await ResolveCustomerEmailAsync(
+                    student.Id, student.UserId, request.CustomerEmail);
+
+                if (string.IsNullOrWhiteSpace(email))
+                {
+                    response.Success = false;
+                    response.Message =
+                        "An email address is required for online payment. " +
+                        "Please provide one or ask the school to add it to your profile.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                // ---------- 6. Create pending payment ----------
+                var reference =
+                    $"DIBA-FLW-{DateTime.UtcNow:yyyyMMddHHmmss}-" +
+                    $"{Guid.NewGuid().ToString()[..6].ToUpper()}";
+
+                var payment = new StudentPayment
+                {
+                    Id = Guid.NewGuid(),
+                    StudentProfileId = student.Id,
+                    AmountPaid = request.Amount,
+                    ReferenceNumber = reference,
+                    Gateway = PaymentGateway.Flutterwave,
+                    Status = PaymentStatus.Pending,
+                    AcademicSessionId = request.AcademicSessionId,
+                    TermId = request.TermId,
+                    PaymentDate = DateTime.UtcNow,
+                };
+
+                _context.StudentPayments.Add(payment);
+                await _context.SaveChangesAsync();
+
+                // ---------- 7. Call Flutterwave ----------
+                var payload = new
+                {
+                    tx_ref = reference,
+                    amount = request.Amount,
+                    currency = FlutterwaveCurrency,
+                    redirect_url = FlutterwaveRedirectUrl,
+                    customer = new
+                    {
+                        email,
+                        phonenumber = request.CustomerPhone ?? "",
+                        name = $"{student.FirstName} {student.LastName}".Trim(),
+                    },
+                    customizations = new
+                    {
+                        title = "DIBA School Portal",
+                        description =
+                            $"Fee payment for {student.FirstName} {student.LastName} " +
+                            $"({student.AdmissionNumber}) — {term.Name}",
+                    },
+                    meta = new
+                    {
+                        studentProfileId = student.Id,
+                        academicSessionId = request.AcademicSessionId,
+                        termId = request.TermId,
+                        paymentId = payment.Id,
+                    },
+                };
+
+                using var flwContent = JsonContent.Create(payload);
+                using var flwResponse = await SendFlutterwaveRequestAsync(
+                    HttpMethod.Post, "/payments", flwContent, secretKey);
+
+                var bodyText = await flwResponse.Content.ReadAsStringAsync();
+
+                if (!flwResponse.IsSuccessStatusCode)
+                {
+                    _logger.LogError(
+                        "Flutterwave initiate failed: {Status} {Body}",
+                        (int)flwResponse.StatusCode, bodyText);
+
+                    _context.StudentPayments.Remove(payment);
+                    await _context.SaveChangesAsync();
+
+                    response.Success = false;
+                    response.Message =
+                        "Flutterwave rejected the request. Please try again.";
+                    response.StatusCode = 502;
+                    return response;
+                }
+
+                // ---------- 8. Parse checkout URL ----------
+                string? checkoutUrl;
+                using (var doc = JsonDocument.Parse(bodyText))
+                {
+                    checkoutUrl = doc.RootElement
+                        .GetProperty("data")
+                        .GetProperty("link")
+                        .GetString();
+                }
+
+                if (string.IsNullOrWhiteSpace(checkoutUrl))
+                {
+                    _context.StudentPayments.Remove(payment);
+                    await _context.SaveChangesAsync();
+
+                    response.Success = false;
+                    response.Message = "Flutterwave did not return a checkout URL.";
+                    response.StatusCode = 502;
+                    return response;
+                }
+
+                // ---------- 9. Audit ----------
+                await _auditLog.LogActivityAsync(
+                    currentUserId,
+                    "Flutterwave Payment Initiated",
+                    $"Ref {reference}: ₦{request.Amount:N2} for " +
+                    $"{student.FirstName} {student.LastName} ({student.AdmissionNumber}).",
+                    ipAddress);
+
+                // ---------- 10. Return ----------
+                response.Success = true;
+                response.StatusCode = 200;
+                response.Message = "Redirect to checkout.";
+                response.Data = new InitiateFlutterwaveResponseDto
+                {
+                    PaymentId = payment.Id,
+                    ReferenceNumber = reference,
+                    CheckoutUrl = checkoutUrl,
+                    Amount = request.Amount,
+                    Currency = FlutterwaveCurrency,
+                };
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error initiating Flutterwave payment.");
+
+                await _auditLog.LogActivityAsync(
+                    currentUserId, "Flutterwave Initiate FAILED", ex.Message, ipAddress);
+
+                response.Success = false;
+                response.Message = $"An error occurred: {ex.Message}";
+                response.StatusCode = 500;
+                return response;
+            }
+        }
+        #endregion
+
+        // ==========================================================
+        // FLUTTERWAVE — VERIFY
         // ==========================================================
         #region VerifyAndCompleteFlutterwavePaymentAsync
         public async Task<ServiceResponse<bool>> VerifyAndCompleteFlutterwavePaymentAsync(
@@ -784,35 +797,60 @@ namespace DIBA_School_Portal.Server.Repository.Services
             var response = new ServiceResponse<bool>();
             try
             {
+                // ---------- 1. Load pending payment ----------
                 var paymentRecord = await _context.StudentPayments
                     .FirstOrDefaultAsync(p => p.ReferenceNumber == referenceNumber);
 
                 if (paymentRecord == null)
                 {
                     response.Success = false;
-                    response.Message = "Local payment record matching reference was not found.";
+                    response.Message =
+                        "Local payment record matching reference was not found.";
                     response.StatusCode = 404;
                     return response;
                 }
 
-                var secretKey = _configuration["Flutterwave:SecretKey"];
-                _httpClient.DefaultRequestHeaders.Authorization =
-                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", secretKey);
+                // ---------- 2. Idempotency ----------
+                if (paymentRecord.Status == PaymentStatus.Successful)
+                {
+                    response.Success = true;
+                    response.StatusCode = 200;
+                    response.Message = "Already verified.";
+                    response.Data = true;
+                    return response;
+                }
 
-                string url = $"https://api.flutterwave.com/v3/transactions/{transactionId}/verify";
-                var fwResponse = await _httpClient.GetAsync(url);
+                // ---------- 3. Verify with Flutterwave ----------
+                var secretKey = FlutterwaveSecretKey;
+                if (string.IsNullOrWhiteSpace(secretKey))
+                {
+                    response.Success = false;
+                    response.Message = "Flutterwave is not configured.";
+                    response.StatusCode = 500;
+                    return response;
+                }
+
+                using var fwResponse = await SendFlutterwaveRequestAsync(
+                    HttpMethod.Get,
+                    $"/transactions/{transactionId}/verify",
+                    content: null,
+                    secretKey);
 
                 if (!fwResponse.IsSuccessStatusCode)
                 {
                     response.Success = false;
-                    response.Message = "Failed to communicate with Flutterwave verification server.";
+                    response.Message =
+                        "Failed to communicate with Flutterwave verification server.";
                     response.StatusCode = 400;
                     return response;
                 }
 
-                var jsonResult = await fwResponse.Content.ReadFromJsonAsync<FlutterwaveApiResponseWrapper>();
+                var jsonResult =
+                    await fwResponse.Content.ReadFromJsonAsync<FlutterwaveApiResponseWrapper>();
 
-                if (jsonResult?.Data == null || jsonResult.Data.Status.ToLower() != "successful")
+                // ---------- 4. Validate FLW response ----------
+                if (jsonResult?.Data == null ||
+                    jsonResult.Data.Status.ToLower() != "successful")
                 {
                     paymentRecord.Status = PaymentStatus.Failed;
                     await _context.SaveChangesAsync();
@@ -823,7 +861,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                if (jsonResult.Data.Currency != "NGN")
+                if (jsonResult.Data.Currency != FlutterwaveCurrency)
                 {
                     response.Success = false;
                     response.Message = "Invalid transaction currency.";
@@ -834,122 +872,47 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 if (jsonResult.Data.Amount < paymentRecord.AmountPaid)
                 {
                     response.Success = false;
-                    response.Message = "Paid amount is less than the required school fee amount.";
+                    response.Message =
+                        "Paid amount is less than the required school fee amount.";
                     response.StatusCode = 400;
                     return response;
                 }
 
-                // Mark payment successful
+                // ---------- 5. Mark successful ----------
                 paymentRecord.Status = PaymentStatus.Successful;
                 _context.StudentPayments.Update(paymentRecord);
 
-                // Allocate across fees
+                // ---------- 6. Allocate to fees ----------
                 await AllocatePaymentToFeesAsync(paymentRecord);
 
-                // ---------- Enrollment: lookup or create ----------
-                var enrollment = await _context.StudentEnrollments
-                    .FirstOrDefaultAsync(e =>
-                        e.StudentProfileId == paymentRecord.StudentProfileId &&
-                        e.TermId == paymentRecord.TermId &&
-                        e.AcademicSessionId == paymentRecord.AcademicSessionId);
+                // ---------- 7. Ensure enrollment exists ----------
+                var enrollment = await EnsureEnrollmentExistsAsync(
+                    paymentRecord.StudentProfileId,
+                    paymentRecord.AcademicSessionId,
+                    paymentRecord.TermId);
 
                 if (enrollment == null)
                 {
-                    var student = await _context.Students
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(s => s.Id == paymentRecord.StudentProfileId);
-
-                    if (student == null)
-                    {
-                        _logger.LogWarning(
-                            "Cannot create enrollment — student {StudentId} not found.",
-                            paymentRecord.StudentProfileId);
-
-                        response.Success = false;
-                        response.Message = "Student not found — cannot create enrollment.";
-                        response.StatusCode = 404;
-                        return response;
-                    }
-
-                    var billedAmount = await _context.ClassFeePrices
-                        .Include(cfp => cfp.Fee)
-                        .Where(cfp => cfp.SchoolClassId == student.SchoolClassId &&
-                                      cfp.Fee.TermId == paymentRecord.TermId &&
-                                      cfp.Fee.AcademicSessionId == paymentRecord.AcademicSessionId)
-                        .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
-
-                    enrollment = new StudentEnrollments
-                    {
-                        Id = Guid.NewGuid(),
-                        StudentProfileId = student.Id,
-                        AcademicSessionId = paymentRecord.AcademicSessionId,
-                        TermId = paymentRecord.TermId,
-                        SchoolClassId = student.SchoolClassId,
-
-                        TotalAmountPaid = 0m,
-                        OutstandingBalance = billedAmount,
-                        IsFullyPaid = false,
-
-                        Status = StudentEnrollmentStatus.Pending,
-                        IsActive = false,
-                        EnrolledAt = DateTime.UtcNow,
-                    };
-
-                    _context.StudentEnrollments.Add(enrollment);
-
-                    _logger.LogInformation(
-                        "Auto-created enrollment for student {StudentId} term {TermId} — billed ₦{Billed:N2}.",
-                        student.Id, paymentRecord.TermId, billedAmount);
+                    response.Success = false;
+                    response.Message = "Student not found — cannot create enrollment.";
+                    response.StatusCode = 404;
+                    return response;
                 }
 
-                // ---------- Apply & recompute ----------
-                var pastPaid = await _context.StudentPayments
-                    .Where(p => p.StudentProfileId == paymentRecord.StudentProfileId &&
-                                p.TermId == paymentRecord.TermId &&
-                                p.Status == PaymentStatus.Successful &&
-                                p.Id != paymentRecord.Id)
-                    .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
-
-                var newTotalPaid = pastPaid + paymentRecord.AmountPaid;
-
-                var totalRequiredFee = await _context.ClassFeePrices
-                    .Include(cfp => cfp.Fee)
-                    .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId &&
-                                  cfp.Fee.TermId == paymentRecord.TermId)
-                    .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
-
-                enrollment.TotalAmountPaid = newTotalPaid;
-                enrollment.OutstandingBalance = Math.Max(0, totalRequiredFee - newTotalPaid);
-
-                var totalMinimum = await _context.ClassFeePrices
-                    .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId &&
-                                  cfp.Fee.TermId == paymentRecord.TermId)
-                    .SumAsync(cfp => (decimal?)cfp.MinimumAmountToPay) ?? 0m;
-
-                if (totalMinimum > 0)
-                {
-                    if (newTotalPaid < totalMinimum)
-                    {
-                        enrollment.Status = StudentEnrollmentStatus.Pending;
-                        enrollment.IsActive = false;
-                    }
-                    else
-                    {
-                        enrollment.Status = StudentEnrollmentStatus.Active;
-                        enrollment.IsActive = true;
-                    }
-                }
-
-                enrollment.IsFullyPaid = totalRequiredFee > 0 && newTotalPaid >= totalRequiredFee;
-
-                _context.StudentEnrollments.Update(enrollment);
+                // ---------- 8. Recompute totals ----------
+                await RecomputeEnrollmentTotalsAsync(
+                    enrollment,
+                    excludePaymentId: paymentRecord.Id,
+                    addPaymentAmount: paymentRecord.AmountPaid);
 
                 await _context.SaveChangesAsync();
 
+                // ---------- 9. Audit + notify ----------
                 await _auditLog.LogActivityAsync(
                     "System/Flutterwave",
                     "Payment Verified",
-                    $"Ref {referenceNumber}: ₦{paymentRecord.AmountPaid:N2} verified (TxId {transactionId}).",
+                    $"Ref {referenceNumber}: ₦{paymentRecord.AmountPaid:N2} verified " +
+                    $"(TxId {transactionId}).",
                     Ip);
 
                 var studentUserId = await _context.Students
@@ -962,30 +925,337 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     await _notification.SendNotificationAsync(
                         studentUserId,
                         "Payment Successful",
-                        $"Your payment of ₦{paymentRecord.AmountPaid:N2} (Ref {referenceNumber}) was confirmed.",
+                        $"Your payment of ₦{paymentRecord.AmountPaid:N2} " +
+                        $"(Ref {referenceNumber}) was confirmed.",
                         category: "Payment");
                 }
 
                 response.Success = true;
-                response.Message = "Flutterwave payment verified and marked as successful.";
+                response.Message =
+                    "Flutterwave payment verified and marked as successful.";
                 response.StatusCode = 200;
                 response.Data = true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error verifying Flutterwave transaction {TxId}", transactionId);
+                _logger.LogError(ex,
+                    "Error verifying Flutterwave transaction {TxId}", transactionId);
 
                 await _auditLog.LogActivityAsync(
-                    "System/Flutterwave",
-                    "Payment Verify FAILED",
-                    ex.Message,
-                    Ip);
+                    "System/Flutterwave", "Payment Verify FAILED", ex.Message, Ip);
 
                 response.Success = false;
                 response.Message = $"An error occurred during verification: {ex.Message}";
                 response.StatusCode = 500;
             }
             return response;
+        }
+        #endregion
+
+        // ==========================================================
+        // PRIVATE HELPERS
+        // ==========================================================
+
+        #region CalculatePreviousOutstandingDebtAsync
+        private async Task<decimal> CalculatePreviousOutstandingDebtAsync(
+            Guid studentProfileId, DateTime? currentTermStartDate)
+        {
+            var pastEnrollments = await _context.StudentEnrollments
+                .Include(e => e.Term)
+                .Where(e => e.StudentProfileId == studentProfileId
+                         && e.Term.StartDate < currentTermStartDate)
+                .AsNoTracking()
+                .ToListAsync();
+
+            decimal totalPastBilled = 0;
+            decimal totalPastPaid = 0;
+
+            foreach (var past in pastEnrollments)
+            {
+                var pastFees = await _context.ClassFeePrices
+                    .Where(cfp => cfp.SchoolClassId == past.SchoolClassId
+                               && cfp.Fee.TermId == past.TermId)
+                    .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0;
+
+                totalPastBilled += pastFees;
+
+                var pastPayments = await _context.StudentPayments
+                    .Where(p => p.StudentProfileId == studentProfileId
+                             && p.TermId == past.TermId
+                             && p.Status == PaymentStatus.Successful)
+                    .SumAsync(p => (decimal?)p.AmountPaid) ?? 0;
+
+                totalPastPaid += pastPayments;
+            }
+
+            return Math.Max(0, totalPastBilled - totalPastPaid);
+        }
+        #endregion
+
+        #region AllocatePaymentToFeesAsync
+        /// <summary>
+        /// Three-pass allocation:
+        ///   1. Meet each fee's minimum (in name order)
+        ///   2. Fill each fee up to full amount
+        ///   3. Overflow goes to the first fee
+        /// </summary>
+        private async Task AllocatePaymentToFeesAsync(StudentPayment payment)
+        {
+            var existing = await _context.StudentPaymentItems
+                .Where(pi => pi.StudentPaymentId == payment.Id)
+                .ToListAsync();
+            if (existing.Any())
+                _context.StudentPaymentItems.RemoveRange(existing);
+
+            var student = await _context.Students
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == payment.StudentProfileId);
+            if (student == null) return;
+
+            var fees = await _context.ClassFeePrices
+                .Include(cfp => cfp.Fee)
+                .Where(cfp => cfp.SchoolClassId == student.SchoolClassId
+                           && cfp.Fee.TermId == payment.TermId)
+                .OrderBy(cfp => cfp.Fee.FeeName)
+                .ToListAsync();
+
+            if (!fees.Any()) return;
+
+            var priorByFee = await _context.StudentPaymentItems
+                .Where(pi =>
+                    pi.StudentPayment != null &&
+                    pi.StudentPayment.StudentProfileId == payment.StudentProfileId &&
+                    pi.StudentPayment.TermId == payment.TermId &&
+                    pi.StudentPayment.Status == PaymentStatus.Successful &&
+                    pi.StudentPaymentId != payment.Id &&
+                    pi.FeeId != null)
+                .GroupBy(pi => pi.FeeId!.Value)
+                .Select(g => new { FeeId = g.Key, Total = g.Sum(pi => pi.AmountAllocated) })
+                .ToDictionaryAsync(x => x.FeeId, x => x.Total);
+
+            var remaining = payment.AmountPaid;
+            var allocations = new Dictionary<Guid, decimal>();
+
+            // Pass 1 — meet minimums
+            foreach (var cfp in fees)
+            {
+                if (remaining <= 0) break;
+                priorByFee.TryGetValue(cfp.FeeId, out var alreadyPaid);
+                var toMin = Math.Max(0, cfp.MinimumAmountToPay - alreadyPaid);
+                var take = Math.Min(remaining, toMin);
+                if (take > 0)
+                {
+                    allocations[cfp.FeeId] = take;
+                    remaining -= take;
+                }
+            }
+
+            // Pass 2 — fill to full amount
+            foreach (var cfp in fees)
+            {
+                if (remaining <= 0) break;
+                priorByFee.TryGetValue(cfp.FeeId, out var alreadyPaid);
+                allocations.TryGetValue(cfp.FeeId, out var paidSoFar);
+
+                var toFull = Math.Max(0, cfp.Amount - alreadyPaid - paidSoFar);
+                var take = Math.Min(remaining, toFull);
+                if (take > 0)
+                {
+                    allocations[cfp.FeeId] = paidSoFar + take;
+                    remaining -= take;
+                }
+            }
+
+            // Pass 3 — overflow
+            if (remaining > 0)
+            {
+                var firstId = fees.First().FeeId;
+                allocations.TryGetValue(firstId, out var current);
+                allocations[firstId] = current + remaining;
+            }
+
+            foreach (var (feeId, amount) in allocations)
+            {
+                _context.StudentPaymentItems.Add(new StudentPaymentItem
+                {
+                    Id = Guid.NewGuid(),
+                    StudentPaymentId = payment.Id,
+                    FeeId = feeId,
+                    AmountAllocated = amount,
+                });
+            }
+        }
+        #endregion
+
+        #region EnsureEnrollmentExistsAsync
+        /// <summary>
+        /// Finds the enrollment for the given student/session/term,
+        /// or creates one with the full billed amount as outstanding.
+        /// </summary>
+        private async Task<StudentEnrollments?> EnsureEnrollmentExistsAsync(
+            Guid studentProfileId, Guid academicSessionId, Guid termId)
+        {
+            var enrollment = await _context.StudentEnrollments
+                .FirstOrDefaultAsync(e =>
+                    e.StudentProfileId == studentProfileId &&
+                    e.TermId == termId &&
+                    e.AcademicSessionId == academicSessionId);
+
+            if (enrollment != null) return enrollment;
+
+            var student = await _context.Students
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == studentProfileId);
+
+            if (student == null)
+            {
+                _logger.LogWarning(
+                    "Cannot create enrollment — student {StudentId} not found.",
+                    studentProfileId);
+                return null;
+            }
+
+            var billedAmount = await _context.ClassFeePrices
+                .Include(cfp => cfp.Fee)
+                .Where(cfp => cfp.SchoolClassId == student.SchoolClassId &&
+                              cfp.Fee.TermId == termId &&
+                              cfp.Fee.AcademicSessionId == academicSessionId)
+                .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
+
+            enrollment = new StudentEnrollments
+            {
+                Id = Guid.NewGuid(),
+                StudentProfileId = student.Id,
+                AcademicSessionId = academicSessionId,
+                TermId = termId,
+                SchoolClassId = student.SchoolClassId,
+                TotalAmountPaid = 0m,
+                OutstandingBalance = billedAmount,
+                IsFullyPaid = false,
+                Status = StudentEnrollmentStatus.Pending,
+                IsActive = false,
+                EnrolledAt = DateTime.UtcNow,
+            };
+
+            _context.StudentEnrollments.Add(enrollment);
+
+            _logger.LogInformation(
+                "Auto-created enrollment for student {StudentId} term {TermId} — " +
+                "billed ₦{Billed:N2}.",
+                student.Id, termId, billedAmount);
+
+            return enrollment;
+        }
+        #endregion
+
+        #region RecomputeEnrollmentTotalsAsync
+        /// <summary>
+        /// Recomputes an enrollment's TotalAmountPaid / OutstandingBalance / IsFullyPaid / Status.
+        /// Excludes the given payment ID (so callers control whether the current payment
+        /// is counted), and adds an optional extra amount on top of the DB sum.
+        /// </summary>
+        private async Task RecomputeEnrollmentTotalsAsync(
+            StudentEnrollments enrollment,
+            Guid excludePaymentId,
+            decimal addPaymentAmount)
+        {
+            var pastPaid = await _context.StudentPayments
+                .Where(p => p.StudentProfileId == enrollment.StudentProfileId &&
+                            p.TermId == enrollment.TermId &&
+                            p.Status == PaymentStatus.Successful &&
+                            p.Id != excludePaymentId)
+                .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
+
+            var newTotalPaid = pastPaid + addPaymentAmount;
+
+            var totalRequiredFee = await _context.ClassFeePrices
+                .Include(cfp => cfp.Fee)
+                .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId &&
+                              cfp.Fee.TermId == enrollment.TermId)
+                .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
+
+            enrollment.TotalAmountPaid = newTotalPaid;
+            enrollment.OutstandingBalance = Math.Max(0, totalRequiredFee - newTotalPaid);
+
+            var totalMinimum = await _context.ClassFeePrices
+                .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId &&
+                              cfp.Fee.TermId == enrollment.TermId)
+                .SumAsync(cfp => (decimal?)cfp.MinimumAmountToPay) ?? 0m;
+
+            if (totalMinimum > 0)
+            {
+                if (newTotalPaid < totalMinimum)
+                {
+                    enrollment.Status = StudentEnrollmentStatus.Pending;
+                    enrollment.IsActive = false;
+                }
+                else
+                {
+                    enrollment.Status = StudentEnrollmentStatus.Active;
+                    enrollment.IsActive = true;
+                }
+            }
+
+            enrollment.IsFullyPaid =
+                totalRequiredFee > 0 && newTotalPaid >= totalRequiredFee;
+
+            _context.StudentEnrollments.Update(enrollment);
+        }
+        #endregion
+
+        #region ResolveCustomerEmailAsync
+        /// <summary>
+        /// Prefers the caller-provided email, falls back to the student's own email,
+        /// then to their primary guardian's email. Flutterwave requires one.
+        /// </summary>
+        private async Task<string?> ResolveCustomerEmailAsync(
+            Guid studentProfileId, string studentUserId, string? providedEmail)
+        {
+            if (!string.IsNullOrWhiteSpace(providedEmail))
+                return providedEmail.Trim();
+
+            var studentEmail = await _context.Users
+                .AsNoTracking()
+                .Where(u => u.Id == studentUserId)
+                .Select(u => u.Email)
+                .FirstOrDefaultAsync();
+
+            if (!string.IsNullOrWhiteSpace(studentEmail))
+                return studentEmail;
+
+            return await _context.ParentStudents
+                .AsNoTracking()
+                .Include(ps => ps.Parent)
+                .Where(ps => ps.StudentProfileId == studentProfileId
+                          && ps.IsPrimaryContact)
+                .Select(ps => ps.Parent!.Email)
+                .FirstOrDefaultAsync();
+        }
+        #endregion
+
+        #region SendFlutterwaveRequestAsync
+        /// <summary>
+        /// Sends a Flutterwave API request with per-request auth.
+        /// Using HttpRequestMessage (instead of mutating DefaultRequestHeaders)
+        /// avoids the classic pooled-HttpClient header-leak bug.
+        /// The caller is responsible for disposing the response.
+        /// </summary>
+        private async Task<HttpResponseMessage> SendFlutterwaveRequestAsync(
+            HttpMethod method,
+            string path,
+            HttpContent? content,
+            string secretKey)
+        {
+            using var request = new HttpRequestMessage(
+                method, $"{FlutterwaveBaseUrl}{path}");
+
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", secretKey);
+
+            if (content != null)
+                request.Content = content;
+
+            return await _httpClient.SendAsync(request);
         }
         #endregion
     }

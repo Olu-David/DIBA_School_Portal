@@ -15,7 +15,7 @@ namespace DIBA_School_Portal.Server.Services
     public class PdfReportService : IPdfReportService
     {
         #region Constants — School identity
-        private const string AvatarBucket = "avatars";
+        private const string AvatarBucket = "DibaSchool";        // ← CHANGED from "avatars"
 
         private const string SchoolName = "DOMINION INTELLIGENT BUILDERS' ACADEMY";
         private const string SchoolTagline = "Nursery, Primary & Secondary School";
@@ -1045,8 +1045,8 @@ namespace DIBA_School_Portal.Server.Services
             }).GeneratePdf();
         }
         #endregion
-      
-        
+
+
         // ==========================================================
         // HELPERS
         // ==========================================================
@@ -1174,7 +1174,5 @@ namespace DIBA_School_Portal.Server.Services
         };
 
         #endregion
-
-      
     }
 }

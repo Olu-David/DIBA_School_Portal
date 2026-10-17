@@ -738,9 +738,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         public async Task<ServiceResponse<StudentBillDto>> GetMyBillAsync(
-    string userId,
-    Guid? termId = null,
-    Guid? academicSessionId = null)
+      string userId,
+      Guid? termId = null,
+      Guid? academicSessionId = null)
         {
             var response = new ServiceResponse<StudentBillDto>();
 
@@ -818,7 +818,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
 
                 // ---------- 4. Fee items for this student's class ----------
-                // The bill = sum of ClassFeePrice.Amount for their class in this term.
                 var classFees = await _context.ClassFeePrices
                     .AsNoTracking()
                     .Include(cfp => cfp.Fee)
@@ -839,7 +838,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     .OrderByDescending(p => p.PaymentDate)
                     .ToListAsync();
 
-                // ---------- 6. Allocations: how much each payment was tagged to each fee ----------
+                // ---------- 6. Allocations ----------
                 var paymentIds = payments.Select(p => p.Id).ToList();
 
                 var allocations = await _context.StudentPaymentItems
@@ -864,6 +863,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                             FeeName = cfp.Fee!.FeeName,
                             Description = cfp.Fee.Description,
                             Amount = cfp.Amount,
+                            MinimumAmountToPay = cfp.MinimumAmountToPay,   // ← ADD THIS
                             AmountPaidTowardThis = paidTowardThis,
                             IsFullyPaid = cfp.Amount > 0 && paidTowardThis >= cfp.Amount,
                         };
@@ -876,14 +876,24 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 var totalPaid = payments.Sum(p => p.AmountPaid);
                 var balance = Math.Max(0, totalBilled - totalPaid);
 
+                // Minimum required = sum of unmet minimums across unpaid fees
+                var minimumRequired = feeItems
+                    .Where(f => !f.IsFullyPaid)
+                    .Sum(f => Math.Max(0, f.MinimumAmountToPay - f.AmountPaidTowardThis));
+
+                // ---------- 9. Response ----------
                 response.Success = true;
                 response.StatusCode = 200;
                 response.Data = new StudentBillDto
                 {
+                    StudentProfileId = student.Id,                  // ← ADD THIS
+                    AcademicSessionId = resolvedSessionId,          // ← ADD THIS
+                    TermId = resolvedTermId,                        // ← ADD THIS
                     TermName = term.Name,
                     TotalBilledAmount = totalBilled,
                     TotalPaidSoFar = totalPaid,
                     TotalBalanceRemaining = balance,
+                    MinimumAmountRequired = minimumRequired,
                     FeeItems = feeItems,
                     PaymentHistory = payments.Select(p => new PaymentHistoryDto
                     {

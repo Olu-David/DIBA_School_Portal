@@ -10,18 +10,33 @@ namespace DIBA_School_Portal.Server.Database_Entities
             this IServiceCollection services,
             IConfiguration configuration)
         {
-            // ---------- DbContext ----------
+            // ---------- DbContext (Dynamic Provider Switcher) ----------
             var connectionString = configuration.GetConnectionString("DefaultConnection")
-                ?? throw new InvalidOperationException(
-                    "Connection string 'DefaultConnection' is not configured.");
+                ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 
             services.AddDbContext<AppDbContext>(options =>
-                options.UseSqlServer(connectionString, sql =>
-                    sql.EnableRetryOnFailure(
-                        maxRetryCount: 5,
-                        maxRetryDelay: TimeSpan.FromSeconds(10),
-                        errorNumbersToAdd: null)));
-
+            {
+                // Check if the connection string looks like PostgreSQL (Supabase/Npgsql) or SQL Server
+                if (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase) ||
+                    connectionString.Contains("Port=", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Use PostgreSQL (Supabase)
+                    options.UseNpgsql(connectionString, pgOptions =>
+                        pgOptions.EnableRetryOnFailure(
+                            maxRetryCount: 5,
+                            maxRetryDelay: TimeSpan.FromSeconds(10),
+                            errorCodesToAdd: null));
+                }
+                else
+                {
+                    // Use SQL Server (LocalDB / Local testing)
+                    options.UseSqlServer(connectionString, sqlOptions =>
+                        sqlOptions.EnableRetryOnFailure(
+                            maxRetryCount: 5,
+                            maxRetryDelay: TimeSpan.FromSeconds(10),
+                            errorNumbersToAdd: null));
+                }
+            });
             // ---------- Identity ----------
             services.AddIdentity<ApplicationUser, IdentityRole>(options =>
             {

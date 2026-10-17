@@ -17,7 +17,10 @@ namespace DIBA_School_Portal.Server.Repository.IServices
             // Add these for Flutterwave/Gateway handling:
             Task<ServiceResponse<StudentPaymentDto>> GetPaymentByReferenceAsync(string referenceNumber);
             Task<ServiceResponse<bool>> VerifyAndCompleteFlutterwavePaymentAsync(string transactionId, string referenceNumber);
-          
+        Task<ServiceResponse<InitiateFlutterwaveResponseDto>> InitiateFlutterwaveAsync(
+    InitiateFlutterwaveDto request, string currentUserId, string ipAddress);
+
+
     }
  }
 

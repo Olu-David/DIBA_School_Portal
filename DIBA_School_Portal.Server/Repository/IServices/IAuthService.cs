@@ -30,6 +30,15 @@ namespace DIBA_School_Portal.Server.Repository.IServices
             ParentLoginRequestDto request, string ipAddress);
         #endregion
 
+        #region UpdateProfileAsync and UpdateProfilePictureAsync
+        Task<ServiceResponse<UserProfileDto>> UpdateProfileAsync(
+    string userId, UpdateProfileDto request, string ipAddress);
+
+        Task<ServiceResponse<string>> UpdateProfilePictureAsync(
+            string userId, IFormFile picture, string ipAddress);
+
+   #endregion
+
         #region Account Creation
         /// <summary>
         /// Creates a single account. Restricted to SuperAdmin, Principal, and Registrar.
@@ -64,5 +73,7 @@ namespace DIBA_School_Portal.Server.Repository.IServices
         Task<ServiceResponse<bool>> AdminResetPasswordAsync(
             string currentUserId, AdminResetPasswordDto request, string ipAddress);
         #endregion
+
+        Task<ServiceResponse<UserProfileDto>> ChangeRoleAsync(  string targetUserId, ChangeRoleDto request,string currentUserId,string ipAddress);
     }
 }

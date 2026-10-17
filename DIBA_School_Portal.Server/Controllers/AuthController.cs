@@ -32,9 +32,6 @@ namespace DIBA_School_Portal.Server.Controllers
         #endregion
 
         #region Login - Student
-        /// <summary>
-        /// Student login with admission number (e.g. "DIBA/2026/001") and password.
-        /// </summary>
         [HttpPost("student/login")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(ServiceResponse<LoginResponseDto>), StatusCodes.Status200OK)]
@@ -46,9 +43,6 @@ namespace DIBA_School_Portal.Server.Controllers
         #endregion
 
         #region Login - Staff
-        /// <summary>
-        /// Staff login with school email and password.
-        /// </summary>
         [HttpPost("staff/login")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(ServiceResponse<LoginResponseDto>), StatusCodes.Status200OK)]
@@ -60,9 +54,6 @@ namespace DIBA_School_Portal.Server.Controllers
         #endregion
 
         #region Login - Parent
-        /// <summary>
-        /// Parent login with phone number (preferred) or email and password.
-        /// </summary>
         [HttpPost("parent/login")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(ServiceResponse<LoginResponseDto>), StatusCodes.Status200OK)]
@@ -74,15 +65,11 @@ namespace DIBA_School_Portal.Server.Controllers
         #endregion
 
         #region Create Account
-        /// <summary>
-        /// Creates a single account (staff, student, or parent).
-        /// SuperAdmin, Principal, Registrar only.
-        /// </summary>
         [HttpPost("create-account")]
         [Authorize(Roles = "SuperAdmin,Principal,Registrar")]
-        [Consumes("multipart/form-data")]                              // ← new
+        [Consumes("multipart/form-data")]
         [ProducesResponseType(typeof(ServiceResponse<CreateAccountResponseDto>), StatusCodes.Status201Created)]
-        public async Task<IActionResult> CreateAccount([FromForm] CreateAccountDto request)   // ← FromForm
+        public async Task<IActionResult> CreateAccount([FromForm] CreateAccountDto request)
         {
             var result = await _auth.CreateAccountAsync(request, CurrentUserId, Ip);
             return StatusCode(result.StatusCode, result);
@@ -90,10 +77,6 @@ namespace DIBA_School_Portal.Server.Controllers
         #endregion
 
         #region Link Parent To Student
-        /// <summary>
-        /// Links a parent to a student. Creates the parent account if new.
-        /// SuperAdmin, Principal, Registrar only.
-        /// </summary>
         [HttpPost("link-parent")]
         [Authorize(Roles = "SuperAdmin,Principal,Registrar")]
         [ProducesResponseType(typeof(ServiceResponse<CreateAccountResponseDto>), StatusCodes.Status201Created)]
@@ -105,9 +88,6 @@ namespace DIBA_School_Portal.Server.Controllers
         #endregion
 
         #region Change Password
-        /// <summary>
-        /// Self-service password change for any authenticated user.
-        /// </summary>
         [HttpPost("change-password")]
         [Authorize]
         [ProducesResponseType(typeof(ServiceResponse<bool>), StatusCodes.Status200OK)]
@@ -119,16 +99,53 @@ namespace DIBA_School_Portal.Server.Controllers
         #endregion
 
         #region Admin Reset Password
-        /// <summary>
-        /// Admin-initiated password reset (no email required).
-        /// SuperAdmin, Principal, Registrar only.
-        /// </summary>
         [HttpPost("admin-reset-password")]
         [Authorize(Roles = "SuperAdmin,Principal,Registrar")]
         [ProducesResponseType(typeof(ServiceResponse<bool>), StatusCodes.Status200OK)]
         public async Task<IActionResult> AdminResetPassword([FromBody] AdminResetPasswordDto request)
         {
             var result = await _auth.AdminResetPasswordAsync(CurrentUserId, request, Ip);
+            return StatusCode(result.StatusCode, result);
+        }
+        #endregion
+
+        #region Update Profile
+        [HttpPut("profile")]
+        [Authorize]
+        [ProducesResponseType(typeof(ServiceResponse<UserProfileDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto request)
+        {
+            var result = await _auth.UpdateProfileAsync(CurrentUserId, request, Ip);
+            return StatusCode(result.StatusCode, result);
+        }
+        #endregion
+
+        #region Update Profile Picture
+        [HttpPost("profile-picture")]
+        [Authorize]
+        [Consumes("multipart/form-data")]
+        [ProducesResponseType(typeof(ServiceResponse<string>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> UpdateProfilePicture(IFormFile picture)
+        {
+            var result = await _auth.UpdateProfilePictureAsync(CurrentUserId, picture, Ip);
+            return StatusCode(result.StatusCode, result);
+        }
+        #endregion
+
+        #region Change User Role
+        /// <summary>
+        /// Changes a staff member's role (e.g. Teacher → FormTeacher, Accountant, etc.).
+        /// SuperAdmin and Principal only. Principal cannot touch leadership accounts
+        /// or assign leadership roles.
+        /// </summary>
+        [HttpPut("users/{userId}/role")]
+        [Authorize(Roles = "SuperAdmin,Principal")]
+        [ProducesResponseType(typeof(ServiceResponse<UserProfileDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> ChangeRole(
+            string userId,
+            [FromBody] ChangeRoleDto request)
+        {
+            var result = await _auth.ChangeRoleAsync(userId, request, CurrentUserId, Ip);
             return StatusCode(result.StatusCode, result);
         }
         #endregion

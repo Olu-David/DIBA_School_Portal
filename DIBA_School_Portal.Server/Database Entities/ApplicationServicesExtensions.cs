@@ -19,9 +19,9 @@ namespace DIBA_School_Portal.Server.Database_Entities
                 services.AddScoped<INotificationLog, NotificationLogService>();
                 services.AddScoped<IPaymentLog, PaymentLogService>();
 
-                // ---------- Payments ----------
-                services.AddScoped<IPaymentService, PaymentService>();
-                services.AddScoped<IAccountService, AccountService>();
+            // ---------- Payments ----------
+            services.AddHttpClient<IPaymentService, PaymentService>();
+            services.AddScoped<IAccountService, AccountService>();
 
                 // ---------- Academics ----------
                 services.AddScoped<IAcademicSession, AcademicSessionService>();

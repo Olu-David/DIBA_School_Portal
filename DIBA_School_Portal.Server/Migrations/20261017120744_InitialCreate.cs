@@ -51,7 +51,6 @@ namespace DIBA_School_Portal.Server.Migrations
                     Action = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     Details = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     IpAddress = table.Column<string>(type: "nvarchar(45)", maxLength: 45, nullable: true),
-                    TenantId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     Timestamp = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "GETUTCDATE()")
                 },
                 constraints: table =>
