@@ -30,6 +30,12 @@ namespace DIBA_School_Portal.Server.Repository.IServices
         /// All students with outstanding balances for a term.
         /// </summary>
         Task<ServiceResponse<List<ArrearsRowDto>>> GetArrearsAsync(
-            Guid academicSessionId, Guid termId, Guid? classId = null);
+            Guid academicSessionId, Guid termId, Guid? classId = null); Task<ServiceResponse<MiscIncomeResponseDto>> RecordMiscIncomeAsync(
+    RecordMiscIncomeDto request, string currentUserId, string ipAddress);
+
+        Task<ServiceResponse<PaginatedViewModel<MiscIncomeRowDto>>> GetMiscIncomeAsync(
+            MiscIncomeFilterDto filter);
+
+
     }
 }

@@ -56,3 +56,17 @@ export interface FinanceDashboard {
   recentPayments: FinanceRecentPayment[];
   classBreakdown: FinanceClassBreakdown[];
 }
+export interface MiscIncomeCategorySummary {
+  category: string;
+  count: number;
+  totalAmount: number;
+}
+
+export interface FinanceDashboard {
+  // ... existing fields ...
+
+  totalMiscIncome: number;
+  miscIncomeTransactionCount: number;
+  grandTotalInflow: number;
+  miscIncomeByCategory: MiscIncomeCategorySummary[];
+}

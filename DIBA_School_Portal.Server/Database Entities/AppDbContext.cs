@@ -1,4 +1,5 @@
 ﻿using DIBA_School_Portal.Server.Configurations;
+using DIBA_School_Portal.Server.Database_Entities.Configurations;
 using DIBA_School_Portal.Server.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -11,7 +12,6 @@ namespace DIBA_School_Portal.Server.Database_Entities
         public AppDbContext(DbContextOptions<AppDbContext> options)
             : base(options) { }
 
-     
         // ---- Academy ----
         public DbSet<AcademicSession> AcademicSessions { get; set; }
         public DbSet<SchoolTerm> SchoolTerms { get; set; }
@@ -31,6 +31,9 @@ namespace DIBA_School_Portal.Server.Database_Entities
         public DbSet<StudentPayment> StudentPayments { get; set; }
         public DbSet<PaymentLog> PaymentLogs { get; set; }
 
+        // ⚠️ NEW — the missing DbSet that was causing silent discovery failure
+        public DbSet<MiscellaneousIncome> MiscellaneousIncomes { get; set; }
+
         // ---- People ----
         public DbSet<Student> Students { get; set; }
         public DbSet<Teacher> Teachers { get; set; }
@@ -48,8 +51,13 @@ namespace DIBA_School_Portal.Server.Database_Entities
         {
             base.OnModelCreating(modelBuilder);
 
+            // Auto-discovery (still useful for future configs)
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
+            // ⚠️ NEW — explicit registration, so the config CANNOT be skipped
+            modelBuilder.ApplyConfiguration(new MiscellaneousIncomeConfiguration());
+
+            // Existing enum-to-string conversions
             modelBuilder.Entity<PaymentLog>()
                 .Property(p => p.Gateway)
                 .HasConversion<string>();

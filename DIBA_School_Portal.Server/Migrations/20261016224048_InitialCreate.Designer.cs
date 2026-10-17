@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DIBA_School_Portal.Server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261015125003_InitialCreate")]
+    [Migration("20261016224048_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -360,6 +360,84 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasIndex("TermId");
 
                     b.ToTable("Fees");
+                });
+
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.MiscellaneousIncome", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AcademicSessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Gateway")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PayerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PayerPhone")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RecordedByUserId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("ReferenceNumber")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("StudentProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TermId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category");
+
+                    b.HasIndex("RecordedAt");
+
+                    b.HasIndex("RecordedByUserId");
+
+                    b.HasIndex("ReferenceNumber")
+                        .IsUnique();
+
+                    b.HasIndex("StudentProfileId");
+
+                    b.HasIndex("TermId");
+
+                    b.HasIndex("AcademicSessionId", "TermId");
+
+                    b.ToTable("MiscellaneousIncomes", (string)null);
                 });
 
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.NotificationLog", b =>
@@ -1217,6 +1295,39 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Navigation("AcademicSession");
 
                     b.Navigation("SchoolClass");
+
+                    b.Navigation("Term");
+                });
+
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.MiscellaneousIncome", b =>
+                {
+                    b.HasOne("DIBA_School_Portal.Server.Entities.AcademicSession", "AcademicSession")
+                        .WithMany()
+                        .HasForeignKey("AcademicSessionId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("DIBA_School_Portal.Server.Database_Entities.ApplicationUser", "RecordedBy")
+                        .WithMany()
+                        .HasForeignKey("RecordedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("DIBA_School_Portal.Server.Entities.Student", "StudentProfile")
+                        .WithMany()
+                        .HasForeignKey("StudentProfileId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("DIBA_School_Portal.Server.Entities.SchoolTerm", "Term")
+                        .WithMany()
+                        .HasForeignKey("TermId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("AcademicSession");
+
+                    b.Navigation("RecordedBy");
+
+                    b.Navigation("StudentProfile");
 
                     b.Navigation("Term");
                 });

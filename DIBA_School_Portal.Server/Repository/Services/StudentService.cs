@@ -848,7 +848,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     .ToListAsync();
 
                 var paidByFee = allocations
-                    .GroupBy(a => a.FeeId)
+                    .Where(a => a.FeeId.HasValue)
+                    .GroupBy(a => a.FeeId!.Value)
                     .ToDictionary(g => g.Key, g => g.Sum(a => a.AmountAllocated));
 
                 // ---------- 7. Build fee items ----------

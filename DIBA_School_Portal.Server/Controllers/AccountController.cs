@@ -75,5 +75,25 @@ namespace DIBA_School_Portal.Server.Controllers
             var result = await _account.GetArrearsAsync(academicSessionId, termId, classId);
             return StatusCode(result.StatusCode, result);
         }
+        // ==========================================================
+        // MISC INCOME — record cash outside the fee schedule
+        // ==========================================================
+        [HttpPost("misc-income")]
+        [Authorize(Roles = "SuperAdmin,Principal,Accountant,Registrar")]
+        public async Task<IActionResult> RecordMiscIncome([FromBody] RecordMiscIncomeDto request)
+        {
+            var result = await _account.RecordMiscIncomeAsync(request, CurrentUserId, Ip);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        // ==========================================================
+        // MISC INCOME — list + filter
+        // ==========================================================
+        [HttpGet("misc-income")]
+        public async Task<IActionResult> GetMiscIncome([FromQuery] MiscIncomeFilterDto filter)
+        {
+            var result = await _account.GetMiscIncomeAsync(filter);
+            return StatusCode(result.StatusCode, result);
+        }
     }
 }

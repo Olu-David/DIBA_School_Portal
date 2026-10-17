@@ -16,6 +16,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private readonly AppDbContext _context;
         private readonly IAuditLog _auditLog;
         private readonly IPaymentLog _paymentLog;
+        private readonly INotificationLog _notification;
         private readonly IHttpContextAccessor _http;
         private readonly ILogger<AccountService> _logger;
 
@@ -24,6 +25,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
             PaymentGateway.Flutterwave,
             PaymentGateway.Paystack,
         };
+
+        // Who gets notified when the bursary records money
+        private static readonly string[] FinanceNotificationRoles =
+        {
+            "SuperAdmin", "Principal", "VicePrincipal", "Accountant"
+        };
         #endregion
 
         #region Constructor
@@ -31,12 +38,14 @@ namespace DIBA_School_Portal.Server.Repository.Services
             AppDbContext context,
             IAuditLog auditLog,
             IPaymentLog paymentLog,
+            INotificationLog notification,
             IHttpContextAccessor http,
             ILogger<AccountService> logger)
         {
             _context = context;
             _auditLog = auditLog;
             _paymentLog = paymentLog;
+            _notification = notification;
             _http = http;
             _logger = logger;
         }
@@ -46,11 +55,70 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
+        // HELPERS
+        // ==========================================================
+        #region Notification helpers
+        /// <summary>
+        /// Fires a personal notification to every active user whose primary role
+        /// is one of the finance-notification roles.
+        /// </summary>
+        private async Task NotifyFinanceStaffAsync(string title, string message)
+        {
+            try
+            {
+                var recipients = await _context.Users
+                    .AsNoTracking()
+                    .Where(u =>
+                        u.IsActive
+                        && !u.IsDeleted
+                        && u.PrimaryRole != null
+                        && FinanceNotificationRoles.Contains(u.PrimaryRole))
+                    .Select(u => u.Id)
+                    .ToListAsync();
+
+                foreach (var userId in recipients)
+                {
+                    await _notification.SendNotificationAsync(
+                        userId,
+                        title,
+                        message,
+                        category: "Finance");
+                }
+            }
+            catch (Exception ex)
+            {
+                // Never let a notification failure break the payment flow
+                _logger.LogWarning(ex, "Failed to dispatch finance notification.");
+            }
+        }
+
+        /// <summary>
+        /// Fires a notification to a single user if their ID is non-empty.
+        /// </summary>
+        private async Task NotifyUserSafeAsync(
+            string? userId, string title, string message, string category = "Finance")
+        {
+            if (string.IsNullOrWhiteSpace(userId)) return;
+
+            try
+            {
+                await _notification.SendNotificationAsync(
+                    userId, title, message, category);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex, "Failed to send notification to user {UserId}.", userId);
+            }
+        }
+        #endregion
+
+        // ==========================================================
         // DASHBOARD
         // ==========================================================
         #region GetDashboardAsync
         public async Task<ServiceResponse<FinanceDashboardDto>> GetDashboardAsync(
-     Guid academicSessionId, Guid termId)
+            Guid academicSessionId, Guid termId)
         {
             var response = new ServiceResponse<FinanceDashboardDto>();
 
@@ -88,7 +156,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 2. Aggregate enrollments in SQL (no loading rows into memory) ----------
+                // ---------- 2. Aggregate enrollments in SQL ----------
                 var enrollmentStats = await _context.StudentEnrollments
                     .AsNoTracking()
                     .Where(e => e.TermId == termId && e.AcademicSessionId == academicSessionId)
@@ -105,7 +173,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 if (enrollmentStats == null)
                 {
-                    // no enrollments — return an empty but valid dashboard
+                    // No enrollments — return an empty but valid dashboard
                     response.Success = true;
                     response.StatusCode = 200;
                     response.Data = new FinanceDashboardDto
@@ -117,11 +185,17 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         ClassBreakdown = new(),
                         GatewayBreakdown = new(),
                         RecentPayments = new(),
+
+                        // Misc income (empty)
+                        MiscIncomeByCategory = new(),
+                        TotalMiscIncome = 0m,
+                        MiscIncomeTransactionCount = 0,
+                        GrandTotalInflow = 0m,
                     };
                     return response;
                 }
 
-                // ---------- 3. Aggregate payments in SQL ----------
+                // ---------- 3. Aggregate fee payments in SQL ----------
                 var paymentStats = await _context.StudentPayments
                     .AsNoTracking()
                     .Where(p => p.TermId == termId
@@ -150,6 +224,25 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     ? Math.Round(totalCollected / totalExpected * 100, 2)
                     : 0m;
 
+                // ---------- 3b. Aggregate MISC INCOME in SQL ----------
+                var miscStats = await _context.MiscellaneousIncomes
+                    .AsNoTracking()
+                    .Where(m => m.TermId == termId
+                             && m.AcademicSessionId == academicSessionId
+                             && m.Status == PaymentStatus.Successful)
+                    .GroupBy(m => m.Category)
+                    .Select(g => new MiscIncomeCategorySummaryDto
+                    {
+                        Category = g.Key,
+                        Count = g.Count(),
+                        TotalAmount = g.Sum(x => x.Amount),
+                    })
+                    .OrderByDescending(x => x.TotalAmount)
+                    .ToListAsync();
+
+                decimal totalMiscIncome = miscStats.Sum(x => x.TotalAmount);
+                int miscTxCount = miscStats.Sum(x => x.Count);
+
                 // ---------- 4. Class breakdown in SQL ----------
                 var classBreakdown = await _context.StudentEnrollments
                     .AsNoTracking()
@@ -169,13 +262,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     .OrderBy(c => c.ClassName)
                     .ToListAsync();
 
-                // compute rate client-side to avoid the SQL division on nullable
                 foreach (var c in classBreakdown)
                     c.CollectionRate = c.Expected > 0
                         ? Math.Round(c.Collected / c.Expected * 100, 2)
                         : 0m;
 
-                // ---------- 5. Recent payments (projected, top 10 only) ----------
+                // ---------- 5. Recent fee payments (top 10) ----------
                 var recent = await _context.StudentPayments
                     .AsNoTracking()
                     .Where(p => p.TermId == termId && p.AcademicSessionId == academicSessionId)
@@ -188,7 +280,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         StudentName = p.StudentProfile != null
                                             ? p.StudentProfile.FirstName + " " + p.StudentProfile.LastName
                                             : "—",
-                        AdmissionNumber = p.StudentProfile != null ? p.StudentProfile.AdmissionNumber : "—",
+                        AdmissionNumber = p.StudentProfile != null
+                                            ? p.StudentProfile.AdmissionNumber
+                                            : "—",
                         ClassName = p.StudentProfile != null && p.StudentProfile.SchoolClass != null
                                             ? p.StudentProfile.SchoolClass.Name
                                             : "—",
@@ -199,7 +293,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     })
                     .ToListAsync();
 
-                // ---------- 6. Transaction counts (single aggregate) ----------
+                // ---------- 6. Fee transaction counts ----------
                 var txCounts = await _context.StudentPayments
                     .AsNoTracking()
                     .Where(p => p.TermId == termId && p.AcademicSessionId == academicSessionId)
@@ -217,6 +311,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                                   - enrollmentStats.FullyPaid
                                   - enrollmentStats.Unpaid;
 
+                // ---------- 7. Build response ----------
                 response.Success = true;
                 response.StatusCode = 200;
                 response.Data = new FinanceDashboardDto
@@ -226,29 +321,40 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     TermId = termId,
                     TermName = ctx.Term.Name,
 
+                    // ---------- Fee collection ----------
                     TotalExpected = totalExpected,
                     TotalCollected = totalCollected,
                     TotalOutstanding = totalOutstanding,
                     CollectionRate = collectionRate,
 
+                    // ---------- Fee payment methods ----------
                     TotalOnline = paymentStats?.Online ?? 0m,
                     TotalCash = paymentStats?.Cash ?? 0m,
                     TotalBankTransfer = paymentStats?.Bank ?? 0m,
                     TotalManual = paymentStats?.Manual ?? 0m,
 
+                    // ---------- Student fee status ----------
                     TotalStudents = enrollmentStats.TotalStudents,
                     FullyPaidCount = enrollmentStats.FullyPaid,
                     PartiallyPaidCount = partiallyPaid,
                     UnpaidCount = enrollmentStats.Unpaid,
 
+                    // ---------- Fee transaction counts ----------
                     TotalTransactions = txCounts?.Total ?? 0,
                     SuccessfulTransactions = txCounts?.Success ?? 0,
                     PendingTransactions = txCounts?.Pending ?? 0,
                     FailedTransactions = txCounts?.Failed ?? 0,
 
+                    // ---------- Breakdowns ----------
                     ClassBreakdown = classBreakdown,
-                    GatewayBreakdown = new List<GatewaySummaryDto>(),  // compute if needed
+                    GatewayBreakdown = new List<GatewaySummaryDto>(),
                     RecentPayments = recent,
+
+                    // ---------- Misc income (non-fee revenue) ----------
+                    TotalMiscIncome = totalMiscIncome,
+                    MiscIncomeTransactionCount = miscTxCount,
+                    GrandTotalInflow = totalCollected + totalMiscIncome,
+                    MiscIncomeByCategory = miscStats,
                 };
                 return response;
             }
@@ -262,6 +368,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
         }
         #endregion
+        
 
         // ==========================================================
         // PAYMENTS LIST
@@ -453,7 +560,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     Status = PaymentStatus.Successful,
                     AcademicSessionId = request.AcademicSessionId,
                     TermId = request.TermId,
-                    EnrollmentId = enrollment.Id,       // ← set the FK (nullable but we know it here)
+                    EnrollmentId = enrollment.Id,
                     PaymentDate = DateTime.UtcNow,
                 };
 
@@ -475,7 +582,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
                 else
                 {
-                    // Auto-allocate: tuition first, else first available fee
                     var tuitionFee = await _context.Fees
                         .FirstOrDefaultAsync(f =>
                             f.SchoolClassId == enrollment.SchoolClassId &&
@@ -547,6 +653,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 await _context.SaveChangesAsync();
 
+                // ---------- 6. Logs ----------
                 await _paymentLog.RecordPaymentAsync(
                     enrollment.StudentProfileId.ToString(),
                     request.AmountPaid,
@@ -561,6 +668,40 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     $"{student.FirstName} {student.LastName} ({student.AdmissionNumber}).",
                     ipAddress);
 
+                // ---------- 7. Notify finance staff ----------
+                await NotifyFinanceStaffAsync(
+                    "Cash payment recorded",
+                    $"₦{request.AmountPaid:N2} received from " +
+                    $"{student.FirstName} {student.LastName} " +
+                    $"({student.AdmissionNumber}). Ref {reference}.");
+
+                // ---------- 8. Notify student ----------
+                await NotifyUserSafeAsync(
+                    student.UserId,
+                    "Payment received",
+                    $"Your payment of ₦{request.AmountPaid:N2} has been recorded. " +
+                    $"Outstanding balance: ₦{enrollment.OutstandingBalance:N2}.",
+                    category: "Finance");
+
+                // ---------- 9. Notify linked parents ----------
+                var parentIds = await _context.ParentStudents
+                    .AsNoTracking()
+                    .Where(ps => ps.StudentProfileId == student.Id)
+                    .Select(ps => ps.ParentUserId)
+                    .ToListAsync();
+
+                foreach (var parentId in parentIds)
+                {
+                    await NotifyUserSafeAsync(
+                        parentId,
+                        "Payment recorded for your child",
+                        $"₦{request.AmountPaid:N2} received for " +
+                        $"{student.FirstName} {student.LastName}. " +
+                        $"Outstanding balance: ₦{enrollment.OutstandingBalance:N2}.",
+                        category: "Finance");
+                }
+
+                // ---------- 10. Response ----------
                 response.Success = true;
                 response.StatusCode = 201;
                 response.Message = "Cash payment recorded successfully.";
@@ -655,6 +796,318 @@ namespace DIBA_School_Portal.Server.Repository.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching arrears.");
+                response.Success = false;
+                response.Message = $"An error occurred: {ex.Message}";
+                response.StatusCode = 500;
+                return response;
+            }
+        }
+        #endregion
+
+        // ==========================================================
+        // MISC INCOME — record cash outside the fee schedule
+        // ==========================================================
+        #region RecordMiscIncomeAsync
+        public async Task<ServiceResponse<MiscIncomeResponseDto>> RecordMiscIncomeAsync(
+            RecordMiscIncomeDto request, string currentUserId, string ipAddress)
+        {
+            var response = new ServiceResponse<MiscIncomeResponseDto>();
+
+            try
+            {
+                // ---------- 1. Validate amount ----------
+                if (request.Amount <= 0)
+                {
+                    response.Success = false;
+                    response.Message = "Amount must be greater than zero.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                // ---------- 2. Validate category + description ----------
+                if (string.IsNullOrWhiteSpace(request.Category))
+                {
+                    response.Success = false;
+                    response.Message = "Category is required.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                if (string.IsNullOrWhiteSpace(request.Description))
+                {
+                    response.Success = false;
+                    response.Message = "Description is required.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                // ---------- 3. Validate session + term ----------
+                var sessionTerm = await _context.AcademicSessions
+                    .AsNoTracking()
+                    .Where(s => s.Id == request.AcademicSessionId)
+                    .Select(s => new
+                    {
+                        s.Id,
+                        s.Name,
+                        Term = _context.SchoolTerms
+                            .AsNoTracking()
+                            .Where(t => t.Id == request.TermId
+                                     && t.AcademicSessionId == s.Id)
+                            .Select(t => new { t.Id, t.Name })
+                            .FirstOrDefault()
+                    })
+                    .FirstOrDefaultAsync();
+
+                if (sessionTerm == null)
+                {
+                    response.Success = false;
+                    response.Message = "Academic session not found.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                if (sessionTerm.Term == null)
+                {
+                    response.Success = false;
+                    response.Message = "Term not found or does not belong to session.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                // ---------- 4. Optional: validate student link ----------
+                string? studentName = null;
+                if (request.StudentProfileId.HasValue)
+                {
+                    var student = await _context.Students
+                        .AsNoTracking()
+                        .Where(s => s.Id == request.StudentProfileId.Value)
+                        .Select(s => new { s.FirstName, s.LastName })
+                        .FirstOrDefaultAsync();
+
+                    if (student == null)
+                    {
+                        response.Success = false;
+                        response.Message = "Student not found.";
+                        response.StatusCode = 404;
+                        return response;
+                    }
+
+                    studentName = $"{student.FirstName} {student.LastName}";
+                }
+
+                // ---------- 5. Generate reference ----------
+                var reference = !string.IsNullOrWhiteSpace(request.ExternalReference)
+                    ? request.ExternalReference.Trim()
+                    : $"MISC-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..6].ToUpper()}";
+
+                // ---------- 6. Create the record ----------
+                var income = new MiscellaneousIncome
+                {
+                    Id = Guid.NewGuid(),
+                    ReferenceNumber = reference,
+                    Category = request.Category.Trim(),
+                    Description = request.Description.Trim(),
+                    Amount = request.Amount,
+                    PayerName = string.IsNullOrWhiteSpace(request.PayerName)
+                        ? null : request.PayerName.Trim(),
+                    PayerPhone = string.IsNullOrWhiteSpace(request.PayerPhone)
+                        ? null : request.PayerPhone.Trim(),
+                    StudentProfileId = request.StudentProfileId,
+                    AcademicSessionId = request.AcademicSessionId,
+                    TermId = request.TermId,
+                    Gateway = request.Gateway,
+                    Status = PaymentStatus.Successful,
+                    RecordedByUserId = currentUserId,
+                    Note = string.IsNullOrWhiteSpace(request.Note)
+                        ? null : request.Note.Trim(),
+                    RecordedAt = DateTime.UtcNow,
+                };
+
+                _context.MiscellaneousIncomes.Add(income);
+                await _context.SaveChangesAsync();
+
+                // ---------- 7. Logs ----------
+                await _paymentLog.RecordPaymentAsync(
+                    currentUserId,
+                    request.Amount,
+                    reference,
+                    request.Gateway,
+                    $"Misc income — {income.Category}: {income.Description}");
+
+                await _auditLog.LogActivityAsync(
+                    currentUserId,
+                    "Misc Income Recorded",
+                    $"Ref {reference}: ₦{request.Amount:N2} ({income.Category}) — " +
+                    $"{income.Description}" +
+                    (studentName != null ? $" [Student: {studentName}]" : ""),
+                    ipAddress);
+
+                // ---------- 8. Notify finance staff ----------
+                await NotifyFinanceStaffAsync(
+                    "Income recorded",
+                    $"₦{request.Amount:N2} — {income.Category}: {income.Description}" +
+                    (studentName != null ? $" ({studentName})" : "") +
+                    $". Ref {reference}.");
+
+                // ---------- 9. If linked to a student, notify them + parents ----------
+                if (request.StudentProfileId.HasValue)
+                {
+                    var studentUserId = await _context.Students
+                        .AsNoTracking()
+                        .Where(s => s.Id == request.StudentProfileId.Value)
+                        .Select(s => s.UserId)
+                        .FirstOrDefaultAsync();
+
+                    await NotifyUserSafeAsync(
+                        studentUserId,
+                        "Payment recorded",
+                        $"₦{request.Amount:N2} recorded for {income.Category}: " +
+                        $"{income.Description}. Ref {reference}.",
+                        category: "Finance");
+
+                    var parentIds = await _context.ParentStudents
+                        .AsNoTracking()
+                        .Where(ps => ps.StudentProfileId == request.StudentProfileId.Value)
+                        .Select(ps => ps.ParentUserId)
+                        .ToListAsync();
+
+                    foreach (var parentId in parentIds)
+                    {
+                        await NotifyUserSafeAsync(
+                            parentId,
+                            "Payment recorded for your child",
+                            $"₦{request.Amount:N2} — {income.Category}: " +
+                            $"{income.Description}. Ref {reference}.",
+                            category: "Finance");
+                    }
+                }
+
+                // ---------- 10. Response ----------
+                response.Success = true;
+                response.StatusCode = 201;
+                response.Message = "Income recorded successfully.";
+                response.Data = new MiscIncomeResponseDto
+                {
+                    Id = income.Id,
+                    ReferenceNumber = income.ReferenceNumber,
+                    Category = income.Category,
+                    Description = income.Description,
+                    Amount = income.Amount,
+                    PayerName = income.PayerName,
+                    StudentProfileId = income.StudentProfileId,
+                    StudentName = studentName,
+                    Gateway = income.Gateway,
+                    Status = income.Status,
+                    RecordedAt = income.RecordedAt,
+                };
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error recording misc income.");
+                response.Success = false;
+                response.Message = $"An error occurred: {ex.Message}";
+                response.StatusCode = 500;
+                return response;
+            }
+        }
+        #endregion
+
+        // ==========================================================
+        // MISC INCOME — list with filters
+        // ==========================================================
+        #region GetMiscIncomeAsync
+        public async Task<ServiceResponse<PaginatedViewModel<MiscIncomeRowDto>>> GetMiscIncomeAsync(
+            MiscIncomeFilterDto filter)
+        {
+            var response = new ServiceResponse<PaginatedViewModel<MiscIncomeRowDto>>();
+
+            try
+            {
+                filter.PageNumber = Math.Max(1, filter.PageNumber);
+                filter.PageSize = Math.Max(1, Math.Min(100, filter.PageSize));
+
+                var query = _context.MiscellaneousIncomes
+                    .AsNoTracking()
+                    .Include(m => m.StudentProfile)
+                        .ThenInclude(s => s!.SchoolClass)
+                    .AsQueryable();
+
+                if (filter.AcademicSessionId.HasValue)
+                    query = query.Where(m => m.AcademicSessionId == filter.AcademicSessionId.Value);
+
+                if (filter.TermId.HasValue)
+                    query = query.Where(m => m.TermId == filter.TermId.Value);
+
+                if (!string.IsNullOrWhiteSpace(filter.Category))
+                    query = query.Where(m => m.Category == filter.Category);
+
+                if (filter.Gateway.HasValue)
+                    query = query.Where(m => m.Gateway == filter.Gateway.Value);
+
+                if (filter.FromDate.HasValue)
+                    query = query.Where(m => m.RecordedAt >= filter.FromDate.Value);
+
+                if (filter.ToDate.HasValue)
+                    query = query.Where(m => m.RecordedAt <= filter.ToDate.Value);
+
+                if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
+                {
+                    var s = filter.SearchTerm.Trim().ToLower();
+                    query = query.Where(m =>
+                        m.ReferenceNumber.ToLower().Contains(s) ||
+                        m.Category.ToLower().Contains(s) ||
+                        m.Description.ToLower().Contains(s) ||
+                        (m.PayerName != null && m.PayerName.ToLower().Contains(s)) ||
+                        (m.StudentProfile != null && (
+                            m.StudentProfile.FirstName.ToLower().Contains(s) ||
+                            m.StudentProfile.LastName.ToLower().Contains(s) ||
+                            m.StudentProfile.AdmissionNumber.ToLower().Contains(s))));
+                }
+
+                int totalCount = await query.CountAsync();
+
+                var rows = await query
+                    .OrderByDescending(m => m.RecordedAt)
+                    .Skip((filter.PageNumber - 1) * filter.PageSize)
+                    .Take(filter.PageSize)
+                    .Select(m => new MiscIncomeRowDto
+                    {
+                        Id = m.Id,
+                        ReferenceNumber = m.ReferenceNumber,
+                        Category = m.Category,
+                        Description = m.Description,
+                        Amount = m.Amount,
+                        PayerName = m.PayerName,
+                        StudentName = m.StudentProfile != null
+                            ? m.StudentProfile.FirstName + " " + m.StudentProfile.LastName
+                            : null,
+                        ClassName = m.StudentProfile != null && m.StudentProfile.SchoolClass != null
+                            ? m.StudentProfile.SchoolClass.Name
+                            : null,
+                        Gateway = m.Gateway,
+                        Status = m.Status,
+                        RecordedAt = m.RecordedAt,
+                    })
+                    .ToListAsync();
+
+                response.Success = true;
+                response.StatusCode = 200;
+                response.Data = new PaginatedViewModel<MiscIncomeRowDto>
+                {
+                    Items = rows,
+                    PageNumber = filter.PageNumber,
+                    PageSize = filter.PageSize,
+                    TotalCount = totalCount,
+                    TotalPages = totalCount > 0
+                        ? (int)Math.Ceiling(totalCount / (double)filter.PageSize)
+                        : 0,
+                };
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching misc income.");
                 response.Success = false;
                 response.Message = $"An error occurred: {ex.Message}";
                 response.StatusCode = 500;

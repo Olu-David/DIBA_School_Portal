@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Wallet, TrendingUp, TrendingDown, Users, BadgeDollarSign,
   CreditCard, Banknote, ArrowUpRight, PieChart as PieIcon,
-  AlertCircle, RefreshCw, Download,
+  AlertCircle, RefreshCw, Download, Coins,
 } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import { Button, Card, StatCard, Skeleton, Badge } from "../../components/ui";
@@ -110,16 +110,18 @@ export default function FinanceDashboard() {
     setExporting(true);
     try {
       const lines: string[] = [];
+      const now = new Date();
+      const dateStamp = now.toISOString().slice(0, 10);
 
-      // Header block
-      lines.push(`Financial Report`);
+      // ---------- Header ----------
+      lines.push("DIBA School Portal — Financial Report");
       lines.push(`Session,${data.academicSessionName}`);
       lines.push(`Term,${data.termName}`);
-      lines.push(`Generated,${new Date().toISOString()}`);
+      lines.push(`Generated,${now.toISOString()}`);
       lines.push("");
 
-      // Summary
-      lines.push("SUMMARY");
+      // ---------- Fee collection ----------
+      lines.push("FEE COLLECTION SUMMARY");
       lines.push("Metric,Value");
       lines.push(`Total Expected,${data.totalExpected}`);
       lines.push(`Total Collected,${data.totalCollected}`);
@@ -131,8 +133,8 @@ export default function FinanceDashboard() {
       lines.push(`Unpaid,${data.unpaidCount}`);
       lines.push("");
 
-      // Payment methods
-      lines.push("PAYMENT METHODS");
+      // ---------- Payment methods ----------
+      lines.push("PAYMENT METHODS (FEES ONLY)");
       lines.push("Method,Amount");
       lines.push(`Cash,${data.totalCash}`);
       lines.push(`Online,${data.totalOnline}`);
@@ -140,8 +142,32 @@ export default function FinanceDashboard() {
       lines.push(`Manual,${data.totalManual}`);
       lines.push("");
 
-      // Class breakdown
-      lines.push("COLLECTION BY CLASS");
+      // ---------- Other income ----------
+      lines.push("OTHER INCOME (NON-FEE)");
+      lines.push("Category,Transactions,Amount");
+      if (!data.miscIncomeByCategory || data.miscIncomeByCategory.length === 0) {
+        lines.push("(none recorded this term),0,0");
+      } else {
+        data.miscIncomeByCategory.forEach((c) => {
+          lines.push(`"${c.category}",${c.count},${c.totalAmount}`);
+        });
+      }
+      lines.push(`Total Other Income,,${data.totalMiscIncome}`);
+      lines.push(
+        `Total Other Income Transactions,${data.miscIncomeTransactionCount},`
+      );
+      lines.push("");
+
+      // ---------- Grand total ----------
+      lines.push("GRAND TOTAL INFLOW");
+      lines.push("Metric,Value");
+      lines.push(`Fee Collected,${data.totalCollected}`);
+      lines.push(`Other Income,${data.totalMiscIncome}`);
+      lines.push(`Grand Total Inflow,${data.grandTotalInflow}`);
+      lines.push("");
+
+      // ---------- Class breakdown ----------
+      lines.push("FEE COLLECTION BY CLASS");
       lines.push("Class,Students,Expected,Collected,Rate");
       data.classBreakdown.forEach((c) => {
         lines.push(
@@ -150,23 +176,34 @@ export default function FinanceDashboard() {
       });
       lines.push("");
 
-      // Recent payments
-      lines.push("RECENT PAYMENTS");
+      // ---------- Recent fee payments ----------
+      lines.push("RECENT FEE PAYMENTS");
       lines.push("Student,Reference,Amount,Date");
       data.recentPayments.forEach((p) => {
         lines.push(
           `"${p.studentName}",${p.referenceNumber},${p.amountPaid},${p.paymentDate}`
         );
       });
+      lines.push("");
+
+      // ---------- Notes ----------
+      lines.push("NOTES");
+      lines.push(
+        "This export contains income only. Expenses, payroll, and reconciliation are outside the scope of this system."
+      );
+      lines.push(
+        "Total Other Income is non-fee revenue (uniforms, fines, donations, etc.) and does NOT affect student enrollment balances."
+      );
 
       const csv = lines.join("\n");
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Finance_${data.termName.replace(/\s+/g, "_")}_${new Date()
-        .toISOString()
-        .slice(0, 10)}.csv`;
+      a.download = `DIBA_Finance_${data.termName.replace(
+        /\s+/g,
+        "_"
+      )}_${dateStamp}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -176,7 +213,7 @@ export default function FinanceDashboard() {
     }
   };
 
-  // ---------- Record cash ----------
+  // ---------- Navigation ----------
   const handleRecordCash = () => {
     navigate("/admin/finance/record-cash");
   };
@@ -186,8 +223,8 @@ export default function FinanceDashboard() {
     return (
       <div className="space-y-6">
         <PageHeader eyebrow="Finance" title="Financial overview" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
             <Card key={i}>
               <Skeleton className="w-10 h-10 rounded-xl mb-5" />
               <Skeleton className="h-3 w-24 mb-2" />
@@ -233,13 +270,17 @@ export default function FinanceDashboard() {
   }
 
   const collectionPercent = Math.min(100, Math.round(data.collectionRate));
+  const totalInflowPercent =
+    data.grandTotalInflow > 0
+      ? Math.round((data.totalMiscIncome / data.grandTotalInflow) * 100)
+      : 0;
 
   return (
     <div className="space-y-6 lg:space-y-8">
       <PageHeader
         eyebrow={`${data.academicSessionName} - ${data.termName}`}
         title="Financial overview"
-        description="Live collections, outstanding fees, and payment breakdown for the current term."
+        description="Live collections, outstanding fees, non-fee income, and payment breakdown for the current term."
         actions={
           <>
             <Button
@@ -257,7 +298,8 @@ export default function FinanceDashboard() {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
+      {/* ---------- Stat strip ---------- */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 lg:gap-6">
         <StatCard
           label="Total collected"
           value={formatNairaShort(data.totalCollected)}
@@ -288,8 +330,16 @@ export default function FinanceDashboard() {
           icon={Users}
           tone="violet"
         />
+        <StatCard
+          label="Other income"
+          value={formatNairaShort(data.totalMiscIncome)}
+          hint={`${data.miscIncomeTransactionCount} transaction(s)`}
+          icon={Coins}
+          tone="amber"
+        />
       </div>
 
+      {/* ---------- Collection progress ---------- */}
       <Card>
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -313,12 +363,31 @@ export default function FinanceDashboard() {
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* ---------- Grand total inflow ---------- */}
+      <Card>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-[15px] font-semibold text-surface-900">
+              Grand total inflow
+            </h3>
+            <p className="text-[12px] text-surface-400 mt-0.5">
+              {formatNaira(data.totalCollected)} fees +{" "}
+              {formatNaira(data.totalMiscIncome)} other ({totalInflowPercent}%)
+            </p>
+          </div>
+          <span className="text-2xl font-semibold text-emerald-600 tabular-nums">
+            {formatNairaShort(data.grandTotalInflow)}
+          </span>
+        </div>
+      </Card>
+
+      {/* ---------- Payment methods + Other income ---------- */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <div className="flex items-center gap-2 mb-5">
             <PieIcon className="w-4 h-4 text-surface-500" />
             <h3 className="text-[15px] font-semibold text-surface-900">
-              Payment methods
+              Payment methods (fees)
             </h3>
           </div>
           <div className="space-y-4">
@@ -353,66 +422,114 @@ export default function FinanceDashboard() {
           </div>
         </Card>
 
-        <Card className="lg:col-span-2" padding="none">
-          <div className="p-6 pb-4 flex items-center justify-between">
-            <div>
-              <h3 className="text-[15px] font-semibold text-surface-900">
-                Recent payments
-              </h3>
-              <p className="text-[12px] text-surface-400 mt-0.5">
-                Last {data.recentPayments.length} transactions
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              iconRight={ArrowUpRight}
-              onClick={() => navigate("/admin/finance/payments")}
-            >
-              View all
-            </Button>
+        <Card>
+          <div className="flex items-center gap-2 mb-5">
+            <Coins className="w-4 h-4 text-surface-500" />
+            <h3 className="text-[15px] font-semibold text-surface-900">
+              Other income
+            </h3>
           </div>
 
-          <div className="divide-y divide-surface-100 max-h-[420px] overflow-y-auto">
-            {data.recentPayments.map((p) => (
-              <div
-                key={p.id}
-                className="px-6 py-3.5 flex items-center gap-4 hover:bg-surface-50/50"
-              >
-                <div className="w-9 h-9 rounded-xl bg-brand-50 grid place-items-center shrink-0">
-                  <BadgeDollarSign className="w-4 h-4 text-brand-600" />
+          {!data.miscIncomeByCategory ||
+          data.miscIncomeByCategory.length === 0 ? (
+            <div className="py-8 text-center text-[13px] text-surface-400">
+              No non-fee income recorded this term.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {data.miscIncomeByCategory.map((c) => (
+                <div key={c.category}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[12px] font-medium text-surface-700">
+                      {c.category}{" "}
+                      <span className="text-surface-400">· {c.count}</span>
+                    </span>
+                    <span className="text-[12px] font-semibold text-surface-900 tabular-nums">
+                      {formatNairaShort(c.totalAmount)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-surface-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-amber-500 rounded-full transition-all"
+                      style={{
+                        width: `${
+                          data.totalMiscIncome > 0
+                            ? Math.round(
+                                (c.totalAmount / data.totalMiscIncome) * 100
+                              )
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-surface-800 truncate">
-                    {p.studentName}
-                  </p>
-                  <p className="text-[11px] text-surface-400 font-mono truncate">
-                    {p.referenceNumber}
-                  </p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-[13px] font-semibold text-surface-900 tabular-nums">
-                    {formatNaira(p.amountPaid)}
-                  </p>
-                  <p className="text-[11px] text-surface-400">
-                    {formatDate(p.paymentDate)}
-                  </p>
-                </div>
-              </div>
-            ))}
-            {data.recentPayments.length === 0 && (
-              <div className="py-12 text-center text-[13px] text-surface-400">
-                No payments recorded yet this term.
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
 
+      {/* ---------- Recent fee payments ---------- */}
+      <Card padding="none">
+        <div className="p-6 pb-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-[15px] font-semibold text-surface-900">
+              Recent fee payments
+            </h3>
+            <p className="text-[12px] text-surface-400 mt-0.5">
+              Last {data.recentPayments.length} transactions
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            iconRight={ArrowUpRight}
+            onClick={() => navigate("/admin/finance/payments")}
+          >
+            View all
+          </Button>
+        </div>
+
+        <div className="divide-y divide-surface-100 max-h-[420px] overflow-y-auto">
+          {data.recentPayments.map((p) => (
+            <div
+              key={p.id}
+              className="px-6 py-3.5 flex items-center gap-4 hover:bg-surface-50/50"
+            >
+              <div className="w-9 h-9 rounded-xl bg-brand-50 grid place-items-center shrink-0">
+                <BadgeDollarSign className="w-4 h-4 text-brand-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-medium text-surface-800 truncate">
+                  {p.studentName}
+                </p>
+                <p className="text-[11px] text-surface-400 font-mono truncate">
+                  {p.referenceNumber}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-[13px] font-semibold text-surface-900 tabular-nums">
+                  {formatNaira(p.amountPaid)}
+                </p>
+                <p className="text-[11px] text-surface-400">
+                  {formatDate(p.paymentDate)}
+                </p>
+              </div>
+            </div>
+          ))}
+          {data.recentPayments.length === 0 && (
+            <div className="py-12 text-center text-[13px] text-surface-400">
+              No payments recorded yet this term.
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* ---------- Collection by class ---------- */}
       <Card padding="none">
         <div className="p-6 pb-4">
           <h3 className="text-[15px] font-semibold text-surface-900">
-            Collection by class
+            Fee collection by class
           </h3>
         </div>
         <div className="overflow-x-auto">

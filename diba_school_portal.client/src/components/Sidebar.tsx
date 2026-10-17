@@ -2,7 +2,7 @@
 import {
   LayoutDashboard, Users, Wallet, GraduationCap, LogOut, ScrollText,
   BookOpen, CalendarDays, ClipboardCheck, FileText, UserCog, Inbox,
-  AlertTriangle, Receipt, BarChart3, Bell, User, Send, CheckCircle2,
+  AlertTriangle, Receipt, BarChart3, Bell, User, CheckCircle2,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
@@ -74,6 +74,9 @@ const NAV_GROUPS: NavGroup[] = [
   },
 
   // ---- My Classroom — teachers only ----
+  // NOTE: Class Results is NOT listed here on purpose — it requires
+  // query params (?classId=...&subjectId=...). Reach it by clicking a
+  // specific assignment inside "My Assignments".
   {
     label: "My Classroom",
     items: [
@@ -81,7 +84,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/students", label: "My Students", icon: Users, roles: R.teaching },
       { to: "/admin/my-assignments", label: "My Assignments", icon: BookOpen, roles: R.teaching },
       { to: "/admin/score-entry", label: "Score Entry", icon: ClipboardCheck, roles: R.teaching },
-      { to: "/admin/class-subject-results", label: "Class Results", icon: BarChart3, roles: R.teaching },
       { to: "/admin/my-results", label: "My Submitted Results", icon: CheckCircle2, roles: R.teaching },
     ],
   },
@@ -124,19 +126,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/finance/arrears", label: "Arrears", icon: AlertTriangle, roles: R.finance },
       { to: "/admin/finance/fees", label: "Fee Structures", icon: Wallet, roles: R.finance },
       { to: "/admin/finance/record-cash", label: "Record Cash", icon: Receipt, roles: R.finance },
-    ],
-  },
-
-  // ---- Communications ----
-  {
-    label: "Communications",
-    items: [
-      {
-        to: "/admin/notifications/send",
-        label: "Send Notifications",
-        icon: Send,
-        roles: R.leadership,
-      },
     ],
   },
 

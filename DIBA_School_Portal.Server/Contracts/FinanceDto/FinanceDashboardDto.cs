@@ -42,5 +42,13 @@ namespace DIBA_School_Portal.Server.Contracts.FinanceDto
 
         // ---- Recent transactions ----
         public List<FinancePaymentRowDto> RecentPayments { get; set; } = new();
+
+        public decimal TotalMiscIncome { get; set; }
+        public int MiscIncomeTransactionCount { get; set; }
+
+        /// <summary>Fee collections + misc income.</summary>
+        public decimal GrandTotalInflow { get; set; }
+
+        public List<MiscIncomeCategorySummaryDto> MiscIncomeByCategory { get; set; } = new();
     }
 }

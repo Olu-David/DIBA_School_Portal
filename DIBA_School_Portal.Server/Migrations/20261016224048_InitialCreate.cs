@@ -471,6 +471,51 @@ namespace DIBA_School_Portal.Server.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "MiscellaneousIncomes",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ReferenceNumber = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    Category = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    PayerName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    PayerPhone = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: true),
+                    StudentProfileId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    AcademicSessionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TermId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Gateway = table.Column<int>(type: "int", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    RecordedByUserId = table.Column<string>(type: "nvarchar(450)", nullable: true),
+                    Note = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    RecordedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MiscellaneousIncomes", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_MiscellaneousIncomes_AcademicSessions_AcademicSessionId",
+                        column: x => x.AcademicSessionId,
+                        principalTable: "AcademicSessions",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_MiscellaneousIncomes_AspNetUsers_RecordedByUserId",
+                        column: x => x.RecordedByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_MiscellaneousIncomes_SchoolTerms_TermId",
+                        column: x => x.TermId,
+                        principalTable: "SchoolTerms",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_MiscellaneousIncomes_Students_StudentProfileId",
+                        column: x => x.StudentProfileId,
+                        principalTable: "Students",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "ParentStudents",
                 columns: table => new
                 {
@@ -887,6 +932,42 @@ namespace DIBA_School_Portal.Server.Migrations
                 column: "TermId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_MiscellaneousIncomes_AcademicSessionId_TermId",
+                table: "MiscellaneousIncomes",
+                columns: new[] { "AcademicSessionId", "TermId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MiscellaneousIncomes_Category",
+                table: "MiscellaneousIncomes",
+                column: "Category");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MiscellaneousIncomes_RecordedAt",
+                table: "MiscellaneousIncomes",
+                column: "RecordedAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MiscellaneousIncomes_RecordedByUserId",
+                table: "MiscellaneousIncomes",
+                column: "RecordedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MiscellaneousIncomes_ReferenceNumber",
+                table: "MiscellaneousIncomes",
+                column: "ReferenceNumber",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MiscellaneousIncomes_StudentProfileId",
+                table: "MiscellaneousIncomes",
+                column: "StudentProfileId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MiscellaneousIncomes_TermId",
+                table: "MiscellaneousIncomes",
+                column: "TermId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_NotificationLogs_ApplicationUserId",
                 table: "NotificationLogs",
                 column: "ApplicationUserId");
@@ -1120,6 +1201,9 @@ namespace DIBA_School_Portal.Server.Migrations
 
             migrationBuilder.DropTable(
                 name: "Enquiries");
+
+            migrationBuilder.DropTable(
+                name: "MiscellaneousIncomes");
 
             migrationBuilder.DropTable(
                 name: "NotificationLogs");
