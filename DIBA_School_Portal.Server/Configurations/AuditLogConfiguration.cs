@@ -22,7 +22,7 @@ namespace DIBA_School_Portal.Server.Configurations
                        .HasMaxLength(45); // IPv6 max length
 
             builder.Property(x => x.Timestamp)
-                       .HasDefaultValueSql("GETUTCDATE()");
+                       .HasDefaultValueSql("NOW()"); // ✅ PostgreSQL compatible
         }
     }
 }

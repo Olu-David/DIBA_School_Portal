@@ -194,13 +194,13 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<Guid>("FeeId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("MinimumAmountToPay")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<Guid>("SchoolClassId")
                         .HasColumnType("uuid");
@@ -524,7 +524,7 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -684,7 +684,7 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<decimal>("OutstandingBalance")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<Guid>("SchoolClassId")
                         .HasColumnType("uuid");
@@ -699,7 +699,7 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("TotalAmountPaid")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("numeric(18,2)");
 
                     b.HasKey("Id");
 
@@ -725,7 +725,7 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("AmountPaid")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<Guid?>("EnrollmentId")
                         .HasColumnType("uuid");
@@ -785,7 +785,7 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("AmountAllocated")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<Guid?>("FeeId")
                         .HasColumnType("uuid");
@@ -964,7 +964,7 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("AverageScore")
-                        .HasColumnType("decimal(5,2)");
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<Guid>("ClassId")
                         .HasColumnType("uuid");
@@ -1002,7 +1002,7 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("TotalMarksObtained")
-                        .HasColumnType("decimal(6,2)");
+                        .HasColumnType("numeric(18,2)");
 
                     b.HasKey("Id");
 
@@ -1030,7 +1030,7 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<decimal>("ExamScore")
-                        .HasColumnType("decimal(5,2)");
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<string>("Grade")
                         .IsRequired()
@@ -1060,13 +1060,13 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("Test1Score")
-                        .HasColumnType("decimal(5,2)");
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<decimal>("Test2Score")
-                        .HasColumnType("decimal(5,2)");
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<decimal>("TotalScore")
-                        .HasColumnType("decimal(5,2)");
+                        .HasColumnType("numeric(18,2)");
 
                     b.HasKey("Id");
 

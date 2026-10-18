@@ -30,8 +30,6 @@ namespace DIBA_School_Portal.Server.Database_Entities
         public DbSet<StudentPaymentItem> StudentPaymentItems { get; set; }
         public DbSet<StudentPayment> StudentPayments { get; set; }
         public DbSet<PaymentLog> PaymentLogs { get; set; }
-
-        // ⚠️ NEW — the missing DbSet that was causing silent discovery failure
         public DbSet<MiscellaneousIncome> MiscellaneousIncomes { get; set; }
 
         // ---- People ----
@@ -51,20 +49,21 @@ namespace DIBA_School_Portal.Server.Database_Entities
         {
             base.OnModelCreating(modelBuilder);
 
-            // Auto-discovery (still useful for future configs)
+            // Auto-discovery for all separate configuration files
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
-            // ⚠️ NEW — explicit registration, so the config CANNOT be skipped
+            // Explicit registration for MiscellaneousIncome configuration
             modelBuilder.ApplyConfiguration(new MiscellaneousIncomeConfiguration());
 
+            // Global configuration to map all decimals to PostgreSQL numeric type safely
             foreach (var property in modelBuilder.Model.GetEntityTypes()
-        .SelectMany(t => t.GetProperties())
-        .Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
+                .SelectMany(t => t.GetProperties())
+                .Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
             {
                 property.SetColumnType("numeric(18,2)");
             }
 
-            // Existing enum-to-string conversions
+            // Enum-to-string conversions
             modelBuilder.Entity<PaymentLog>()
                 .Property(p => p.Gateway)
                 .HasConversion<string>();
