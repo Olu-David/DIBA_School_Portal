@@ -1096,6 +1096,7 @@ namespace DIBA_School_Portal.Server.Services
                 return response;
             }
         }
+    
         // ==========================================================
         // CLASS + SUBJECT RESULTS — teacher or admin
         // ==========================================================
@@ -1151,30 +1152,57 @@ namespace DIBA_School_Portal.Server.Services
                     return response;
                 }
 
-                // ---- 3. Caller name (for the header) ----
-                var caller = await _userManager.FindByIdAsync(currentUserId);
-                var callerRoles = caller != null
-                    ? await _userManager.GetRolesAsync(caller)
-                    : new List<string>();
+                // ==========================================================
+                // 
+                // 1. If scores exist → whoever entered them (TermSubjectResults.TeacherId)
+                // 2. Otherwise → the currently assigned teacher for this (class, subject)
+                // ==========================================================
+                string teacherName = "—";
 
-                var isAdmin = callerRoles.Any(r => AdminOverrideRoles.Contains(r));
+                // 1. Prefer the teacher recorded on existing score rows
+                var enteredBy = await _context.TermSubjectResults
+                    .AsNoTracking()
+                    .Where(tsr => tsr.SubjectId == subjectId
+                               && tsr.TermResult.ClassId == classId
+                               && tsr.TermResult.TermId == termId
+                               && tsr.TermResult.AcademicSessionId == academicSessionId)
+                    .Select(tsr => tsr.TeacherId)
+                    .FirstOrDefaultAsync();
 
-                string teacherName;
-                if (isAdmin && caller != null)
+                if (!string.IsNullOrEmpty(enteredBy))
                 {
-                    teacherName = $"{caller.FirstName} {caller.LastName}".Trim();
-                }
-                else
-                {
-                    var teacher = await _context.Teachers
+                    // TeacherId is stored as a string — might be a User.Id
+                    var enteringUser = await _context.Users
                         .AsNoTracking()
-                        .FirstOrDefaultAsync(t => t.UserId == currentUserId);
-                    teacherName = teacher != null
-                        ? $"{teacher.FirstName} {teacher.LastName}".Trim()
-                        : "—";
+                        .FirstOrDefaultAsync(u => u.Id == enteredBy);
+
+                    if (enteringUser != null)
+                    {
+                        teacherName = $"{enteringUser.FirstName} {enteringUser.LastName}".Trim();
+                    }
                 }
 
-                // ---- 4. Load students in the class ----
+                // 2. Fall back to the currently-assigned teacher for (class, subject)
+                if (teacherName == "—")
+                {
+                    var assigned = await (
+                        from ts in _context.TeacherSubjects.AsNoTracking()
+                        join tc in _context.TeacherClasses.AsNoTracking()
+                            on ts.TeacherId equals tc.TeacherId
+                        join t in _context.Teachers.AsNoTracking()
+                            on ts.TeacherId equals t.Id
+                        where ts.SubjectId == subjectId
+                           && tc.SchoolClassId == classId
+                        select new { t.FirstName, t.LastName })
+                        .FirstOrDefaultAsync();
+
+                    if (assigned != null)
+                    {
+                        teacherName = $"{assigned.FirstName} {assigned.LastName}".Trim();
+                    }
+                }
+
+                // ---- 3. Load students in the class ----
                 var students = await _context.Students
                     .AsNoTracking()
                     .Include(s => s.User)
@@ -1187,7 +1215,7 @@ namespace DIBA_School_Portal.Server.Services
 
                 var studentUserIds = students.Select(s => s.UserId).ToList();
 
-                // ---- 5. Load existing subject results ----
+                // ---- 4. Load existing subject results ----
                 var subjectResults = await _context.TermSubjectResults
                     .AsNoTracking()
                     .Include(tsr => tsr.TermResult)
@@ -1202,7 +1230,7 @@ namespace DIBA_School_Portal.Server.Services
                     .GroupBy(tsr => tsr.TermResult.StudentId)
                     .ToDictionary(g => g.Key, g => g.First());
 
-                // ---- 6. Build rows ----
+                // ---- 5. Build rows ----
                 var rows = students.Select(s =>
                 {
                     resultByStudent.TryGetValue(s.UserId, out var tsr);
@@ -1224,7 +1252,7 @@ namespace DIBA_School_Portal.Server.Services
                     };
                 }).ToList();
 
-                // ---- 7. Stats ----
+                // ---- 6. Stats ----
                 var scored = rows.Where(r => r.TotalScore > 0).ToList();
 
                 var classAvg = scored.Any()
@@ -1234,15 +1262,14 @@ namespace DIBA_School_Portal.Server.Services
                 var passCount = scored.Count(r => r.TotalScore >= 40);
                 var failCount = scored.Count(r => r.TotalScore > 0 && r.TotalScore < 40);
 
-                // ---- 8. Submission status ----
-                // "Submitted" when every student has a non-draft result.
+                // ---- 7. Submission status ----
                 var submittedResults = subjectResults.Where(tsr => !tsr.IsDraft).ToList();
                 string status = "NotStarted";
                 if (subjectResults.Any()) status = "Draft";
                 if (students.Count > 0 && submittedResults.Count >= students.Count)
                     status = "Submitted";
 
-                // ---- 9. Response ----
+                // ---- 8. Response ----
                 response.Success = true;
                 response.StatusCode = 200;
                 response.Data = new ClassSubjectResultDto
@@ -1316,7 +1343,6 @@ namespace DIBA_School_Portal.Server.Services
                 }
 
                 // Every subject each class is supposed to teach
-                // Every subject each class is supposed to teach
                 var classSubjects = await _context.ClassSubjects
                     .Where(cs => cs.SchoolClassId.HasValue
                               && cs.SubjectId.HasValue
@@ -1354,10 +1380,32 @@ namespace DIBA_School_Portal.Server.Services
                     .Select(s => new { s.Id, s.Name })
                     .ToDictionaryAsync(s => s.Id, s => s.Name);
 
-                var teacherMap = await _context.TeacherSubjects
-                    .Include(ts => ts.Teacher)
-                    .Where(ts => subjectIds.Contains(ts.SubjectId))
+                // ==========================================================
+                // FIX: Teacher lookup must be (ClassId, SubjectId) → teacher.
+                // Not just SubjectId, which collapses all classes to one teacher.
+                // ==========================================================
+                var teacherAssignments = await (
+                    from ts in _context.TeacherSubjects.AsNoTracking()
+                    join tc in _context.TeacherClasses.AsNoTracking()
+                        on ts.TeacherId equals tc.TeacherId
+                    join t in _context.Teachers.AsNoTracking()
+                        on ts.TeacherId equals t.Id
+                    where subjectIds.Contains(ts.SubjectId)
+                       && classIds.Contains(tc.SchoolClassId)
+                    select new
+                    {
+                        ClassId = tc.SchoolClassId,
+                        SubjectId = ts.SubjectId,
+                        TeacherFirst = t.FirstName,
+                        TeacherLast = t.LastName,
+                    })
                     .ToListAsync();
+
+                var teacherByClassSubject = teacherAssignments
+                    .GroupBy(x => (x.ClassId, x.SubjectId))
+                    .ToDictionary(
+                        g => g.Key,
+                        g => $"{g.First().TeacherFirst} {g.First().TeacherLast}".Trim());
 
                 var studentCounts = await _context.Students
                     .Where(s => classIds.Contains(s.SchoolClassId))
@@ -1374,7 +1422,9 @@ namespace DIBA_School_Portal.Server.Services
 
                     var draftHit = drafts.FirstOrDefault(s => s.ClassId == cs.ClassId && s.SubjectId == cs.SubjectId);
 
-                    var teacher = teacherMap.FirstOrDefault(t => t.SubjectId == cs.SubjectId)?.Teacher;
+                    // 👇 Correct teacher for THIS class + subject
+                    var teacherName = teacherByClassSubject.TryGetValue(
+                        (cs.ClassId, cs.SubjectId), out var tn) ? tn : "—";
 
                     result.Add(new OutstandingSubmissionDto
                     {
@@ -1382,9 +1432,7 @@ namespace DIBA_School_Portal.Server.Services
                         ClassName = classes.First(c => c.Id == cs.ClassId).Name,
                         SubjectId = cs.SubjectId,
                         SubjectName = subjectNames.TryGetValue(cs.SubjectId, out var n) ? n : "—",
-                        TeacherName = teacher != null
-                            ? $"{teacher.FirstName} {teacher.LastName}"
-                            : "—",
+                        TeacherName = teacherName,
                         StudentCount = studentCounts.TryGetValue(cs.ClassId, out var sc) ? sc : 0,
                         ScoredCount = draftHit?.Count ?? 0,
                     });
