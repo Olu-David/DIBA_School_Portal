@@ -6,6 +6,7 @@ export type UserRole =
   | "VicePrincipal"
   | "SchoolAdmin"
   | "Accountant"
+  | "Cashier"       
   | "Registrar"
   | "Teacher"
   | "FormTeacher"

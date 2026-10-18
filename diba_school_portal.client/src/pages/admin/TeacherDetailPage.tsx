@@ -64,6 +64,7 @@ const ASSIGNABLE_ROLES = [
   "Teacher",
   "FormTeacher",
   "Accountant",
+  "Cashier",        // 👈 added
   "Registrar",
   "SchoolAdmin",
   "VicePrincipal",
@@ -626,7 +627,6 @@ export default function TeacherDetailPage() {
           />
 
           <div className="flex-1 min-w-0">
-            {/* ---------- View mode ---------- */}
             {!isAnyModeActive && (
               <>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -662,7 +662,6 @@ export default function TeacherDetailPage() {
               </>
             )}
 
-            {/* ---------- Edit identity mode ---------- */}
             {editing && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -694,7 +693,6 @@ export default function TeacherDetailPage() {
               </div>
             )}
 
-            {/* ---------- Reset password mode ---------- */}
             {showReset && (
               <div className="space-y-4">
                 <div>
@@ -726,7 +724,6 @@ export default function TeacherDetailPage() {
               </div>
             )}
 
-            {/* ---------- Change role mode ---------- */}
             {showRoleChange && (
               <div className="space-y-4">
                 <div>
@@ -759,7 +756,6 @@ export default function TeacherDetailPage() {
             )}
           </div>
 
-          {/* ---------- Action buttons (view mode only) ---------- */}
           {!isAnyModeActive && (
             <div className="flex flex-col sm:items-end gap-2 shrink-0">
               <Button variant="secondary" icon={Pencil} onClick={startEdit}>
@@ -780,7 +776,6 @@ export default function TeacherDetailPage() {
           )}
         </div>
 
-        {/* ---------- Footers ---------- */}
         {editing && (
           <div className="mt-5 pt-5 border-t border-slate-100 flex justify-end gap-2">
             <Button variant="secondary" icon={X} onClick={cancelEdit} disabled={saving}>Cancel</Button>
@@ -812,7 +807,6 @@ export default function TeacherDetailPage() {
 
       {/* ===================== SUBJECTS + CLASSES ===================== */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ---------- Subjects card ---------- */}
         <Card padding="none">
           <div className="p-6 pb-4 flex items-center justify-between gap-2">
             <h3 className="text-[15px] font-semibold text-surface-900 flex items-center gap-2">
@@ -886,7 +880,6 @@ export default function TeacherDetailPage() {
           )}
         </Card>
 
-        {/* ---------- Classes card ---------- */}
         <Card padding="none">
           <div className="p-6 pb-4 flex items-center justify-between gap-2">
             <h3 className="text-[15px] font-semibold text-surface-900 flex items-center gap-2">

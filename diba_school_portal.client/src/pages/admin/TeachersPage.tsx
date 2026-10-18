@@ -85,7 +85,6 @@ export default function TeachersPage() {
 
   const [addOpen, setAddOpen] = useState(false);
 
-  // Credentials shown after successful creation
   const [credentials, setCredentials] = useState<{
     fullName: string;
     role: string;
@@ -103,9 +102,25 @@ export default function TeachersPage() {
       if (debounced.trim()) params.set("searchTerm", debounced.trim());
       if (role) params.set("primaryRole", role);
 
-      const { data } = await api.get<ApiResponse<Paginated<TeacherRow>>>(
-        `/teacher?${params}`
-      );
+      // Try the general staff endpoint first; fall back to /teacher.
+      let response;
+      try {
+        response = await api.get<ApiResponse<Paginated<TeacherRow>>>(
+          `/staff?${params}`
+        );
+      } catch (err: unknown) {
+        const status = (err as { response?: { status?: number } })?.response
+          ?.status;
+        if (status === 404) {
+          response = await api.get<ApiResponse<Paginated<TeacherRow>>>(
+            `/teacher?${params}`
+          );
+        } else {
+          throw err;
+        }
+      }
+
+      const { data } = response;
 
       if (!data.success || !data.data) {
         toast({
@@ -117,8 +132,19 @@ export default function TeachersPage() {
         return;
       }
 
-      setRows(data.data.items ?? []);
-      setTotal(data.data.totalCount ?? 0);
+      // Defensive shape handling — works with { items, totalCount }
+      // or { data, total } style payloads.
+      const payload = data.data as unknown as {
+        items?: TeacherRow[];
+        totalCount?: number;
+        data?: TeacherRow[];
+        total?: number;
+      };
+      const items = payload.items ?? payload.data ?? [];
+      const count = payload.totalCount ?? payload.total ?? items.length;
+
+      setRows(items);
+      setTotal(count);
     } catch (err: unknown) {
       const e2 = err as {
         response?: { status?: number; data?: { message?: string } };
@@ -300,9 +326,7 @@ export default function TeachersPage() {
         )}
       </Card>
 
-      {/* =====================================================
-          ADD STAFF MODAL
-         ===================================================== */}
+      {/* ADD STAFF MODAL */}
       {addOpen && (
         <AddStaffModal
           onClose={() => setAddOpen(false)}
@@ -323,9 +347,7 @@ export default function TeachersPage() {
         />
       )}
 
-      {/* =====================================================
-          CREDENTIALS MODAL (shown after successful creation)
-         ===================================================== */}
+      {/* CREDENTIALS MODAL */}
       {credentials && (
         <CredentialsModal
           data={credentials}
@@ -378,7 +400,6 @@ function AddStaffModal({
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // ---- load reference data ----
   useEffect(() => {
     (async () => {
       const [cRes, sRes] = await Promise.allSettled([
@@ -411,7 +432,6 @@ function AddStaffModal({
     setList(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   };
 
-  // ---- validation ----
   const validate = (): boolean => {
     const e: Record<string, string> = {};
     if (!form.firstName.trim()) e.firstName = "First name is required";
@@ -425,16 +445,12 @@ function AddStaffModal({
     return Object.keys(e).length === 0;
   };
 
-  // ---- submit (correct flow) ----
   const handleSubmit = async () => {
     if (!validate()) return;
 
     setSaving(true);
     try {
-      // ==================================================
-      // STEP 1: Create the account via /auth/create-account
-      // (backend generates the temporary password)
-      // ==================================================
+      // STEP 1: Create the account
       const fd = new FormData();
       fd.append("firstName", form.firstName.trim());
       fd.append("lastName", form.lastName.trim());
@@ -451,24 +467,21 @@ function AddStaffModal({
         return;
       }
 
-      // ==================================================
-      // STEP 2: Find the Teacher.Id for the new user
-      // ==================================================
+      // STEP 2: Find the teacher id (skip for non-teaching roles)
+      const teachingRoles = ["Teacher", "FormTeacher"];
       let teacherId: string | null = null;
-      try {
-        const { data: tRes } = await api.get<
-          ApiResponse<{ id: string }>
-        >(`/teacher/by-user/${createRes.data.userId}`);
-        if (tRes.success && tRes.data) {
-          teacherId = tRes.data.id;
+      if (teachingRoles.includes(createRes.data.role)) {
+        try {
+          const { data: tRes } = await api.get<ApiResponse<{ id: string }>>(
+            `/teacher/by-user/${createRes.data.userId}`
+          );
+          if (tRes.success && tRes.data) teacherId = tRes.data.id;
+        } catch {
+          /* non-fatal */
         }
-      } catch {
-        // Non-fatal — account still created
       }
 
-      // ==================================================
-      // STEP 3: Assign classes (if any selected)
-      // ==================================================
+      // STEP 3: Classes
       if (teacherId && selectedClassIds.length > 0) {
         try {
           await api.put<ApiResponse<boolean>>(
@@ -476,13 +489,11 @@ function AddStaffModal({
             selectedClassIds
           );
         } catch {
-          // Non-fatal
+          /* non-fatal */
         }
       }
 
-      // ==================================================
-      // STEP 4: Assign subjects (if any selected)
-      // ==================================================
+      // STEP 4: Subjects
       if (teacherId && selectedSubjectIds.length > 0) {
         try {
           await api.put<ApiResponse<boolean>>(
@@ -490,13 +501,11 @@ function AddStaffModal({
             selectedSubjectIds
           );
         } catch {
-          // Non-fatal
+          /* non-fatal */
         }
       }
 
-      // ==================================================
-      // STEP 5: Refresh list + show credentials
-      // ==================================================
+      // STEP 5: Refresh + show credentials
       onCreated();
       onSuccess({
         firstName: form.firstName.trim(),
@@ -540,7 +549,6 @@ function AddStaffModal({
       />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden">
-          {/* Header */}
           <div className="p-5 flex items-center justify-between border-b border-surface-100 shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-violet-50 grid place-items-center">
@@ -564,9 +572,7 @@ function AddStaffModal({
             </button>
           </div>
 
-          {/* Body */}
           <div className="flex-1 overflow-y-auto p-5 space-y-6">
-            {/* Identity */}
             <section>
               <h3 className="text-[12px] font-semibold uppercase tracking-wider text-surface-500 mb-3">
                 Identity
@@ -590,11 +596,7 @@ function AddStaffModal({
                     placeholder="e.g. Nwosu"
                   />
                 </FormField>
-                <FormField
-                  label="Email (login)"
-                  required
-                  error={errors.email}
-                >
+                <FormField label="Email (login)" required error={errors.email}>
                   <Input
                     type="email"
                     value={form.email}
@@ -640,7 +642,6 @@ function AddStaffModal({
               </p>
             </section>
 
-            {/* Professional */}
             <section>
               <h3 className="text-[12px] font-semibold uppercase tracking-wider text-surface-500 mb-3">
                 Professional details
@@ -667,7 +668,6 @@ function AddStaffModal({
               </div>
             </section>
 
-            {/* Classes + subjects */}
             <section>
               <h3 className="text-[12px] font-semibold uppercase tracking-wider text-surface-500 mb-3 flex items-center gap-1.5">
                 <GraduationCap className="w-3.5 h-3.5" />
@@ -675,7 +675,6 @@ function AddStaffModal({
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Classes */}
                 <div>
                   <p className="text-[12px] font-medium text-surface-700 mb-2">
                     Classes
@@ -697,11 +696,7 @@ function AddStaffModal({
                             type="checkbox"
                             checked={selectedClassIds.includes(c.id)}
                             onChange={() =>
-                              toggle(
-                                selectedClassIds,
-                                setSelectedClassIds,
-                                c.id
-                              )
+                              toggle(selectedClassIds, setSelectedClassIds, c.id)
                             }
                             className="w-4 h-4 rounded"
                           />
@@ -717,7 +712,6 @@ function AddStaffModal({
                   )}
                 </div>
 
-                {/* Subjects */}
                 <div>
                   <p className="text-[12px] font-medium text-surface-700 mb-2">
                     Subjects
@@ -767,7 +761,6 @@ function AddStaffModal({
             </section>
           </div>
 
-          {/* Footer */}
           <div className="p-5 border-t border-surface-100 flex justify-end gap-3 shrink-0">
             <Button variant="secondary" onClick={onClose} disabled={saving}>
               Cancel
@@ -783,7 +776,7 @@ function AddStaffModal({
 }
 
 /* =========================================================
-   Credentials modal — shown after successful creation
+   Credentials modal
    ========================================================= */
 
 interface CredentialsModalProps {
@@ -800,7 +793,7 @@ function CredentialsModal({ data, onClose }: CredentialsModalProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      /* clipboard unavailable — user can select manually */
+      /* clipboard unavailable */
     }
   };
 

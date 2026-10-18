@@ -25,7 +25,7 @@ interface NavGroup {
 const R = {
   all: [
     "SuperAdmin", "Principal", "Headmaster", "Headmistress",
-    "VicePrincipal", "SchoolAdmin", "Accountant", "Registrar",
+    "VicePrincipal", "SchoolAdmin", "Accountant", "Cashier", "Registrar",
     "Teacher", "FormTeacher",
   ] as UserRole[],
 
@@ -43,8 +43,14 @@ const R = {
     "VicePrincipal", "SchoolAdmin",
   ] as UserRole[],
 
+  // Full finance policy access — Accountant + management
   finance: [
     "SuperAdmin", "Principal", "VicePrincipal", "Accountant",
+  ] as UserRole[],
+
+  // Cash collection access — Cashier + everyone above
+  cashier: [
+    "SuperAdmin", "Principal", "VicePrincipal", "Accountant", "Cashier",
   ] as UserRole[],
 
   registrar: ["SuperAdmin", "Principal", "Registrar"] as UserRole[],
@@ -73,10 +79,6 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // ---- My Classroom — teachers only ----
-  // NOTE: Class Results is NOT listed here on purpose — it requires
-  // query params (?classId=...&subjectId=...). Reach it by clicking a
-  // specific assignment inside "My Assignments".
   {
     label: "My Classroom",
     items: [
@@ -88,7 +90,6 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // ---- People — admin + registrar ----
   {
     label: "People",
     items: [
@@ -98,7 +99,6 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // ---- Academics — admin only ----
   {
     label: "Academics",
     items: [
@@ -108,7 +108,6 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // ---- Results — admins view school-wide; teachers use My Classroom ----
   {
     label: "Results",
     items: [
@@ -117,19 +116,18 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // ---- Finance ----
+  // ---- Finance — split between cash collection and full policy ----
   {
     label: "Finance",
     items: [
-      { to: "/admin/finance", label: "Overview", icon: Wallet, end: true, roles: R.finance },
-      { to: "/admin/finance/payments", label: "Payments", icon: Receipt, roles: R.finance },
-      { to: "/admin/finance/arrears", label: "Arrears", icon: AlertTriangle, roles: R.finance },
-      { to: "/admin/finance/fees", label: "Fee Structures", icon: Wallet, roles: R.finance },
-      { to: "/admin/finance/record-cash", label: "Record Cash", icon: Receipt, roles: R.finance },
+      { to: "/admin/finance",              label: "Overview",        icon: Wallet,        end: true, roles: R.cashier },
+      { to: "/admin/finance/record-cash",  label: "Record Cash",     icon: Receipt,                 roles: R.cashier },
+      { to: "/admin/finance/payments",     label: "Payments",        icon: Receipt,                 roles: R.cashier },
+      { to: "/admin/finance/arrears",      label: "Arrears",         icon: AlertTriangle,           roles: R.cashier },
+      { to: "/admin/finance/fees",         label: "Fee Structures",  icon: Wallet,                  roles: R.finance }, // Accountant/management only
     ],
   },
 
-  // ---- Admissions ----
   {
     label: "Admissions",
     items: [
@@ -137,7 +135,6 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // ---- System ----
   {
     label: "System",
     items: [

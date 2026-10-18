@@ -28,6 +28,13 @@ export interface FinanceClassBreakdown {
   collectionRate: number;
 }
 
+// 👇 NEW — matches backend MiscIncomeCategorySummaryDto
+export interface MiscIncomeCategorySummary {
+  category: string;
+  count: number;
+  totalAmount: number;
+}
+
 export interface FinanceDashboard {
   academicSessionId: string;
   academicSessionName: string;
@@ -47,4 +54,9 @@ export interface FinanceDashboard {
   totalManual: number;
   recentPayments: FinanceRecentPayment[];
   classBreakdown: FinanceClassBreakdown[];
+
+  totalMiscIncome: number;
+  miscIncomeTransactionCount: number;
+  grandTotalInflow: number;
+  miscIncomeByCategory: MiscIncomeCategorySummary[];
 }
