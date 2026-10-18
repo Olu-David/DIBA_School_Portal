@@ -11,11 +11,15 @@ import {
   FormField, Input, Select,
 } from "../../components/ui";
 import { useToast } from "../../hooks/useToast";
+import { useRole } from "../../hooks/useRole";
 import { formatNaira, formatDate } from "../../lib/format";
 import api from "../../lib/api";
 import type { ApiResponse } from "../../types/common";
 import type { StudentDetail } from "../../types/student";
 
+// ==========================================================
+// Types
+// ==========================================================
 interface Payment {
   id: string;
   referenceNumber: string;
@@ -33,6 +37,9 @@ interface SchoolClass {
   academicSection: string;
 }
 
+// ==========================================================
+// Constants
+// ==========================================================
 const STREAM_TONE: Record<string, "sky" | "violet" | "amber" | "rose"> = {
   Science: "sky",
   Arts: "violet",
@@ -42,112 +49,34 @@ const STREAM_TONE: Record<string, "sky" | "violet" | "amber" | "rose"> = {
 
 const STREAMS = ["Science", "Arts", "Commercial"];
 
-// Roles allowed to edit/delete a student (match backend StudentEditors
-// + controller [Authorize] on PUT/DELETE /api/Student/{id}).
+// Roles allowed to edit/delete a student (matches backend
+// [Authorize(Roles = "SuperAdmin,Principal,Registrar,SchoolAdmin")]
+// on PUT/DELETE /api/Student/{id})
 const STUDENT_EDITOR_ROLES = [
   "SuperAdmin",
   "Principal",
   "Registrar",
   "SchoolAdmin",
-].map((r) => r.toLowerCase()); // normalize for case-insensitive compare
-
-// ---------------------------------------------------------------
-// Role lookup — tries JWT, then a cached user object.
-// ---------------------------------------------------------------
-const TOKEN_KEYS = [
-  "token",
-  "accessToken",
-  "access_token",
-  "authToken",
-  "auth_token",
-  "jwt",
-  "id_token",
-  "diba_token",
 ];
 
-function findToken(): string | null {
-  for (const k of TOKEN_KEYS) {
-    const v = localStorage.getItem(k);
-    if (v && v.split(".").length === 3) return v;
-  }
-  // Last resort: any JWT-shaped value in storage
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i)!;
-    const v = localStorage.getItem(k);
-    if (v && v.split(".").length === 3) return v;
-  }
-  return null;
-}
-
-function decodeJwt(token: string): Record<string, any> | null {
-  try {
-    const p = token.split(".")[1];
-    const b64 = p.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
-    return JSON.parse(atob(padded));
-  } catch {
-    return null;
-  }
-}
-
-function getUserRoles(): string[] {
-  // 1) JWT
-  const token = findToken();
-  if (token) {
-    const payload = decodeJwt(token);
-    if (payload) {
-      const raw =
-        payload.role ??
-        payload.roles ??
-        payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] ??
-        payload["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/role"];
-      if (raw) {
-        const arr = Array.isArray(raw) ? raw : [raw];
-        return arr.map((r: any) => String(r));
-      }
-    }
-  }
-
-  // 2) Cached user object
-  for (const k of ["user", "currentUser", "auth_user", "authUser"]) {
-    const raw = localStorage.getItem(k);
-    if (!raw) continue;
-    try {
-      const obj = JSON.parse(raw);
-      const r = obj?.roles ?? obj?.role;
-      if (r) {
-        const arr = Array.isArray(r) ? r : [r];
-        return arr.map((x: any) => String(x));
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-
-  return [];
-}
-
+// ==========================================================
+// Component
+// ==========================================================
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { role } = useRole();
 
-  // ---- role check ----
-  const roles = getUserRoles();
-  const canEdit = roles.some((r) =>
-    STUDENT_EDITOR_ROLES.includes(r.toLowerCase())
-  );
+  // ---- Role check — simple and stable ----
+  const canEdit =
+    role != null && STUDENT_EDITOR_ROLES.includes(role);
 
-  // DEBUG — remove after verifying
-  useEffect(() => {
-    console.log("[student-detail] roles =", roles, "canEdit =", canEdit);
-  }, [roles, canEdit]);
-
+  // ---- Data ----
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -167,8 +96,17 @@ export default function StudentDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // ==========================================================
+  // Load everything on mount
+  // ==========================================================
   useEffect(() => {
     if (!id) return;
+
+    let cancelled = false;
+    setLoading(true);
+    setErrorStatus(null);
+    setErrorMessage(null);
+
     (async () => {
       try {
         const [sRes, pRes, cRes] = await Promise.allSettled([
@@ -177,7 +115,10 @@ export default function StudentDetailPage() {
           api.get<ApiResponse<SchoolClass[]>>(`/schoolclass/all`),
         ]);
 
-        if (sRes.status === "fulfilled" && sRes.value.data.success) {
+        if (cancelled) return;
+
+        // -------- Student --------
+        if (sRes.status === "fulfilled" && sRes.value.data.success && sRes.value.data.data) {
           setStudent(sRes.value.data.data);
         } else if (sRes.status === "rejected") {
           const status = (sRes.reason as any)?.response?.status ?? null;
@@ -188,54 +129,63 @@ export default function StudentDetailPage() {
           setErrorMessage(msg);
         } else {
           setErrorStatus(404);
-          setErrorMessage(
-            (sRes as PromiseFulfilledResult<any>).value.data?.message ??
-              "Student not found."
-          );
+          setErrorMessage("Student not found.");
         }
 
+        // -------- Payments (non-fatal) --------
         if (pRes.status === "fulfilled" && pRes.value.data.success) {
           setPayments((pRes.value.data.data ?? []).slice(0, 8));
         } else {
           setPayments([]);
         }
 
+        // -------- Classes (non-fatal) --------
         if (cRes.status === "fulfilled" && cRes.value.data.success) {
           setClasses(cRes.value.data.data ?? []);
         } else {
           setClasses([]);
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
-  // ---- Open edit dialog (guarded) ----
+  // ==========================================================
+  // Edit
+  // ==========================================================
   const openEdit = () => {
     if (!canEdit || !student) return;
     setEditForm({
       firstName: student.firstName,
       lastName: student.lastName,
       phoneNumber: student.phoneNumber ?? "",
-      schoolClassId: (student as any).schoolClassId ?? "",
+      schoolClassId: student.schoolClassId ?? "",
       stream: student.stream ?? "",
       isActive: student.isActive,
     });
     setEditOpen(true);
   };
 
-  // ---- Save edits (guarded) ----
   const saveEdit = async () => {
     if (!canEdit || !student) return;
 
     if (!editForm.firstName.trim() || !editForm.lastName.trim()) {
-      toast({ variant: "error", title: "First and last name are required" });
+      toast({ variant: "error", title: "First and last name are required." });
       return;
     }
 
     const selectedClass = classes.find((c) => c.id === editForm.schoolClassId);
     const isSenior = selectedClass?.academicSection === "SeniorSecondary";
+
+    if (isSenior && !editForm.stream) {
+      toast({ variant: "error", title: "Stream is required for this class." });
+      return;
+    }
 
     setSaving(true);
     try {
@@ -252,25 +202,27 @@ export default function StudentDetailPage() {
       );
 
       if (!data.success) {
-        toast({ variant: "error", title: data.message ?? "Failed to save" });
+        toast({ variant: "error", title: data.message ?? "Failed to save." });
         return;
       }
 
       setStudent(data.data);
       setEditOpen(false);
-      toast({ variant: "success", title: "Student updated" });
+      toast({ variant: "success", title: "Student updated." });
     } catch (err: unknown) {
       const e2 = err as { response?: { data?: { message?: string } } };
       toast({
         variant: "error",
-        title: e2?.response?.data?.message ?? "Could not save changes",
+        title: e2?.response?.data?.message ?? "Could not save changes.",
       });
     } finally {
       setSaving(false);
     }
   };
 
-  // ---- Delete (guarded) ----
+  // ==========================================================
+  // Delete (soft)
+  // ==========================================================
   const confirmDelete = async () => {
     if (!canEdit || !student) return;
     setDeleting(true);
@@ -279,16 +231,16 @@ export default function StudentDetailPage() {
         `/student/${student.id}`
       );
       if (!data.success) {
-        toast({ variant: "error", title: data.message ?? "Failed to delete" });
+        toast({ variant: "error", title: data.message ?? "Failed to delete." });
         return;
       }
-      toast({ variant: "success", title: "Student removed" });
+      toast({ variant: "success", title: "Student removed." });
       navigate("/admin/students");
     } catch (err: unknown) {
       const e2 = err as { response?: { data?: { message?: string } } };
       toast({
         variant: "error",
-        title: e2?.response?.data?.message ?? "Could not delete student",
+        title: e2?.response?.data?.message ?? "Could not delete student.",
       });
     } finally {
       setDeleting(false);
@@ -296,11 +248,16 @@ export default function StudentDetailPage() {
     }
   };
 
+  // ==========================================================
+  // Loading / error states
+  // ==========================================================
   if (loading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-40" />
-        <Card><Skeleton className="h-24" /></Card>
+        <Card>
+          <Skeleton className="h-24" />
+        </Card>
       </div>
     );
   }
@@ -332,6 +289,9 @@ export default function StudentDetailPage() {
     classes.find((c) => c.id === editForm.schoolClassId)?.academicSection ===
     "SeniorSecondary";
 
+  // ==========================================================
+  // Render
+  // ==========================================================
   return (
     <div className="space-y-6">
       <button
@@ -343,6 +303,9 @@ export default function StudentDetailPage() {
         All students
       </button>
 
+      {/* ===============================================
+          IDENTITY
+          =============================================== */}
       <Card>
         <div className="flex flex-col sm:flex-row sm:items-center gap-5">
           <Avatar
@@ -394,9 +357,8 @@ export default function StudentDetailPage() {
             </div>
           </div>
 
-          {/* Edit / Delete only for editors */}
           {canEdit && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 shrink-0">
               <Button variant="secondary" icon={Pencil} onClick={openEdit}>
                 Edit
               </Button>
@@ -413,6 +375,9 @@ export default function StudentDetailPage() {
         </div>
       </Card>
 
+      {/* ===============================================
+          STATS
+          =============================================== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           label="Outstanding balance"
@@ -450,13 +415,25 @@ export default function StudentDetailPage() {
         />
       </div>
 
+      {/* ===============================================
+          GUARDIANS + PAYMENTS
+          =============================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card padding="none">
           <div className="p-6 pb-4 flex items-center justify-between">
             <h3 className="text-[15px] font-semibold text-surface-900">
               Guardians & contacts
             </h3>
-            {canEdit && <Button variant="ghost" size="sm" icon={Plus}>Link</Button>}
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={Plus}
+                onClick={() => navigate(`/admin/parents/new?studentId=${student.id}`)}
+              >
+                Link
+              </Button>
+            )}
           </div>
 
           {parentLinks.length === 0 ? (
@@ -474,7 +451,11 @@ export default function StudentDetailPage() {
                   key={p.parentUserId}
                   className="px-6 py-4 flex items-center gap-3"
                 >
-                  <Avatar name={p.fullName} src={p.profilePictureUrl} size="md" />
+                  <Avatar
+                    name={p.fullName}
+                    src={p.profilePictureUrl}
+                    size="md"
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-[13px] font-medium text-surface-800">
@@ -500,7 +481,14 @@ export default function StudentDetailPage() {
             <h3 className="text-[15px] font-semibold text-surface-900">
               Recent payments
             </h3>
-            <Button variant="ghost" size="sm" iconRight={Receipt}>All</Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              iconRight={Receipt}
+              onClick={() => navigate("/admin/finance/payments")}
+            >
+              All
+            </Button>
           </div>
 
           {payments.length === 0 ? (
@@ -514,7 +502,10 @@ export default function StudentDetailPage() {
           ) : (
             <div className="divide-y divide-surface-100">
               {payments.map((p) => (
-                <div key={p.id} className="px-6 py-3.5 flex items-center gap-3">
+                <div
+                  key={p.id}
+                  className="px-6 py-3.5 flex items-center gap-3"
+                >
                   <div className="w-9 h-9 rounded-xl bg-brand-50 grid place-items-center shrink-0">
                     <Receipt className="w-4 h-4 text-brand-600" />
                   </div>
@@ -541,6 +532,9 @@ export default function StudentDetailPage() {
         </Card>
       </div>
 
+      {/* ===============================================
+          REPORT CARDS CALLOUT
+          =============================================== */}
       <Card className="bg-gradient-to-br from-violet-50 to-violet-100/30 border-violet-100">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-white grid place-items-center shadow-sm">
@@ -554,11 +548,18 @@ export default function StudentDetailPage() {
               View or download any term report for this student.
             </p>
           </div>
-          <Button variant="secondary">Open results</Button>
+          <Button
+            variant="secondary"
+            onClick={() => navigate(`/admin/report-cards`)}
+          >
+            Open results
+          </Button>
         </div>
       </Card>
 
-      {/* EDIT MODAL — editors only */}
+      {/* ===============================================
+          EDIT MODAL — editors only
+          =============================================== */}
       {canEdit && editOpen && (
         <>
           <div
@@ -587,7 +588,10 @@ export default function StudentDetailPage() {
                     <Input
                       value={editForm.firstName}
                       onChange={(e) =>
-                        setEditForm((f) => ({ ...f, firstName: e.target.value }))
+                        setEditForm((f) => ({
+                          ...f,
+                          firstName: e.target.value,
+                        }))
                       }
                     />
                   </FormField>
@@ -595,7 +599,10 @@ export default function StudentDetailPage() {
                     <Input
                       value={editForm.lastName}
                       onChange={(e) =>
-                        setEditForm((f) => ({ ...f, lastName: e.target.value }))
+                        setEditForm((f) => ({
+                          ...f,
+                          lastName: e.target.value,
+                        }))
                       }
                     />
                   </FormField>
@@ -605,7 +612,10 @@ export default function StudentDetailPage() {
                   <Input
                     value={editForm.phoneNumber}
                     onChange={(e) =>
-                      setEditForm((f) => ({ ...f, phoneNumber: e.target.value }))
+                      setEditForm((f) => ({
+                        ...f,
+                        phoneNumber: e.target.value,
+                      }))
                     }
                     placeholder="080..."
                   />
@@ -615,16 +625,20 @@ export default function StudentDetailPage() {
                   <Select
                     value={editForm.schoolClassId}
                     onChange={(e) => {
-                      const id = e.target.value;
-                      const cls = classes.find((c) => c.id === id);
-                      const isSenior = cls?.academicSection === "SeniorSecondary";
+                      const cid = e.target.value;
+                      const cls = classes.find((c) => c.id === cid);
+                      const isSeniorNow =
+                        cls?.academicSection === "SeniorSecondary";
                       setEditForm((f) => ({
                         ...f,
-                        schoolClassId: id,
-                        stream: isSenior ? f.stream : "",
+                        schoolClassId: cid,
+                        stream: isSeniorNow ? f.stream : "",
                       }));
                     }}
-                    options={classes.map((c) => ({ value: c.id, label: c.name }))}
+                    options={classes.map((c) => ({
+                      value: c.id,
+                      label: c.name,
+                    }))}
                   />
                 </FormField>
 
@@ -633,10 +647,16 @@ export default function StudentDetailPage() {
                     <Select
                       value={editForm.stream}
                       onChange={(e) =>
-                        setEditForm((f) => ({ ...f, stream: e.target.value }))
+                        setEditForm((f) => ({
+                          ...f,
+                          stream: e.target.value,
+                        }))
                       }
                       placeholder="Choose a stream"
-                      options={STREAMS.map((s) => ({ value: s, label: s }))}
+                      options={STREAMS.map((s) => ({
+                        value: s,
+                        label: s,
+                      }))}
                     />
                   </FormField>
                 )}
@@ -647,11 +667,17 @@ export default function StudentDetailPage() {
                     type="checkbox"
                     checked={editForm.isActive}
                     onChange={(e) =>
-                      setEditForm((f) => ({ ...f, isActive: e.target.checked }))
+                      setEditForm((f) => ({
+                        ...f,
+                        isActive: e.target.checked,
+                      }))
                     }
                     className="w-4 h-4 rounded"
                   />
-                  <label htmlFor="isActive" className="text-[13px] text-surface-700">
+                  <label
+                    htmlFor="isActive"
+                    className="text-[13px] text-surface-700"
+                  >
                     Student is active
                   </label>
                 </div>
@@ -674,7 +700,9 @@ export default function StudentDetailPage() {
         </>
       )}
 
-      {/* DELETE CONFIRMATION — editors only */}
+      {/* ===============================================
+          DELETE MODAL — editors only
+          =============================================== */}
       {canEdit && deleteOpen && (
         <>
           <div
@@ -696,8 +724,8 @@ export default function StudentDetailPage() {
                     {student.firstName} {student.lastName}
                   </strong>{" "}
                   will be soft-deleted. Their record, payments, and results are
-                  kept — but they'll no longer appear in lists or be able to log
-                  in.
+                  kept — but they'll no longer appear in lists or be able to
+                  log in.
                 </p>
               </div>
 

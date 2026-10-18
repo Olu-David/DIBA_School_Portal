@@ -44,7 +44,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private static readonly string[] AssignableRoles =
         {
             "Principal", "Headmaster", "Headmistress", "VicePrincipal",
-            "SchoolAdmin", "Accountant", "Registrar",
+            "SchoolAdmin", "Accountant", "Cashier",   // 👈 CASHIER
+            "Registrar",
             "Teacher", "FormTeacher",
             "Student", "Parent"
         };
@@ -54,7 +55,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private static readonly string[] StaffPortalRoles =
         {
             "SuperAdmin", "Principal", "Headmaster", "Headmistress",
-            "VicePrincipal", "SchoolAdmin", "Accountant", "Registrar",
+            "VicePrincipal", "SchoolAdmin", "Accountant", "Cashier",   // 👈 CASHIER
+            "Registrar",
             "Teacher", "FormTeacher"
         };
         #endregion
@@ -897,7 +899,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 var roleWhitelist = new[]
                 {
                     "Principal", "Headmaster", "Headmistress", "VicePrincipal",
-                    "SchoolAdmin", "Accountant", "Registrar",
+                    "SchoolAdmin", "Accountant", "Cashier",   // 👈 CASHIER
+                    "Registrar",
                     "Teacher", "FormTeacher",
                 };
 
@@ -1384,7 +1387,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 "Student" => "students",
                 "Teacher" or "FormTeacher" => "teachers",
                 "Parent" => "parents",
-                _ => "staff",
+                _ => "staff",   // Cashier falls here — fine
             };
 
             var extension = picture.ContentType.ToLowerInvariant() switch

@@ -1,6 +1,6 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserPlus, Sparkles, ImageOff } from "lucide-react";
+import { UserPlus, Sparkles, Camera, X, Loader2 } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
   Button,
@@ -27,9 +27,8 @@ interface Created {
   userId: string;
   admissionNumber: string;
   temporaryPassword: string;
-  // Present when role === "Student" — optional in case your backend
-  // adds it later without breaking older shapes.
   studentProfileId?: string | null;
+  profilePictureUrl?: string | null;
 }
 
 const STREAMS = ["Science", "Arts", "Commercial"] as const;
@@ -54,6 +53,11 @@ export default function NewStudentPage() {
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<Created | null>(null);
+
+  // ---- Photo state ----
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -96,7 +100,39 @@ export default function NewStudentPage() {
   };
 
   // ==========================================================
-  // Submit — multipart/form-data
+  // Photo picker handlers
+  // ==========================================================
+  const pickPhoto = () => fileInputRef.current?.click();
+
+  const clearPhoto = () => {
+    setPhotoFile(null);
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handlePhotoChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 200 * 1024) {
+      toast({ variant: "error", title: "Photo must be under 200 KB." });
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      toast({ variant: "error", title: "Only JPG, PNG, or WEBP are allowed." });
+      return;
+    }
+
+    // Clean previous preview
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  // ==========================================================
+  // Submit — multipart/form-data (includes optional photo)
   // ==========================================================
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -117,7 +153,6 @@ export default function NewStudentPage() {
 
     setSubmitting(true);
     try {
-      // ---------- Build FormData ----------
       const fd = new FormData();
 
       // Required
@@ -135,15 +170,10 @@ export default function NewStudentPage() {
       // Stream — only for Senior Secondary with a chosen value
       if (isSenior && form.stream) fd.append("stream", form.stream);
 
-      // If you add a file picker later, append it here:
-      // if (photoFile) fd.append("profilePicture", photoFile);
+      // Photo — only if the admin picked one
+      if (photoFile) fd.append("profilePicture", photoFile);
 
-      // ---------- POST ----------
-      // ⚠️ IMPORTANT: no second argument.
-      // Axios sees FormData and lets the browser set:
-      //   Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryXXXX
-      // If you pass a headers object with "Content-Type": "multipart/form-data",
-      // the boundary gets dropped and the server returns 415 again.
+      // ⚠️ NO headers argument — browser sets multipart boundary automatically
       const { data } = await api.post<ApiResponse<Created>>(
         "/auth/create-account",
         fd
@@ -169,6 +199,8 @@ export default function NewStudentPage() {
           ? "You don't have permission to enrol students."
           : status === 409
           ? "A user with this email already exists."
+          : status === 400
+          ? "Invalid student data. Check fields."
           : "Could not enrol student");
 
       toast({ variant: "error", title: message });
@@ -186,9 +218,17 @@ export default function NewStudentPage() {
         <PageHeader eyebrow="Enrolment complete" title="Student added" />
         <Card>
           <div className="text-center py-4">
-            <div className="w-14 h-14 rounded-2xl bg-brand-50 grid place-items-center mx-auto mb-4">
-              <UserPlus className="w-6 h-6 text-brand-600" />
-            </div>
+            {created.profilePictureUrl ? (
+              <img
+                src={created.profilePictureUrl}
+                alt={`${form.firstName} ${form.lastName}`}
+                className="w-14 h-14 rounded-full object-cover mx-auto mb-4 ring-2 ring-emerald-100"
+              />
+            ) : (
+              <div className="w-14 h-14 rounded-2xl bg-brand-50 grid place-items-center mx-auto mb-4">
+                <UserPlus className="w-6 h-6 text-brand-600" />
+              </div>
+            )}
             <h2 className="text-[16px] font-semibold text-surface-900">
               {form.firstName} {form.lastName} enrolled
             </h2>
@@ -212,6 +252,7 @@ export default function NewStudentPage() {
               fullWidth
               onClick={() => {
                 setCreated(null);
+                clearPhoto();
                 setForm({
                   firstName: "",
                   lastName: "",
@@ -259,18 +300,65 @@ export default function NewStudentPage() {
             Student details
           </h3>
 
-          {/* Photo placeholder — uploader coming soon */}
+          {/* ---------- Photo picker ---------- */}
           <div className="flex items-start gap-5 mb-6">
-            <Avatar name={`${form.firstName} ${form.lastName}`} size="xl" />
-            <div className="text-[12px] text-surface-400 pt-1">
-              <p className="font-medium text-surface-600 flex items-center gap-1.5">
-                <ImageOff className="w-3.5 h-3.5" />
-                Profile picture
+            {/* Clickable avatar */}
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={pickPhoto}
+                disabled={submitting}
+                className="relative group rounded-full focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:cursor-wait"
+                title="Add student photo"
+                aria-label="Add student photo"
+              >
+                {photoPreview ? (
+                  <img
+                    src={photoPreview}
+                    alt="Student photo preview"
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                ) : (
+                  <Avatar name={`${form.firstName} ${form.lastName}`} size="xl" />
+                )}
+
+                {/* Camera badge */}
+                <div className="absolute bottom-0 right-0 z-10 w-8 h-8 rounded-full bg-emerald-600 text-white ring-2 ring-white shadow-md grid place-items-center transition-transform group-hover:scale-110">
+                  {submitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Camera className="w-4 h-4" />
+                  )}
+                </div>
+              </button>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handlePhotoChange}
+              />
+            </div>
+
+            {/* Help / remove text */}
+            <div className="text-[12px] pt-1 flex-1 min-w-0">
+              <p className="font-medium text-surface-700">
+                Profile picture (optional)
               </p>
-              <p className="mt-1">
-                Photo upload will be enabled soon. You can add a picture later
-                from the student's profile page.
+              <p className="mt-1 text-surface-500 leading-relaxed">
+                JPG, PNG, or WEBP · max 200 KB
               </p>
+              {photoFile && (
+                <button
+                  type="button"
+                  onClick={clearPhoto}
+                  className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-rose-600 hover:text-rose-700"
+                >
+                  <X className="w-3 h-3" />
+                  Remove photo
+                </button>
+              )}
             </div>
           </div>
 

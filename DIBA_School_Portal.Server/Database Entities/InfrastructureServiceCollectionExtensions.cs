@@ -26,8 +26,8 @@ namespace DIBA_School_Portal.Server.Database_Entities
                         pgOptions.EnableRetryOnFailure(
                             maxRetryCount: 5,
                             maxRetryDelay: TimeSpan.FromSeconds(10),
-                            errorCodesToAdd: null))
-                           .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+                            errorCodesToAdd: null));
+                           //.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
                 }
                 else
                 {
@@ -36,8 +36,8 @@ namespace DIBA_School_Portal.Server.Database_Entities
                         sqlOptions.EnableRetryOnFailure(
                             maxRetryCount: 5,
                             maxRetryDelay: TimeSpan.FromSeconds(10),
-                            errorNumbersToAdd: null))
-                           .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+                            errorNumbersToAdd: null));
+                           //.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
                 }
             });
 

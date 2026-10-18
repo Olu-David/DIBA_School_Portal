@@ -1,21 +1,14 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserPlus, ArrowLeft } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
-  Button, Card, FormField, Input, Select, Skeleton,
+  Button, Card, FormField, Input, Select, Skeleton, Avatar,
 } from "../../components/ui";
 import { useToast } from "../../hooks/useToast";
 import api from "../../lib/api";
 import type { ApiResponse, Paginated } from "../../types/common";
-
-interface StudentRow {
-  id: string;
-  admissionNumber: string;
-  fullName: string;
-  className: string;
-  profilePictureUrl: string | null;
-}
+import type { StudentRow } from "../../types/student";
 
 interface SchoolClass {
   id: string;
@@ -51,10 +44,14 @@ export default function NewParentPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // ---- Classes ----
   const [classes, setClasses] = useState<SchoolClass[]>([]);
+  const [loadingClasses, setLoadingClasses] = useState(true);
+
+  // ---- Students (per selected class) ----
   const [students, setStudents] = useState<StudentRow[]>([]);
-  const [loadingRefs, setLoadingRefs] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [studentsError, setStudentsError] = useState<string | null>(null);
 
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState("");
@@ -70,62 +67,132 @@ export default function NewParentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<LinkResponse | null>(null);
 
-  // ---- Load classes + students in parallel ----
+  // ==========================================================
+  // Load classes once
+  // ==========================================================
   useEffect(() => {
     (async () => {
       try {
-        const [classRes, studentRes] = await Promise.allSettled([
-          api.get<ApiResponse<SchoolClass[]>>("/schoolclass/all"),
-          api.get<ApiResponse<Paginated<StudentRow>>>(
-            "/student?pageNumber=1&pageSize=200"
-          ),
-        ]);
-
-        if (classRes.status === "fulfilled" && classRes.value.data.success) {
-          const sorted = [...(classRes.value.data.data ?? [])].sort(
+        const { data } = await api.get<ApiResponse<SchoolClass[]>>(
+          "/schoolclass/all"
+        );
+        if (data.success) {
+          const sorted = [...(data.data ?? [])].sort(
             (a, b) => classRank(a) - classRank(b)
           );
           setClasses(sorted);
-        }
-
-        if (studentRes.status === "fulfilled" && studentRes.value.data.success) {
-          setStudents(studentRes.value.data.data.items ?? []);
         } else {
-          setLoadError("Could not load students.");
+          toast({
+            variant: "error",
+            title: data.message ?? "Could not load classes.",
+          });
         }
-      } catch (err: any) {
-        setLoadError(
-          err?.response?.data?.message ?? "Could not load form data."
-        );
+      } catch (err: unknown) {
+        const e2 = err as { response?: { data?: { message?: string } }; message?: string };
+        toast({
+          variant: "error",
+          title: e2?.response?.data?.message ?? "Could not load classes.",
+        });
       } finally {
-        setLoadingRefs(false);
+        setLoadingClasses(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---- Students filtered by class ----
-  const studentsInClass = useMemo(() => {
-    if (!selectedClassId) return [];
-    const cls = classes.find((c) => c.id === selectedClassId);
-    if (!cls) return [];
-    return students
-      .filter((s) => s.className === cls.name)
-      .sort((a, b) => a.fullName.localeCompare(b.fullName));
-  }, [students, classes, selectedClassId]);
+  // ==========================================================
+  // Load students when a class is selected
+  // ==========================================================
+  useEffect(() => {
+    if (!selectedClassId) {
+      setStudents([]);
+      setStudentsError(null);
+      return;
+    }
 
-  const change = (k: keyof typeof form) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setLoadingStudents(true);
+    setStudentsError(null);
+    setStudents([]);
+    setSelectedStudentId("");
+
+    (async () => {
+      try {
+        const { data } = await api.get<ApiResponse<Paginated<StudentRow>>>(
+          "/student",
+          {
+            params: {
+              classId: selectedClassId,
+              pageNumber: 1,
+              pageSize: 200,
+            },
+          }
+        );
+
+        if (!data.success) {
+          setStudentsError(data.message ?? "Could not load students.");
+          return;
+        }
+
+        const items = (data.data?.items ?? []).slice().sort((a, b) =>
+          a.fullName.localeCompare(b.fullName)
+        );
+        setStudents(items);
+      } catch (err: unknown) {
+        const e2 = err as {
+          response?: { status?: number; data?: { message?: string } };
+          message?: string;
+        };
+        const status = e2?.response?.status;
+        setStudentsError(
+          e2?.response?.data?.message ??
+            (status === 403
+              ? "You don't have permission to view students."
+              : "Could not load students.")
+        );
+      } finally {
+        setLoadingStudents(false);
+      }
+    })();
+  }, [selectedClassId]);
+
+  // ==========================================================
+  // Derived
+  // ==========================================================
+  const selectedStudent = useMemo(
+    () => students.find((s) => s.id === selectedStudentId) ?? null,
+    [students, selectedStudentId]
+  );
+
+  const selectedClass = useMemo(
+    () => classes.find((c) => c.id === selectedClassId) ?? null,
+    [classes, selectedClassId]
+  );
+
+  const change =
+    (k: keyof typeof form) =>
+    (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm((p) => ({ ...p, [k]: e.target.value }));
 
+  // ==========================================================
+  // Submit
+  // ==========================================================
   const submit = async (e: FormEvent) => {
     e.preventDefault();
 
     if (!selectedStudentId) {
-      toast({ variant: "error", title: "Pick a student to link" });
+      toast({ variant: "error", title: "Pick a student to link." });
       return;
     }
-    if (!form.parentFirstName || !form.parentLastName || !form.parentPhone) {
-      toast({ variant: "error", title: "Name and phone are required" });
+    if (!form.parentFirstName.trim()) {
+      toast({ variant: "error", title: "Parent first name is required." });
+      return;
+    }
+    if (!form.parentLastName.trim()) {
+      toast({ variant: "error", title: "Parent last name is required." });
+      return;
+    }
+    if (!form.parentPhone.trim()) {
+      toast({ variant: "error", title: "Parent phone is required." });
       return;
     }
 
@@ -145,24 +212,37 @@ export default function NewParentPage() {
       );
 
       if (!data.success) {
-        toast({ variant: "error", title: data.message ?? "Failed" });
+        toast({ variant: "error", title: data.message ?? "Failed." });
         return;
       }
 
       setCreated(data.data);
-      toast({ variant: "success", title: "Parent created and linked" });
+      toast({ variant: "success", title: "Parent created and linked." });
     } catch (err: unknown) {
-      const e2 = err as { response?: { data?: { message?: string } } };
-      toast({
-        variant: "error",
-        title: e2?.response?.data?.message ?? "Could not link parent",
-      });
+      const e2 = err as {
+        response?: { status?: number; data?: { message?: string } };
+        message?: string;
+      };
+      const status = e2?.response?.status;
+      const message =
+        e2?.response?.data?.message ??
+        (status === 409
+          ? "This parent is already linked to the student."
+          : status === 400
+          ? "Check the parent details."
+          : status === 403
+          ? "You don't have permission to link parents."
+          : "Could not link parent.");
+
+      toast({ variant: "error", title: message });
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ---- Success screen ----
+  // ==========================================================
+  // Success screen
+  // ==========================================================
   if (created) {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
@@ -196,6 +276,7 @@ export default function NewParentPage() {
                 setCreated(null);
                 setSelectedClassId("");
                 setSelectedStudentId("");
+                setStudents([]);
                 setForm({
                   parentFirstName: "",
                   parentLastName: "",
@@ -217,7 +298,9 @@ export default function NewParentPage() {
     );
   }
 
-  // ---- Form ----
+  // ==========================================================
+  // Form
+  // ==========================================================
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <button
@@ -236,33 +319,20 @@ export default function NewParentPage() {
       />
 
       <form onSubmit={submit} className="space-y-6">
-        {/* ---------- Link to which student ---------- */}
+        {/* ---------- Step 1: Link to which student ---------- */}
         <Card>
           <h3 className="text-[15px] font-semibold text-surface-900 mb-5">
             Link to which student?
           </h3>
 
-          {loadError && (
-            <div className="mb-4 p-3 rounded-xl bg-flame-50 border border-flame-100 text-[12px] text-flame-800">
-              {loadError}
-            </div>
-          )}
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField
-              label="Class"
-              required
-              hint="Pick the class first"
-            >
-              {loadingRefs ? (
+            <FormField label="Class" required hint="Pick the class first">
+              {loadingClasses ? (
                 <Skeleton className="h-11" />
               ) : (
                 <Select
                   value={selectedClassId}
-                  onChange={(e) => {
-                    setSelectedClassId(e.target.value);
-                    setSelectedStudentId("");
-                  }}
+                  onChange={(e) => setSelectedClassId(e.target.value)}
                   placeholder="Choose a class"
                   options={classes.map((c) => ({
                     value: c.id,
@@ -278,12 +348,16 @@ export default function NewParentPage() {
               hint={
                 !selectedClassId
                   ? "Select a class first."
-                  : studentsInClass.length === 0
+                  : loadingStudents
+                  ? "Loading students…"
+                  : studentsError
+                  ? studentsError
+                  : students.length === 0
                   ? "No students in this class."
-                  : `${studentsInClass.length} available.`
+                  : `${students.length} available.`
               }
             >
-              {loadingRefs ? (
+              {loadingStudents ? (
                 <Skeleton className="h-11" />
               ) : (
                 <Select
@@ -292,12 +366,16 @@ export default function NewParentPage() {
                   placeholder={
                     !selectedClassId
                       ? "Choose a class first"
-                      : studentsInClass.length === 0
+                      : students.length === 0
                       ? "No students"
                       : "Choose a student"
                   }
-                  disabled={!selectedClassId || studentsInClass.length === 0}
-                  options={studentsInClass.map((s) => ({
+                  disabled={
+                    !selectedClassId ||
+                    loadingStudents ||
+                    students.length === 0
+                  }
+                  options={students.map((s) => ({
                     value: s.id,
                     label: `${s.fullName} — ${s.admissionNumber}`,
                   }))}
@@ -305,9 +383,29 @@ export default function NewParentPage() {
               )}
             </FormField>
           </div>
+
+          {/* Selected student preview */}
+          {selectedStudent && (
+            <div className="mt-4 flex items-center gap-3 p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200">
+              <Avatar
+                name={selectedStudent.fullName}
+                src={selectedStudent.profilePictureUrl}
+                size="md"
+              />
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold text-surface-900 truncate">
+                  {selectedStudent.fullName}
+                </p>
+                <p className="text-[11px] text-surface-500 font-mono">
+                  {selectedStudent.admissionNumber}
+                  {selectedClass ? ` · ${selectedClass.name}` : ""}
+                </p>
+              </div>
+            </div>
+          )}
         </Card>
 
-        {/* ---------- Parent details ---------- */}
+        {/* ---------- Step 2: Parent details ---------- */}
         <Card>
           <h3 className="text-[15px] font-semibold text-surface-900 mb-5">
             Parent details
@@ -385,8 +483,13 @@ export default function NewParentPage() {
           >
             Cancel
           </Button>
-          <Button type="submit" icon={UserPlus} loading={submitting}>
-            Create & link parent
+          <Button
+            type="submit"
+            icon={UserPlus}
+            loading={submitting}
+            disabled={!selectedStudentId}
+          >
+            Create &amp; link parent
           </Button>
         </div>
       </form>

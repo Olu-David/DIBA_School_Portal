@@ -49,7 +49,16 @@ namespace DIBA_School_Portal.Server.Repository.Services
         // ==========================================================
         // LIST (paginated + filterable)
         // ==========================================================
+    
         #region GetTeachersAsync
+        private static readonly string[] StaffRoles =
+        {
+    "Teacher", "FormTeacher", "Principal", "VicePrincipal",
+    "Headmaster", "Headmistress", "SchoolAdmin",
+    "Accountant", "Cashier",
+    "Registrar",
+};
+
         public async Task<ServiceResponse<PaginatedViewModel<TeacherRowDto>>> GetTeachersAsync(
             TeacherFilterDto filter)
         {
@@ -60,60 +69,95 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 filter.PageNumber = Math.Max(1, filter.PageNumber);
                 filter.PageSize = Math.Max(1, Math.Min(100, filter.PageSize));
 
-                var query = _context.Teachers
+                // Query all staff USERS — not just Teachers.
+                var query = _context.Users
                     .AsNoTracking()
-                    .Include(t => t.User)
+                    .Where(u =>
+                        !u.IsDeleted
+                        && u.PrimaryRole != null
+                        && StaffRoles.Contains(u.PrimaryRole))
                     .AsQueryable();
 
                 // ---------- Filters ----------
                 if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
                 {
                     var s = filter.SearchTerm.Trim().ToLower();
-                    query = query.Where(t =>
-                        t.FirstName.ToLower().Contains(s) ||
-                        t.LastName.ToLower().Contains(s) ||
-                        t.StaffId.ToLower().Contains(s) ||
-                        (t.User != null && t.User.Email != null && t.User.Email.ToLower().Contains(s)));
-                }
-
-                if (!string.IsNullOrWhiteSpace(filter.Qualification))
-                {
-                    var q = filter.Qualification.Trim().ToLower();
-                    query = query.Where(t => t.Qualification.ToLower().Contains(q));
+                    query = query.Where(u =>
+                        u.FirstName!.ToLower().Contains(s) ||
+                        u.LastName!.ToLower().Contains(s) ||
+                        (u.Email != null && u.Email.ToLower().Contains(s)) ||
+                        // allow searching by Staff ID — join is cheap in LINQ
+                        _context.Teachers.Any(t => t.UserId == u.Id
+                                                && t.StaffId.ToLower().Contains(s)));
                 }
 
                 if (!string.IsNullOrWhiteSpace(filter.PrimaryRole))
                 {
                     var role = filter.PrimaryRole.Trim();
-                    query = query.Where(t => t.User != null && t.User.PrimaryRole == role);
+                    query = query.Where(u => u.PrimaryRole == role);
                 }
 
                 if (filter.IsActive.HasValue)
                 {
-                    query = query.Where(t => t.User != null && t.User.IsActive == filter.IsActive.Value);
+                    query = query.Where(u => u.IsActive == filter.IsActive.Value);
                 }
 
                 int totalCount = await query.CountAsync();
 
-                var teachers = await query
-                    .OrderBy(t => t.FirstName)
-                    .ThenBy(t => t.LastName)
+                // Pull the users, then left-join the Teachers profile in-memory.
+                var users = await query
+                    .OrderBy(u => u.FirstName)
+                    .ThenBy(u => u.LastName)
                     .Skip((filter.PageNumber - 1) * filter.PageSize)
                     .Take(filter.PageSize)
+                    .Select(u => new
+                    {
+                        u.Id,
+                        u.FirstName,
+                        u.LastName,
+                        u.Email,
+                        u.PhoneNumber,
+                        u.ProfilePictureUrl,
+                        u.PrimaryRole,
+                        u.IsActive,
+                        u.CreatedAt,
+                    })
                     .ToListAsync();
 
-                var rows = teachers.Select(t => new TeacherRowDto
+                var userIds = users.Select(u => u.Id).ToList();
+
+                // Only teaching staff will have a Teachers row.
+                var teacherRows = await _context.Teachers
+                    .AsNoTracking()
+                    .Where(t => userIds.Contains(t.UserId))
+                    .Select(t => new
+                    {
+                        t.UserId,
+                        t.Id,
+                        t.StaffId,
+                        t.Qualification,
+                        t.DateEmployed,
+                    })
+                    .ToListAsync();
+
+                var teacherByUser = teacherRows.ToDictionary(t => t.UserId);
+
+                var rows = users.Select(u =>
                 {
-                    Id = t.Id,
-                    StaffId = t.StaffId,
-                    FullName = $"{t.FirstName} {t.LastName}",
-                    Email = t.User?.Email,
-                    PhoneNumber = t.User?.PhoneNumber,
-                    ProfilePictureUrl = t.User?.ProfilePictureUrl,
-                    Qualification = t.Qualification,
-                    PrimaryRole = t.User?.PrimaryRole ?? "Teacher",
-                    IsActive = t.User?.IsActive ?? false,
-                    DateEmployed = t.DateEmployed,
+                    teacherByUser.TryGetValue(u.Id, out var tp);
+                    return new TeacherRowDto
+                    {
+                        Id = tp?.Id ?? Guid.Parse(u.Id),   // fall back to user Id if not a teacher
+                        StaffId = tp?.StaffId ?? $"USR-{u.Id.Substring(0, 6)}",
+                        FullName = $"{u.FirstName} {u.LastName}",
+                        Email = u.Email,
+                        PhoneNumber = u.PhoneNumber,
+                        ProfilePictureUrl = u.ProfilePictureUrl,
+                        Qualification = tp?.Qualification ?? "",
+                        PrimaryRole = u.PrimaryRole ?? "Staff",
+                        IsActive = u.IsActive,
+                        DateEmployed = tp?.DateEmployed ?? u.CreatedAt,
+                    };
                 }).ToList();
 
                 response.Success = true;
@@ -132,7 +176,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error fetching teachers.");
+                _logger.LogError(ex, "Error fetching staff.");
                 response.Success = false;
                 response.Message = $"An error occurred: {ex.Message}";
                 response.StatusCode = 500;

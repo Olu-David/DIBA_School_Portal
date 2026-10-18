@@ -68,25 +68,25 @@ namespace DIBA_School_Portal.Server.Controllers
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
-        // READ ALL — all staff
+        // READ ALL — all staff incl. Cashier
         [HttpGet("all")]
-        [Authorize(Roles = "SuperAdmin,Principal,Headmaster,Headmistress,VicePrincipal,SchoolAdmin,Registrar,Accountant,Teacher,FormTeacher")]
+        [Authorize(Roles = "SuperAdmin,Principal,Headmaster,Headmistress,VicePrincipal,SchoolAdmin,Registrar,Accountant,Cashier,Teacher,FormTeacher")]
         public async Task<IActionResult> GetAll()
         {
             var result = await _service.GetAllSchoolClassesAsync();
             return Ok(result);
         }
 
-        // READ BY ID — all staff
+        // READ BY ID — all staff incl. Cashier
         [HttpGet("{id:guid}")]
-        [Authorize(Roles = "SuperAdmin,Principal,Headmaster,Headmistress,VicePrincipal,SchoolAdmin,Registrar,Accountant,Teacher,FormTeacher")]
+        [Authorize(Roles = "SuperAdmin,Principal,Headmaster,Headmistress,VicePrincipal,SchoolAdmin,Registrar,Accountant,Cashier,Teacher,FormTeacher")]
         public async Task<IActionResult> GetById(Guid id)
         {
             var result = await _service.GetSchoolClassByIdAsync(id);
             return result.Success ? Ok(result) : NotFound(result);
         }
 
-        // GET SUBJECTS FOR CLASS — all staff
+        // GET SUBJECTS FOR CLASS — all staff (no Cashier, not needed)
         [HttpGet("{classId:guid}/subjects")]
         [Authorize(Roles = "SuperAdmin,Principal,Headmaster,Headmistress,VicePrincipal,SchoolAdmin,Registrar,Teacher,FormTeacher")]
         public async Task<IActionResult> GetSubjects(Guid classId)

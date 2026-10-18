@@ -19,7 +19,7 @@ namespace DIBA_School_Portal.Server.Controllers
             _pdfService = pdfService;
         }
 
-        // ---------- Report card ----------
+        // ---------- Report card — ACADEMIC, no Cashier ----------
         [HttpPost("report-card")]
         [Authorize(Roles = "Student,Parent,Teacher,FormTeacher,Principal,VicePrincipal,Headmaster,Headmistress,SuperAdmin")]
         public IActionResult ReportCard([FromBody] StudentTermReportDto report)
@@ -29,16 +29,16 @@ namespace DIBA_School_Portal.Server.Controllers
             return File(pdf, "application/pdf", $"ReportCard_{safe}_{report.TermName}.pdf");
         }
 
-        // ---------- Payment receipt ----------
+        // ---------- Payment receipt — FINANCIAL, Cashier YES ----------
         [HttpPost("payment-receipt")]
-        [Authorize(Roles = "Student,Parent,Accountant,SuperAdmin,Principal")]
+        [Authorize(Roles = "Student,Parent,Accountant,Cashier,SuperAdmin,Principal")]
         public IActionResult PaymentReceipt([FromBody] StudentPaymentReceiptDto receipt)
         {
             var pdf = _pdfService.GeneratePaymentReceiptPdf(receipt);
             return File(pdf, "application/pdf", $"Receipt_{receipt.ReferenceNumber}.pdf");
         }
 
-        // ---------- School results ----------
+        // ---------- School results — ACADEMIC, no Cashier ----------
         [HttpPost("school-results")]
         [Authorize(Roles = "SuperAdmin,Principal,VicePrincipal,Headmaster,Headmistress,SchoolAdmin")]
         public IActionResult SchoolResults([FromBody] SchoolResultsPdfDto report)
@@ -48,9 +48,9 @@ namespace DIBA_School_Portal.Server.Controllers
             return File(pdf, "application/pdf", $"SchoolResults_{safe}.pdf");
         }
 
-        // ---------- Class receipts (batch) ----------
+        // ---------- Class receipts (batch) — FINANCIAL, Cashier YES ----------
         [HttpPost("class-receipts")]
-        [Authorize(Roles = "SuperAdmin,Principal,Accountant,SchoolAdmin")]
+        [Authorize(Roles = "SuperAdmin,Principal,Accountant,Cashier,SchoolAdmin")]
         public IActionResult ClassReceipts([FromBody] ClassReceiptsDto batch)
         {
             if (batch.Receipts == null || batch.Receipts.Count == 0)
@@ -61,7 +61,7 @@ namespace DIBA_School_Portal.Server.Controllers
             return File(pdf, "application/pdf", $"Receipts_{safe}_{batch.TermName}.pdf");
         }
 
-        // ---------- Teacher class sheet (subject score sheet) ----------
+        // ---------- Teacher class sheet — ACADEMIC, no Cashier ----------
         [HttpPost("teacher-class-sheet")]
         [Authorize(Roles = "Teacher,FormTeacher,Principal,VicePrincipal,Headmaster,Headmistress,SuperAdmin,SchoolAdmin")]
         public IActionResult TeacherClassSheet([FromBody] TeacherClassSheetDto sheet)

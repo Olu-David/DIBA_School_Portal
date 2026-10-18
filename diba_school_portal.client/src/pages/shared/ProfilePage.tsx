@@ -1,6 +1,6 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useRef, useState, useEffect, type ChangeEvent, type FormEvent } from "react";
 import {
-  Lock, Save, Camera, Pencil, X, Loader2, CheckCircle2,
+  Lock, Save, Camera, Pencil, X, Loader2, CheckCircle2, AlertCircle,
 } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
@@ -25,9 +25,6 @@ export default function ProfilePage() {
   const { user, updateUser } = useAuth();
   const { toast } = useToast();
 
-  // ==========================================================
-  // Profile edit state
-  // ==========================================================
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [profileForm, setProfileForm] = useState({
@@ -36,16 +33,10 @@ export default function ProfilePage() {
     phoneNumber: "",
   });
 
-  // ==========================================================
-  // Profile picture state
-  // ==========================================================
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  // ==========================================================
-  // Password change state
-  // ==========================================================
   const [pw, setPw] = useState({
     currentPassword: "",
     newPassword: "",
@@ -53,9 +44,6 @@ export default function ProfilePage() {
   });
   const [pwSubmitting, setPwSubmitting] = useState(false);
 
-  // ==========================================================
-  // Profile edit handlers
-  // ==========================================================
   const startEditing = () => {
     setProfileForm({
       firstName: user?.firstName ?? "",
@@ -105,19 +93,13 @@ export default function ProfilePage() {
       };
       toast({
         variant: "error",
-        title:
-          e2?.response?.data?.message ??
-          e2?.message ??
-          "Update failed.",
+        title: e2?.response?.data?.message ?? e2?.message ?? "Update failed.",
       });
     } finally {
       setSaving(false);
     }
   };
 
-  // ==========================================================
-  // Profile picture handlers
-  // ==========================================================
   const pickFile = () => fileInputRef.current?.click();
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -156,12 +138,25 @@ export default function ProfilePage() {
       toast({ variant: "success", title: "Profile picture updated" });
     } catch (err: unknown) {
       const e2 = err as {
-        response?: { data?: { message?: string } };
+        response?: { status?: number; data?: { message?: string } };
         message?: string;
       };
+      const status = e2?.response?.status;
+      const message = e2?.response?.data?.message;
+
       toast({
         variant: "error",
-        title: e2?.response?.data?.message ?? e2?.message ?? "Upload failed.",
+        title:
+          message ??
+          (status === 400
+            ? "Invalid image. Check file type and size."
+            : status === 401
+            ? "Session expired — log in again."
+            : status === 403
+            ? "You don't have permission to upload."
+            : status === 500
+            ? "Server error — check API terminal."
+            : "Upload failed."),
       });
       setPreviewUrl(null);
     } finally {
@@ -171,13 +166,9 @@ export default function ProfilePage() {
     }
   };
 
-  // ==========================================================
-  // Password change handler — WITH catch + client validation
-  // ==========================================================
   const submitPw = async (e: FormEvent) => {
     e.preventDefault();
 
-    // ---------- Client-side validation (instant feedback) ----------
     if (!pw.currentPassword) {
       toast({ variant: "error", title: "Enter your current password." });
       return;
@@ -210,7 +201,6 @@ export default function ProfilePage() {
       return;
     }
 
-    // ---------- Server-side (final authority) ----------
     setPwSubmitting(true);
     try {
       const { data } = await api.post<ApiResponse<boolean>>(
@@ -226,8 +216,6 @@ export default function ProfilePage() {
       toast({ variant: "success", title: "Password updated" });
       setPw({ currentPassword: "", newPassword: "", confirmNewPassword: "" });
     } catch (err: unknown) {
-      // ⚠️ THIS catch is what was missing. Backend returns 400 for
-      //     wrong current password or policy violations.
       const e2 = err as {
         response?: { status?: number; data?: { message?: string } };
         message?: string;
@@ -252,37 +240,64 @@ export default function ProfilePage() {
 
   const displayPicture = previewUrl ?? user?.profilePictureUrl ?? null;
 
-  // ==========================================================
-  // Render
-  // ==========================================================
+  if (!user) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <PageHeader eyebrow="Account" title="My profile" />
+        <Card>
+          <div className="flex items-start gap-3 py-6">
+            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-[14px] font-semibold text-red-900">
+                Not logged in — user data missing
+              </p>
+              <p className="text-[13px] text-red-800/80 mt-1">
+                The profile page requires an authenticated user.
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <PageHeader eyebrow="Account" title="My profile" />
 
       {/* ===============================================
-          IDENTITY CARD
+          IDENTITY CARD — avatar + upload button
           =============================================== */}
       <Card>
-        <div className="flex items-start gap-5">
-          <div className="relative shrink-0">
-            <Avatar
-              name={`${user?.firstName} ${user?.lastName}`}
-              src={displayPicture ?? undefined}
-              size="xl"
-            />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+          {/* ---------- Avatar block ---------- */}
+          <div className="flex flex-col items-center shrink-0">
+            {/* The clickable area — wraps avatar AND camera so any click works */}
             <button
               type="button"
               onClick={pickFile}
               disabled={uploading}
-              className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-gold-600 text-white grid place-items-center shadow-sm hover:bg-gold-700 disabled:opacity-60 disabled:cursor-wait"
-              title="Change profile picture"
+              className="relative group cursor-pointer rounded-full focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-80"
+              title="Click to change profile picture"
+              aria-label="Change profile picture"
             >
-              {uploading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Camera className="w-3.5 h-3.5" />
-              )}
+              <Avatar
+                name={`${user.firstName} ${user.lastName}`}
+                src={displayPicture ?? undefined}
+                size="xl"
+              />
+
+              {/* ---------- Camera badge — always visible ---------- */}
+              <div className="absolute bottom-0 right-0 z-10 w-8 h-8 rounded-full bg-emerald-600 text-white ring-2 ring-white shadow-md grid place-items-center transition-transform group-hover:scale-110 group-disabled:scale-100">
+                {uploading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Camera className="w-4 h-4" />
+                )}
+              </div>
             </button>
+
+            {/* Hidden file input */}
             <input
               ref={fileInputRef}
               type="file"
@@ -290,26 +305,32 @@ export default function ProfilePage() {
               className="hidden"
               onChange={handleFileChange}
             />
+
+            {/* Help text under avatar so users know it's clickable */}
+            <p className="mt-3 text-[11px] text-slate-500 text-center">
+              {uploading ? "Uploading…" : "Click photo to change"}
+            </p>
           </div>
 
-          <div className="flex-1 min-w-0">
+          {/* ---------- Identity text ---------- */}
+          <div className="flex-1 min-w-0 sm:border-l sm:border-slate-100 sm:pl-6">
             {!editing ? (
               <>
-                <h2 className="text-[16px] font-semibold text-slate-900">
-                  {user?.firstName} {user?.lastName}
+                <h2 className="text-[18px] font-semibold text-slate-900">
+                  {user.firstName} {user.lastName}
                 </h2>
-                <p className="text-[12px] text-slate-400 mt-0.5">
-                  {user?.email ?? "-"}
+                <p className="text-[13px] text-slate-500 mt-0.5">
+                  {user.email ?? "-"}
                 </p>
-                <div className="mt-2 flex items-center gap-2">
-                  <Badge variant="emerald">{user?.role}</Badge>
+                <div className="mt-3 flex items-center gap-3 flex-wrap">
+                  <Badge variant="emerald">{user.role}</Badge>
                   <button
                     type="button"
                     onClick={startEditing}
                     className="text-[12px] font-medium text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
                   >
                     <Pencil className="w-3 h-3" />
-                    Edit
+                    Edit name & phone
                   </button>
                 </div>
               </>
@@ -446,9 +467,6 @@ export default function ProfilePage() {
   );
 }
 
-// ==========================================================
-// Live password requirements checklist
-// ==========================================================
 function PasswordRequirements({ password }: { password: string }) {
   const rules: { ok: boolean; label: string }[] = [
     { ok: password.length >= 8, label: "At least 8 characters" },

@@ -25,10 +25,10 @@ namespace DIBA_School_Portal.Server.Controllers
             HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
         // ==========================================================
-        // LIST (paginated + filterable)
+        // LIST (paginated + filterable) — Cashier YES
         // ==========================================================
         [HttpGet]
-        [Authorize(Roles = "SuperAdmin,Principal,Headmaster,Headmistress,VicePrincipal,SchoolAdmin,Registrar,Accountant,Teacher,FormTeacher")]
+        [Authorize(Roles = "SuperAdmin,Principal,Headmaster,Headmistress,VicePrincipal,SchoolAdmin,Registrar,Accountant,Cashier,Teacher,FormTeacher")]
         public async Task<IActionResult> GetStudents([FromQuery] StudentFilterDto filter)
         {
             var result = await _studentService.GetStudentsAsync(filter);
@@ -36,10 +36,10 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // GET BY ID
+        // GET BY ID — Cashier YES
         // ==========================================================
         [HttpGet("{id:guid}")]
-        [Authorize(Roles = "SuperAdmin,Principal,Headmaster,Headmistress,VicePrincipal,SchoolAdmin,Registrar,Accountant,Teacher,FormTeacher")]
+        [Authorize(Roles = "SuperAdmin,Principal,Headmaster,Headmistress,VicePrincipal,SchoolAdmin,Registrar,Accountant,Cashier,Teacher,FormTeacher")]
         public async Task<IActionResult> GetById(Guid id)
         {
             var result = await _studentService.GetStudentByIdAsync(id);
@@ -47,10 +47,10 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // GET BY ADMISSION NUMBER
+        // GET BY ADMISSION NUMBER — Cashier YES
         // ==========================================================
         [HttpGet("by-admission/{admissionNumber}")]
-        [Authorize(Roles = "SuperAdmin,Principal,Headmaster,Headmistress,VicePrincipal,SchoolAdmin,Registrar,Accountant,Teacher,FormTeacher")]
+        [Authorize(Roles = "SuperAdmin,Principal,Headmaster,Headmistress,VicePrincipal,SchoolAdmin,Registrar,Accountant,Cashier,Teacher,FormTeacher")]
         public async Task<IActionResult> GetByAdmission(string admissionNumber)
         {
             var result = await _studentService.GetStudentByAdmissionNumberAsync(admissionNumber);
@@ -58,10 +58,10 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // GET BY CLASS
+        // GET BY CLASS — Cashier YES
         // ==========================================================
         [HttpGet("by-class/{classId:guid}")]
-        [Authorize(Roles = "SuperAdmin,Principal,Headmaster,Headmistress,VicePrincipal,SchoolAdmin,Registrar,Accountant,Teacher,FormTeacher")]
+        [Authorize(Roles = "SuperAdmin,Principal,Headmaster,Headmistress,VicePrincipal,SchoolAdmin,Registrar,Accountant,Cashier,Teacher,FormTeacher")]
         public async Task<IActionResult> GetByClass(Guid classId, [FromQuery] bool onlyActive = true)
         {
             var result = await _studentService.GetStudentsByClassAsync(classId, onlyActive);
@@ -69,7 +69,7 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // UPDATE
+        // UPDATE — admin only (no Cashier)
         // ==========================================================
         [HttpPut("{id:guid}")]
         [Authorize(Roles = "SuperAdmin,Principal,Registrar,SchoolAdmin")]
@@ -81,7 +81,7 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // SOFT DELETE
+        // SOFT DELETE — admin only
         // ==========================================================
         [HttpDelete("{id:guid}")]
         [Authorize(Roles = "SuperAdmin,Principal,Registrar")]
@@ -92,7 +92,7 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // RESTORE
+        // RESTORE — admin only
         // ==========================================================
         [HttpPost("{id:guid}/restore")]
         [Authorize(Roles = "SuperAdmin,Principal,Registrar")]
@@ -101,8 +101,9 @@ namespace DIBA_School_Portal.Server.Controllers
             var result = await _studentService.RestoreStudentAsync(id, CurrentUserId, Ip);
             return StatusCode(result.StatusCode, result);
         }
+
         // ==========================================================
-        // MY BILL — current student's bill for the current term
+        // MY BILL — Student-only
         // ==========================================================
         [HttpGet("me/bill")]
         [Authorize(Roles = "Student")]

@@ -9,7 +9,7 @@ namespace DIBA_School_Portal.Server.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "SuperAdmin,Principal,VicePrincipal,Accountant,Registrar")]
+    [Authorize(Roles = "SuperAdmin,Principal,VicePrincipal,Accountant,Cashier,Registrar")]
     public class AccountController : ControllerBase
     {
         private readonly IAccountService _account;
@@ -75,11 +75,13 @@ namespace DIBA_School_Portal.Server.Controllers
             var result = await _account.GetArrearsAsync(academicSessionId, termId, classId);
             return StatusCode(result.StatusCode, result);
         }
+
         // ==========================================================
         // MISC INCOME — record cash outside the fee schedule
+        // (Cashier added — see decision note above)
         // ==========================================================
         [HttpPost("misc-income")]
-        [Authorize(Roles = "SuperAdmin,Principal,Accountant,Registrar")]
+        [Authorize(Roles = "SuperAdmin,Principal,Accountant,Cashier,Registrar")]
         public async Task<IActionResult> RecordMiscIncome([FromBody] RecordMiscIncomeDto request)
         {
             var result = await _account.RecordMiscIncomeAsync(request, CurrentUserId, Ip);

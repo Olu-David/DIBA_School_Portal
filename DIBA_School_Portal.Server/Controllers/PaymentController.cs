@@ -19,9 +19,6 @@ namespace DIBA_School_Portal.Server.Controllers
             _paymentService = paymentService;
         }
 
-        // ==========================================================
-        // Helpers
-        // ==========================================================
         private string CurrentUserId =>
             User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "System";
 
@@ -32,7 +29,7 @@ namespace DIBA_School_Portal.Server.Controllers
         // BILL BREAKDOWN — student, parent, or finance staff
         // ==========================================================
         [HttpGet("bill/{studentProfileId:guid}/term/{termId:guid}")]
-        [Authorize(Roles = "Student,Parent,Accountant,SuperAdmin,Principal,VicePrincipal,Registrar")]
+        [Authorize(Roles = "Student,Parent,Accountant,Cashier,SuperAdmin,Principal,VicePrincipal,Registrar")]
         public async Task<IActionResult> GetBill(Guid studentProfileId, Guid termId)
         {
             var result = await _paymentService.GetStudentBillBreakdownAsync(
@@ -41,10 +38,10 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // RECORD PAYMENT — Accountant initiates, or Student/Parent self-initiate
+        // RECORD PAYMENT — Accountant/Cashier initiates, or Student/Parent self-initiate
         // ==========================================================
         [HttpPost("record")]
-        [Authorize(Roles = "Accountant,SuperAdmin,Student,Parent")]
+        [Authorize(Roles = "Accountant,Cashier,SuperAdmin,Student,Parent")]
         public async Task<IActionResult> RecordPayment([FromBody] CreatePaymentDto dto)
         {
             var result = await _paymentService.RecordPaymentAsync(dto);
@@ -53,10 +50,9 @@ namespace DIBA_School_Portal.Server.Controllers
 
         // ==========================================================
         // FLUTTERWAVE — INITIATE
-        // Returns a checkout URL the client redirects to.
         // ==========================================================
         [HttpPost("flutterwave/initiate")]
-        [Authorize(Roles = "Student,Parent,Accountant,SuperAdmin")]
+        [Authorize(Roles = "Student,Parent,Accountant,Cashier,SuperAdmin")]
         public async Task<IActionResult> InitiateFlutterwave(
             [FromBody] InitiateFlutterwaveDto request)
         {
@@ -67,10 +63,9 @@ namespace DIBA_School_Portal.Server.Controllers
 
         // ==========================================================
         // FLUTTERWAVE — VERIFY (student / parent self-service)
-        // Called by the frontend callback page after redirect back.
         // ==========================================================
         [HttpPost("flutterwave/verify")]
-        [Authorize(Roles = "Student,Parent,Accountant,SuperAdmin,Principal")]
+        [Authorize(Roles = "Student,Parent,Accountant,Cashier,SuperAdmin,Principal")]
         public async Task<IActionResult> VerifyFlutterwaveStudent(
             [FromQuery] string transactionId,
             [FromQuery] string referenceNumber)
@@ -81,11 +76,10 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // FLUTTERWAVE — VERIFY (original, accountant/admin only)
-        // Kept for backward compatibility with any existing callers.
+        // FLUTTERWAVE — VERIFY (legacy)
         // ==========================================================
         [HttpPost("verify-flutterwave")]
-        [Authorize(Roles = "Accountant,SuperAdmin")]
+        [Authorize(Roles = "Accountant,Cashier,SuperAdmin")]
         public async Task<IActionResult> VerifyFlutterwave(
             [FromQuery] string transactionId,
             [FromQuery] string referenceNumber)
@@ -96,10 +90,12 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // UPDATE STATUS — manual (cash / bank transfer transitions)
+        // UPDATE STATUS — manual override
+        // ⚠️ Cashier included ONLY if cashiers reconcile at counter.
+        //    Remove "Cashier" here if Accountant/Principal should own it.
         // ==========================================================
         [HttpPut("status/{paymentId:guid}")]
-        [Authorize(Roles = "Accountant,SuperAdmin,Principal")]
+        [Authorize(Roles = "Accountant,Cashier,SuperAdmin,Principal")]
         public async Task<IActionResult> UpdateStatus(
             Guid paymentId,
             [FromQuery] PaymentStatus status)
@@ -112,7 +108,7 @@ namespace DIBA_School_Portal.Server.Controllers
         // GET PAYMENTS BY STUDENT
         // ==========================================================
         [HttpGet("student/{studentProfileId:guid}")]
-        [Authorize(Roles = "Student,Parent,Accountant,SuperAdmin,Principal,VicePrincipal,Registrar")]
+        [Authorize(Roles = "Student,Parent,Accountant,Cashier,SuperAdmin,Principal,VicePrincipal,Registrar")]
         public async Task<IActionResult> GetByStudent(Guid studentProfileId)
         {
             var result = await _paymentService.GetPaymentsByStudentAsync(studentProfileId);
@@ -123,7 +119,7 @@ namespace DIBA_School_Portal.Server.Controllers
         // GET PAYMENT BY ID
         // ==========================================================
         [HttpGet("{paymentId:guid}")]
-        [Authorize(Roles = "Student,Parent,Accountant,SuperAdmin,Principal,VicePrincipal,Registrar")]
+        [Authorize(Roles = "Student,Parent,Accountant,Cashier,SuperAdmin,Principal,VicePrincipal,Registrar")]
         public async Task<IActionResult> GetById(Guid paymentId)
         {
             var result = await _paymentService.GetPaymentByIdAsync(paymentId);
@@ -134,7 +130,7 @@ namespace DIBA_School_Portal.Server.Controllers
         // GET PAYMENT BY REFERENCE
         // ==========================================================
         [HttpGet("reference/{referenceNumber}")]
-        [Authorize(Roles = "Accountant,SuperAdmin,Principal")]
+        [Authorize(Roles = "Accountant,Cashier,SuperAdmin,Principal")]
         public async Task<IActionResult> GetByReference(string referenceNumber)
         {
             var result = await _paymentService.GetPaymentByReferenceAsync(referenceNumber);

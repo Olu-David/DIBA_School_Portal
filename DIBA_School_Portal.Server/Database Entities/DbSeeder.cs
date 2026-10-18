@@ -13,12 +13,9 @@ namespace DIBA_School_Portal.Server.Database_Entities
     {
         // ---------------- All roles ----------------
         private static readonly string[] Roles = new[]
-        {
-            "SuperAdmin", "Principal", "Headmaster", "Headmistress",
-            "VicePrincipal", "SchoolAdmin", "Accountant", "Registrar",
-            "Teacher", "FormTeacher", "Student", "Parent"
-        };
-
+    { "SuperAdmin", "Principal", "Headmaster", "Headmistress",
+    "VicePrincipal", "SchoolAdmin", "Accountant", "Cashier", 
+    "Registrar", "Teacher", "FormTeacher", "Student", "Parent"};
         public static async Task SeedAsync(IServiceProvider services)
         {
             using var scope = services.CreateScope();
@@ -226,7 +223,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
                 ("teacher1@diba.com.ng",    "Grace",    "Uche",          "Teacher",       "Test@1234",       "08000000009", null, null),
                 ("teacher2@diba.com.ng",    "Peter",    "Bello",         "Teacher",       "Test@1234",       "08000000010", null, null),
                 ("formteacher@diba.com.ng", "Chioma",   "Okeke",         "FormTeacher",   "Test@1234",       "08000000011", null, null),
-
+                ("cashier@diba.com.ng", "Tola", "Bakare", "Cashier", "Test@1234", "08000000009", null, null),
                 // ---- Students — JSS (no stream) ----
                 ("student1@diba.com.ng",    "Chidi",    "Okafor",        "Student",       "Test@1234",       "08000000012", "JSS 1", null),
                 ("student2@diba.com.ng",    "Amaka",    "Uche",          "Student",       "Test@1234",       "08000000013", "JSS 1", null),
