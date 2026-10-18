@@ -13,15 +13,15 @@ namespace DIBA_School_Portal.Server.Database_Entities
         {
             // ---------- DbContext (Dynamic Provider Switcher) ----------
             var connectionString = configuration.GetConnectionString("DefaultConnection")
-                ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
+     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 
             services.AddDbContext<AppDbContext>(options =>
             {
-                // Check if the connection string looks like PostgreSQL (Supabase/Npgsql) or SQL Server
+                // If the connection string contains Supabase/PostgreSQL markers, use Npgsql
                 if (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase) ||
-                    connectionString.Contains("Port=", StringComparison.OrdinalIgnoreCase))
+                    connectionString.Contains("Port=", StringComparison.OrdinalIgnoreCase) ||
+                    connectionString.Contains("Database=", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Use PostgreSQL (Supabase)
                     options.UseNpgsql(connectionString, pgOptions =>
                         pgOptions.EnableRetryOnFailure(
                             maxRetryCount: 5,
@@ -30,22 +30,14 @@ namespace DIBA_School_Portal.Server.Database_Entities
                 }
                 else
                 {
-                    // Use SQL Server (LocalDB / Local testing)
+                    // Fallback for local SQL Server testing only
                     options.UseSqlServer(connectionString, sqlOptions =>
                         sqlOptions.EnableRetryOnFailure(
                             maxRetryCount: 5,
                             maxRetryDelay: TimeSpan.FromSeconds(10),
                             errorNumbersToAdd: null));
                 }
-
-                // ⚠️ Suppress PendingModelChangesWarning
-                // The migration snapshot is stale because entities were edited after
-                // the migration was generated. Suppressing lets the app start.
-                // REMOVE this once migrations are regenerated (see fix below).
-                options.ConfigureWarnings(w =>
-                    w.Ignore(RelationalEventId.PendingModelChangesWarning));
             });
-
             // ---------- Identity ----------
             services.AddIdentity<ApplicationUser, IdentityRole>(options =>
             {

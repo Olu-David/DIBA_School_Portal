@@ -57,6 +57,13 @@ namespace DIBA_School_Portal.Server.Database_Entities
             // ⚠️ NEW — explicit registration, so the config CANNOT be skipped
             modelBuilder.ApplyConfiguration(new MiscellaneousIncomeConfiguration());
 
+            foreach (var property in modelBuilder.Model.GetEntityTypes()
+        .SelectMany(t => t.GetProperties())
+        .Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
+            {
+                property.SetColumnType("numeric(18,2)");
+            }
+
             // Existing enum-to-string conversions
             modelBuilder.Entity<PaymentLog>()
                 .Property(p => p.Gateway)
