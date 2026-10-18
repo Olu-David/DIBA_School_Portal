@@ -12,11 +12,25 @@ import { useRole } from "../../hooks/useRole";
 import api from "../../lib/api";
 import type { ApiResponse } from "../../types/common";
 
+/* 0 = Science, 1 = Arts, 2 = Commercial (matches ClassStream enum order) */
+type StreamNum = 0 | 1 | 2;
+const STREAM_OPTIONS: { value: StreamNum; label: string }[] = [
+  { value: 0, label: "Science" },
+  { value: 1, label: "Arts" },
+  { value: 2, label: "Commercial" },
+];
+
 interface SubjectRow {
   subjectId: string;
   name: string;
   code: string;
   isAssigned: boolean;
+  stream: StreamNum | null;
+}
+
+interface AssignmentItem {
+  subjectId: string;
+  stream: StreamNum | null;
 }
 
 export default function ClassDetailPage() {
@@ -25,15 +39,20 @@ export default function ClassDetailPage() {
   const { toast } = useToast();
   const { isTeacher, isAdmin } = useRole();
 
-  // Only admins can tick / save subjects
   const canEditSubjects = !isTeacher && isAdmin;
 
   const [cls, setCls] = useState<any>(null);
   const [students, setStudents] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
-  const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<string>>(new Set());
+
+  const [assignments, setAssignments] = useState<
+    Map<string, StreamNum | null>
+  >(new Map());
+
   const [loading, setLoading] = useState(true);
   const [savingSubjects, setSavingSubjects] = useState(false);
+
+  const isSSClass = cls?.academicSection === "SeniorSecondary";
 
   useEffect(() => {
     if (!classId) return;
@@ -44,7 +63,6 @@ export default function ClassDetailPage() {
           api.get<ApiResponse<any[]>>(`/student/by-class/${classId}`),
         ];
 
-        // Subjects-selection endpoint is admin-only. Only call it if we can edit.
         if (canEditSubjects) {
           requests.push(
             api.get<ApiResponse<SubjectRow[]>>(
@@ -68,11 +86,18 @@ export default function ClassDetailPage() {
             name: x.name,
             code: x.code ?? "",
             isAssigned: x.isAssigned ?? true,
+            stream:
+              typeof x.stream === "number"
+                ? (x.stream as StreamNum)
+                : null,
           }));
           setSubjects(rows);
-          setSelectedSubjectIds(
-            new Set(rows.filter((r) => r.isAssigned).map((r) => r.subjectId))
-          );
+
+          const map = new Map<string, StreamNum | null>();
+          rows.filter((r) => r.isAssigned).forEach((r) => {
+            map.set(r.subjectId, r.stream);
+          });
+          setAssignments(map);
         }
       } finally {
         setLoading(false);
@@ -82,34 +107,49 @@ export default function ClassDetailPage() {
 
   const toggleSubject = (id: string) => {
     if (!canEditSubjects) return;
-    const next = new Set(selectedSubjectIds);
+    const next = new Map(assignments);
     if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedSubjectIds(next);
+    else next.set(id, null);
+    setAssignments(next);
+  };
+
+  const setStreamFor = (id: string, stream: StreamNum | null) => {
+    if (!canEditSubjects) return;
+    const next = new Map(assignments);
+    if (next.has(id)) {
+      next.set(id, stream);
+      setAssignments(next);
+    }
   };
 
   const selectAll = () => {
     if (!canEditSubjects) return;
-    setSelectedSubjectIds(new Set(subjects.map((s) => s.subjectId)));
+    const next = new Map<string, StreamNum | null>();
+    subjects.forEach((s) => next.set(s.subjectId, null));
+    setAssignments(next);
   };
 
   const clearAll = () => {
     if (!canEditSubjects) return;
-    setSelectedSubjectIds(new Set());
+    setAssignments(new Map());
   };
 
   const saveSubjects = async () => {
     if (!classId || !canEditSubjects) return;
     setSavingSubjects(true);
     try {
+      const payload: AssignmentItem[] = Array.from(assignments.entries()).map(
+        ([subjectId, stream]) => ({ subjectId, stream })
+      );
+
       const { data } = await api.put<ApiResponse<any>>(
         `/schoolclass/subjects/${classId}`,
-        Array.from(selectedSubjectIds)
+        payload
       );
       if (data.success) {
         toast({
           variant: "success",
-          title: `${selectedSubjectIds.size} subject(s) saved`,
+          title: `${payload.length} subject(s) saved`,
         });
       } else {
         toast({ variant: "error", title: data.message ?? "Failed" });
@@ -149,11 +189,11 @@ export default function ClassDetailPage() {
       <PageHeader
         eyebrow={cls.academicSection}
         title={cls.name}
-        description={`${students.length} student${students.length !== 1 ? "s" : ""} - ${selectedSubjectIds.size} subject${selectedSubjectIds.size !== 1 ? "s" : ""}`}
+        description={`${students.length} student${students.length !== 1 ? "s" : ""} - ${assignments.size} subject${assignments.size !== 1 ? "s" : ""}`}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* -------- Students list -------- */}
+        {/* Students */}
         <Card padding="none">
           <div className="p-6 pb-4">
             <h3 className="text-[15px] font-semibold text-surface-900">
@@ -192,7 +232,7 @@ export default function ClassDetailPage() {
           )}
         </Card>
 
-        {/* -------- Subject picker -------- */}
+        {/* Subjects */}
         <Card padding="none">
           <div className="p-6 pb-4">
             <div className="flex items-start justify-between gap-3">
@@ -203,7 +243,9 @@ export default function ClassDetailPage() {
                 </h3>
                 <p className="text-[12px] text-surface-400 mt-0.5">
                   {canEditSubjects
-                    ? "Tick every subject this class teaches, then Save."
+                    ? isSSClass
+                      ? "Tick subjects. Pick a stream for SS-specific subjects, or leave 'All' for shared subjects."
+                      : "Tick every subject this class teaches, then Save."
                     : "Subjects assigned to this class."}
                 </p>
               </div>
@@ -241,14 +283,14 @@ export default function ClassDetailPage() {
           ) : (
             <div className="divide-y divide-surface-100 max-h-[560px] overflow-y-auto">
               {subjects.map((s) => {
-                const isOn = selectedSubjectIds.has(s.subjectId);
+                const isOn = assignments.has(s.subjectId);
+                const currentStream = assignments.get(s.subjectId) ?? null;
+
                 return (
-                  <label
+                  <div
                     key={s.subjectId}
                     className={`px-6 py-3 flex items-center gap-3 ${
-                      canEditSubjects ? "cursor-pointer" : "cursor-default"
-                    } transition-colors ${
-                      isOn ? "bg-brand-50/40" : "hover:bg-surface-50"
+                      isOn ? "bg-brand-50/40" : ""
                     }`}
                   >
                     <Checkbox
@@ -256,6 +298,7 @@ export default function ClassDetailPage() {
                       disabled={!canEditSubjects}
                       onChange={() => toggleSubject(s.subjectId)}
                     />
+
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-medium text-surface-800">
                         {s.name}
@@ -266,8 +309,37 @@ export default function ClassDetailPage() {
                         </p>
                       )}
                     </div>
+
+                    {isSSClass && isOn && canEditSubjects && (
+                      <select
+                        value={currentStream === null ? "" : String(currentStream)}
+                        onChange={(e) =>
+                          setStreamFor(
+                            s.subjectId,
+                            e.target.value === ""
+                              ? null
+                              : (Number(e.target.value) as StreamNum)
+                          )
+                        }
+                        className="text-[11px] rounded-lg border border-surface-200 px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-brand-200"
+                      >
+                        <option value="">All students</option>
+                        {STREAM_OPTIONS.map((o) => (
+                          <option key={o.value} value={String(o.value)}>
+                            {o.label} only
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {isSSClass && isOn && !canEditSubjects && currentStream !== null && (
+                      <Badge variant="violet">
+                        {STREAM_OPTIONS.find((o) => o.value === currentStream)?.label}
+                      </Badge>
+                    )}
+
                     {isOn && <Check className="w-4 h-4 text-brand-600 shrink-0" />}
-                  </label>
+                  </div>
                 );
               })}
             </div>
@@ -276,7 +348,7 @@ export default function ClassDetailPage() {
           {canEditSubjects && subjects.length > 0 && (
             <div className="p-6 pt-4 border-t border-surface-100 flex items-center justify-between gap-3">
               <p className="text-[12px] text-surface-500">
-                {selectedSubjectIds.size} of {subjects.length} selected
+                {assignments.size} of {subjects.length} selected
               </p>
               <Button
                 icon={Save}
