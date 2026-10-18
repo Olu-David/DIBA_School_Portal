@@ -6,6 +6,7 @@ using DIBA_School_Portal.Server.Entities;
 using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace DIBA_School_Portal.Server.Repository.Services
 {
@@ -18,9 +19,16 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private readonly IHttpContextAccessor _http;
         private readonly ILogger<TeacherService> _logger;
 
-        // Who can edit teacher records / assignments
         private static readonly string[] TeacherEditors =
             { "SuperAdmin", "Principal", "SchoolAdmin" };
+
+        private static readonly string[] StaffRoles =
+        {
+            "Teacher", "FormTeacher", "Principal", "VicePrincipal",
+            "Headmaster", "Headmistress", "SchoolAdmin",
+            "Accountant", "Cashier",
+            "Registrar",
+        };
         #endregion
 
         #region Constructor
@@ -47,18 +55,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // LIST (paginated + filterable)
+        // LIST (paginated + filterable) — returns ALL staff
         // ==========================================================
-    
         #region GetTeachersAsync
-        private static readonly string[] StaffRoles =
-        {
-    "Teacher", "FormTeacher", "Principal", "VicePrincipal",
-    "Headmaster", "Headmistress", "SchoolAdmin",
-    "Accountant", "Cashier",
-    "Registrar",
-};
-
         public async Task<ServiceResponse<PaginatedViewModel<TeacherRowDto>>> GetTeachersAsync(
             TeacherFilterDto filter)
         {
@@ -83,12 +82,11 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 {
                     var s = filter.SearchTerm.Trim().ToLower();
                     query = query.Where(u =>
-                        u.FirstName!.ToLower().Contains(s) ||
-                        u.LastName!.ToLower().Contains(s) ||
+                        (u.FirstName != null && u.FirstName.ToLower().Contains(s)) ||
+                        (u.LastName != null && u.LastName.ToLower().Contains(s)) ||
                         (u.Email != null && u.Email.ToLower().Contains(s)) ||
-                        // allow searching by Staff ID — join is cheap in LINQ
-                        _context.Teachers.Any(t => t.UserId == u.Id
-                                                && t.StaffId.ToLower().Contains(s)));
+                        _context.Teachers.Any(t =>
+                            t.UserId == u.Id && t.StaffId.ToLower().Contains(s)));
                 }
 
                 if (!string.IsNullOrWhiteSpace(filter.PrimaryRole))
@@ -104,7 +102,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 int totalCount = await query.CountAsync();
 
-                // Pull the users, then left-join the Teachers profile in-memory.
                 var users = await query
                     .OrderBy(u => u.FirstName)
                     .ThenBy(u => u.LastName)
@@ -145,11 +142,23 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 var rows = users.Select(u =>
                 {
                     teacherByUser.TryGetValue(u.Id, out var tp);
+
+                    // Fall back to User.Id if not a teacher — never throws.
+                    Guid rowId;
+                    if (tp != null)
+                        rowId = tp.Id;
+                    else if (!Guid.TryParse(u.Id, out rowId))
+                        rowId = Guid.NewGuid();
+
+                    var staffSuffix = string.IsNullOrEmpty(u.Id)
+                        ? "unknown"
+                        : u.Id.Substring(0, Math.Min(6, u.Id.Length));
+
                     return new TeacherRowDto
                     {
-                        Id = tp?.Id ?? Guid.Parse(u.Id),   // fall back to user Id if not a teacher
-                        StaffId = tp?.StaffId ?? $"USR-{u.Id.Substring(0, 6)}",
-                        FullName = $"{u.FirstName} {u.LastName}",
+                        Id = rowId,
+                        StaffId = tp?.StaffId ?? $"USR-{staffSuffix}",
+                        FullName = $"{u.FirstName} {u.LastName}".Trim(),
                         Email = u.Email,
                         PhoneNumber = u.PhoneNumber,
                         ProfilePictureUrl = u.ProfilePictureUrl,
@@ -186,12 +195,59 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // GET BY ID
+        // GET BY ID — Teachers table first, then Users fallback
         // ==========================================================
         #region GetTeacherByIdAsync
         public async Task<ServiceResponse<TeacherDto>> GetTeacherByIdAsync(Guid id)
         {
-            return await LoadTeacherDetailAsync(t => t.Id == id);
+            // 1. Try Teachers table (teaching staff)
+            var exists = await _context.Teachers
+                .AsNoTracking()
+                .AnyAsync(t => t.Id == id);
+
+            if (exists)
+                return await LoadTeacherDetailAsync(t => t.Id == id);
+
+            // 2. Fallback: treat `id` as a User.Id (non-teaching staff)
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == id.ToString());
+
+            if (user == null)
+            {
+                return new ServiceResponse<TeacherDto>
+                {
+                    Success = false,
+                    Message = "Staff member not found.",
+                    StatusCode = 404,
+                };
+            }
+
+            return new ServiceResponse<TeacherDto>
+            {
+                Success = true,
+                StatusCode = 200,
+                Data = new TeacherDto
+                {
+                    Id = Guid.TryParse(user.Id, out var g) ? g : Guid.NewGuid(),
+                    UserId = user.Id,
+                    StaffId = "",
+                    FirstName = user.FirstName ?? "",
+                    LastName = user.LastName ?? "",
+                    Email = user.Email,
+                    PhoneNumber = user.PhoneNumber,
+                    ProfilePictureUrl = user.ProfilePictureUrl,
+                    Qualification = "",
+                    DateEmployed = user.CreatedAt,
+                    PrimaryRole = user.PrimaryRole ?? "Staff",
+                    IsActive = user.IsActive,
+                    CreatedAt = user.CreatedAt,
+                    SubjectCount = 0,
+                    ClassCount = 0,
+                    Subjects = new List<TeacherSubjectSummaryDto>(),
+                    Classes = new List<TeacherClassSummaryDto>(),
+                },
+            };
         }
         #endregion
 
@@ -232,12 +288,59 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 };
             }
 
-            return await LoadTeacherDetailAsync(t => t.UserId == userId);
+            // 1. Try Teachers table
+            var exists = await _context.Teachers
+                .AsNoTracking()
+                .AnyAsync(t => t.UserId == userId);
+
+            if (exists)
+                return await LoadTeacherDetailAsync(t => t.UserId == userId);
+
+            // 2. Fallback: treat as a User.Id
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+            {
+                return new ServiceResponse<TeacherDto>
+                {
+                    Success = false,
+                    Message = "Staff member not found.",
+                    StatusCode = 404,
+                };
+            }
+
+            return new ServiceResponse<TeacherDto>
+            {
+                Success = true,
+                StatusCode = 200,
+                Data = new TeacherDto
+                {
+                    Id = Guid.TryParse(user.Id, out var g) ? g : Guid.NewGuid(),
+                    UserId = user.Id,
+                    StaffId = "",
+                    FirstName = user.FirstName ?? "",
+                    LastName = user.LastName ?? "",
+                    Email = user.Email,
+                    PhoneNumber = user.PhoneNumber,
+                    ProfilePictureUrl = user.ProfilePictureUrl,
+                    Qualification = "",
+                    DateEmployed = user.CreatedAt,
+                    PrimaryRole = user.PrimaryRole ?? "Staff",
+                    IsActive = user.IsActive,
+                    CreatedAt = user.CreatedAt,
+                    SubjectCount = 0,
+                    ClassCount = 0,
+                    Subjects = new List<TeacherSubjectSummaryDto>(),
+                    Classes = new List<TeacherClassSummaryDto>(),
+                },
+            };
         }
         #endregion
 
         // ==========================================================
-        // UPDATE
+        // UPDATE — Teachers table first, Users fallback
         // ==========================================================
         #region UpdateTeacherAsync
         public async Task<ServiceResponse<TeacherDto>> UpdateTeacherAsync(
@@ -271,25 +374,49 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- Load ----------
+                // ---------- Load (teaching staff) ----------
                 var teacher = await _context.Teachers
                     .Include(t => t.User)
                     .FirstOrDefaultAsync(t => t.Id == id);
 
+                // ---------- Fallback: non-teaching staff ----------
                 if (teacher == null)
                 {
-                    response.Success = false;
-                    response.Message = "Teacher not found.";
-                    response.StatusCode = 404;
-                    return response;
+                    var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id.ToString());
+                    if (user == null)
+                    {
+                        response.Success = false;
+                        response.Message = "Staff member not found.";
+                        response.StatusCode = 404;
+                        return response;
+                    }
+
+                    var oldName = $"{user.FirstName} {user.LastName}";
+                    var oldActive = user.IsActive;
+
+                    user.FirstName = request.FirstName.Trim();
+                    user.LastName = request.LastName.Trim();
+                    user.IsActive = request.IsActive;
+                    if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
+                        user.PhoneNumber = request.PhoneNumber.Trim();
+                    user.UpdatedAt = DateTime.UtcNow;
+
+                    await _context.SaveChangesAsync();
+
+                    await _auditLog.LogActivityAsync(
+                        currentUserId, "Staff Updated",
+                        $"Staff '{oldName}' ({user.PrimaryRole}) updated. " +
+                        $"Active: {oldActive} → {request.IsActive}.",
+                        ipAddress);
+
+                    return await GetTeacherByIdAsync(id);
                 }
 
-                // ---------- Snapshot for audit ----------
-                var oldName = $"{teacher.FirstName} {teacher.LastName}";
+                // ---------- Apply changes (teacher path) ----------
+                var oldNameT = $"{teacher.FirstName} {teacher.LastName}";
                 var oldQualification = teacher.Qualification;
-                var oldActive = teacher.User?.IsActive ?? false;
+                var oldActiveT = teacher.User?.IsActive ?? false;
 
-                // ---------- Apply changes ----------
                 teacher.FirstName = request.FirstName.Trim();
                 teacher.LastName = request.LastName.Trim();
                 teacher.Qualification = request.Qualification?.Trim() ?? "";
@@ -307,12 +434,11 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 _context.Teachers.Update(teacher);
                 await _context.SaveChangesAsync();
 
-                // ---------- Audit ----------
                 await _auditLog.LogActivityAsync(
                     currentUserId, "Teacher Updated",
-                    $"Teacher '{oldName}' ({teacher.StaffId}) updated. " +
+                    $"Teacher '{oldNameT}' ({teacher.StaffId}) updated. " +
                     $"Qualification: '{oldQualification}' → '{teacher.Qualification}', " +
-                    $"Active: {oldActive} → {request.IsActive}.",
+                    $"Active: {oldActiveT} → {request.IsActive}.",
                     ipAddress);
 
                 return await LoadTeacherDetailAsync(t => t.Id == id);
@@ -482,7 +608,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             try
             {
-                // ---------- Authorization ----------
                 var caller = await _userManager.FindByIdAsync(currentUserId);
                 if (caller == null)
                 {
@@ -499,7 +624,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- Load teacher ----------
                 var teacher = await _context.Teachers
                     .Include(t => t.TeacherSubjects)
                     .FirstOrDefaultAsync(t => t.Id == teacherId);
@@ -512,11 +636,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- Normalize input ----------
                 subjectIds ??= new List<Guid>();
                 subjectIds = subjectIds.Distinct().ToList();
 
-                // ---------- Validate subject IDs ----------
                 if (subjectIds.Any())
                 {
                     var validSubjectIds = await _context.Subjects
@@ -533,7 +655,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     }
                 }
 
-                // ---------- Remove assignments not in the new list ----------
                 var toRemove = teacher.TeacherSubjects
                     .Where(ts => !subjectIds.Contains(ts.SubjectId))
                     .ToList();
@@ -541,7 +662,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 if (toRemove.Any())
                     _context.TeacherSubjects.RemoveRange(toRemove);
 
-                // ---------- Add new assignments ----------
                 var existingSubjectIds = teacher.TeacherSubjects
                     .Select(ts => ts.SubjectId)
                     .ToHashSet();
@@ -562,7 +682,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 await _context.SaveChangesAsync();
 
-                // ---------- Audit ----------
                 await _auditLog.LogActivityAsync(
                     currentUserId,
                     "Teacher Subjects Updated",
@@ -682,11 +801,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- Normalize input ----------
                 classIds ??= new List<Guid>();
                 classIds = classIds.Distinct().ToList();
 
-                // ---------- Validate class IDs ----------
                 if (classIds.Any())
                 {
                     var validClassIds = await _context.SchoolClasses
@@ -703,14 +820,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     }
                 }
 
-                // ---------- Remove not-in-new-list ----------
                 var toRemove = teacher.TeacherClasses
                     .Where(tc => !classIds.Contains(tc.SchoolClassId))
                     .ToList();
                 if (toRemove.Any())
                     _context.TeacherClasses.RemoveRange(toRemove);
 
-                // ---------- Add new ----------
                 var existingClassIds = teacher.TeacherClasses
                     .Select(tc => tc.SchoolClassId)
                     .ToHashSet();
@@ -817,11 +932,11 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // HELPER — load full teacher detail (with subjects + classes)
+        // HELPER — load full teacher detail (subjects + classes)
         // ==========================================================
         #region Helper — LoadTeacherDetailAsync
         private async Task<ServiceResponse<TeacherDto>> LoadTeacherDetailAsync(
-            System.Linq.Expressions.Expression<Func<Teacher, bool>> predicate)
+            Expression<Func<Teacher, bool>> predicate)
         {
             var response = new ServiceResponse<TeacherDto>();
 
@@ -840,7 +955,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- Subjects taught (from TeacherSubject) ----------
                 var teacherSubjects = await _context.TeacherSubjects
                     .AsNoTracking()
                     .Include(ts => ts.Subject)
@@ -857,7 +971,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     })
                     .ToList();
 
-                // ---------- Classes taught (from TeacherClass) ----------
                 var teacherClasses = await _context.TeacherClasses
                     .AsNoTracking()
                     .Include(tc => tc.SchoolClass)

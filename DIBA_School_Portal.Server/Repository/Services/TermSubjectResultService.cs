@@ -100,7 +100,7 @@ namespace DIBA_School_Portal.Server.Services
         // MY ASSIGNMENTS
         // ==========================================================
         public async Task<ServiceResponse<List<TeacherAssignmentDto>>> GetMyAssignmentsAsync(
-            string teacherUserId, Guid? academicSessionId = null, Guid? termId = null)
+     string teacherUserId, Guid? academicSessionId = null, Guid? termId = null)
         {
             var response = new ServiceResponse<List<TeacherAssignmentDto>>();
             try
@@ -145,8 +145,31 @@ namespace DIBA_School_Portal.Server.Services
                     .AsNoTracking()
                     .FirstOrDefaultAsync(t => t.UserId == teacherUserId);
 
+                // ==========================================================
+                // Admins without a Teachers row → return empty 200, not 404.
+                // Teachers without a Teachers row → genuine 404 (data issue).
+                // ==========================================================
                 if (teacher == null)
                 {
+                    var user = await _userManager.FindByIdAsync(teacherUserId);
+                    var userRoles = user != null
+                        ? await _userManager.GetRolesAsync(user)
+                        : new List<string>();
+
+                    var adminRoles = new[]
+                    {
+                "SuperAdmin", "Principal", "VicePrincipal",
+                "Headmaster", "Headmistress", "SchoolAdmin",
+            };
+
+                    if (userRoles.Any(r => adminRoles.Contains(r)))
+                    {
+                        response.Success = true;
+                        response.Data = new List<TeacherAssignmentDto>();
+                        response.StatusCode = 200;
+                        return response;
+                    }
+
                     response.Success = false;
                     response.Message = "You do not have a teacher profile.";
                     response.StatusCode = 404;

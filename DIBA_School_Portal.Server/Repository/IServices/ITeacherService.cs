@@ -11,6 +11,7 @@ namespace DIBA_School_Portal.Server.Repository.IServices
         Task<ServiceResponse<PaginatedViewModel<TeacherRowDto>>> GetTeachersAsync(
             TeacherFilterDto filter);
 
+
         Task<ServiceResponse<TeacherDto>> GetTeacherByIdAsync(Guid id);
 
         Task<ServiceResponse<TeacherDto>> GetTeacherByStaffIdAsync(string staffId);
