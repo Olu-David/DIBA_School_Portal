@@ -1,26 +1,13 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  UserCog,
-  UserPlus,
-  Phone,
-  Mail,
-  X,
-  GraduationCap,
+  UserCog, UserPlus, Phone, Mail, X, GraduationCap,
+  Copy, CheckCircle2, KeyRound,
 } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
-  Button,
-  Card,
-  EmptyState,
-  Pagination,
-  SearchInput,
-  Select,
-  Avatar,
-  Badge,
-  Skeleton,
-  FormField,
-  Input,
+  Button, Card, EmptyState, Pagination, SearchInput, Select,
+  Avatar, Badge, Skeleton, FormField, Input,
 } from "../../components/ui";
 import { useDebounce } from "../../hooks/useDebounce";
 import { useToast } from "../../hooks/useToast";
@@ -57,6 +44,16 @@ interface Subject {
   code: string;
 }
 
+interface CreateAccountResponse {
+  userId: string;
+  temporaryPassword: string;
+  role: string;
+  email?: string | null;
+  phoneNumber?: string;
+  admissionNumber?: string | null;
+  profilePictureUrl?: string | null;
+}
+
 const STAFF_ROLES = [
   "Teacher",
   "FormTeacher",
@@ -88,6 +85,13 @@ export default function TeachersPage() {
 
   const [addOpen, setAddOpen] = useState(false);
 
+  // Credentials shown after successful creation
+  const [credentials, setCredentials] = useState<{
+    fullName: string;
+    role: string;
+    password: string;
+  } | null>(null);
+
   /* ---------- fetch ---------- */
   const loadTeachers = async () => {
     setLoading(true);
@@ -99,72 +103,38 @@ export default function TeachersPage() {
       if (debounced.trim()) params.set("searchTerm", debounced.trim());
       if (role) params.set("primaryRole", role);
 
-      // Use a loose type — we'll narrow it below. Some services return
-      // `{ success, data: { items, totalCount } }`, some `{ success, data: [...] }`.
-      const { data } = await api.get<any>(`/teacher?${params}`);
+      const { data } = await api.get<ApiResponse<Paginated<TeacherRow>>>(
+        `/teacher?${params}`
+      );
 
-      console.log("[teachers] API response:", data);
-
-      if (!data?.success) {
-        const msg = data?.message ?? "Could not load staff list";
-        console.warn("[teachers] success=false:", msg);
-        toast({ variant: "error", title: msg });
+      if (!data.success || !data.data) {
+        toast({
+          variant: "error",
+          title: data.message ?? "Could not load staff list",
+        });
         setRows([]);
         setTotal(0);
         return;
       }
 
-      // ---- Normalise payload shape ----
-      const payload = data.data;
-      let items: TeacherRow[] = [];
-      let totalCount = 0;
-
-      if (Array.isArray(payload)) {
-        // Plain array — no pagination on the server
-        items = payload;
-        totalCount = payload.length;
-      } else if (payload && Array.isArray(payload.items)) {
-        // { items, totalCount, ... }
-        items = payload.items;
-        totalCount = payload.totalCount ?? items.length;
-      } else if (payload && Array.isArray(payload.value)) {
-        // ASP.NET default wrapper when a List<T> gets serialized oddly
-        items = payload.value;
-        totalCount = payload.totalCount ?? items.length;
-      } else {
-        console.warn(
-          "[teachers] Unrecognised response shape. data.data =",
-          payload
-        );
-        items = [];
-        totalCount = 0;
-      }
-
-      setRows(items);
-      setTotal(totalCount);
-    } catch (err: any) {
-      // Extract everything useful for the console
-      const status = err?.response?.status;
-      const body = err?.response?.data;
-      const msgFromBody = body?.message;
-      console.error("[teachers] fetch failed:", {
-        status,
-        message: err?.message,
-        body,
-      });
-
-      const friendly =
-        status === 401
+      setRows(data.data.items ?? []);
+      setTotal(data.data.totalCount ?? 0);
+    } catch (err: unknown) {
+      const e2 = err as {
+        response?: { status?: number; data?: { message?: string } };
+        message?: string;
+      };
+      const status = e2?.response?.status;
+      const message =
+        e2?.response?.data?.message ??
+        e2?.message ??
+        (status === 401
           ? "Your session expired — please log in again."
           : status === 403
           ? "You don't have permission to view staff."
-          : status === 404
-          ? "Staff endpoint not found."
-          : status === 500
-          ? "Server error while loading staff."
-          : msgFromBody ?? "Could not load staff list";
+          : "Could not load staff list.");
 
-      toast({ variant: "error", title: friendly });
+      toast({ variant: "error", title: message });
       setRows([]);
       setTotal(0);
     } finally {
@@ -341,8 +311,25 @@ export default function TeachersPage() {
             setPage(1);
             await loadTeachers();
           }}
-          onSuccess={(msg) => toast({ variant: "success", title: msg })}
+          onSuccess={(data) => {
+            setAddOpen(false);
+            setCredentials({
+              fullName: `${data.firstName} ${data.lastName}`,
+              role: data.role,
+              password: data.temporaryPassword,
+            });
+          }}
           onError={(msg) => toast({ variant: "error", title: msg })}
+        />
+      )}
+
+      {/* =====================================================
+          CREDENTIALS MODAL (shown after successful creation)
+         ===================================================== */}
+      {credentials && (
+        <CredentialsModal
+          data={credentials}
+          onClose={() => setCredentials(null)}
         />
       )}
     </div>
@@ -356,7 +343,12 @@ export default function TeachersPage() {
 interface AddStaffModalProps {
   onClose: () => void;
   onCreated: () => void;
-  onSuccess: (msg: string) => void;
+  onSuccess: (data: {
+    firstName: string;
+    lastName: string;
+    role: string;
+    temporaryPassword: string;
+  }) => void;
   onError: (msg: string) => void;
 }
 
@@ -375,7 +367,6 @@ function AddStaffModal({
     lastName: "",
     email: "",
     phoneNumber: "",
-    password: "",
     qualification: "",
     dateEmployed: new Date().toISOString().slice(0, 10),
     primaryRole: "Teacher",
@@ -429,50 +420,112 @@ function AddStaffModal({
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
       e.email = "Enter a valid email";
     if (!form.phoneNumber.trim()) e.phoneNumber = "Phone is required";
-    if (!form.password.trim()) e.password = "Set an initial password";
-    else if (form.password.length < 6)
-      e.password = "At least 6 characters";
     if (!form.primaryRole) e.primaryRole = "Choose a role";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  // ---- submit ----
+  // ---- submit (correct flow) ----
   const handleSubmit = async () => {
     if (!validate()) return;
 
-    const payload = {
-      firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
-      email: form.email.trim(),
-      phoneNumber: form.phoneNumber.trim(),
-      password: form.password,
-      qualification: form.qualification.trim() || null,
-      dateEmployed: form.dateEmployed || null,
-      primaryRole: form.primaryRole,
-      classIds: selectedClassIds,
-      subjectIds: selectedSubjectIds,
-    };
-
     setSaving(true);
     try {
-      const { data } = await api.post<ApiResponse<{ id: string }>>(
-        "/teacher/create",
-        payload
-      );
+      // ==================================================
+      // STEP 1: Create the account via /auth/create-account
+      // (backend generates the temporary password)
+      // ==================================================
+      const fd = new FormData();
+      fd.append("firstName", form.firstName.trim());
+      fd.append("lastName", form.lastName.trim());
+      fd.append("role", form.primaryRole);
+      fd.append("email", form.email.trim());
+      fd.append("phoneNumber", form.phoneNumber.trim());
 
-      if (!data.success) {
-        onError(data.message ?? "Failed to create staff member");
+      const { data: createRes } = await api.post<
+        ApiResponse<CreateAccountResponse>
+      >("/auth/create-account", fd);
+
+      if (!createRes.success || !createRes.data) {
+        onError(createRes.message ?? "Failed to create staff member");
         return;
       }
 
-      onSuccess("Staff member created");
+      // ==================================================
+      // STEP 2: Find the Teacher.Id for the new user
+      // ==================================================
+      let teacherId: string | null = null;
+      try {
+        const { data: tRes } = await api.get<
+          ApiResponse<{ id: string }>
+        >(`/teacher/by-user/${createRes.data.userId}`);
+        if (tRes.success && tRes.data) {
+          teacherId = tRes.data.id;
+        }
+      } catch {
+        // Non-fatal — account still created
+      }
+
+      // ==================================================
+      // STEP 3: Assign classes (if any selected)
+      // ==================================================
+      if (teacherId && selectedClassIds.length > 0) {
+        try {
+          await api.put<ApiResponse<boolean>>(
+            `/teacher/${teacherId}/classes`,
+            selectedClassIds
+          );
+        } catch {
+          // Non-fatal
+        }
+      }
+
+      // ==================================================
+      // STEP 4: Assign subjects (if any selected)
+      // ==================================================
+      if (teacherId && selectedSubjectIds.length > 0) {
+        try {
+          await api.put<ApiResponse<boolean>>(
+            `/teacher/${teacherId}/subjects`,
+            selectedSubjectIds
+          );
+        } catch {
+          // Non-fatal
+        }
+      }
+
+      // ==================================================
+      // STEP 5: Refresh list + show credentials
+      // ==================================================
       onCreated();
+      onSuccess({
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        role: createRes.data.role,
+        temporaryPassword: createRes.data.temporaryPassword,
+      });
     } catch (err: unknown) {
-      const msg =
-        (err as any)?.response?.data?.message ??
+      const e2 = err as {
+        response?: { status?: number; data?: { message?: string } };
+        message?: string;
+      };
+      const status = e2?.response?.status;
+      const message =
+        e2?.response?.data?.message ??
+        e2?.message ??
         "Could not create staff member";
-      onError(msg);
+
+      if (status === 415) {
+        onError(
+          "Server rejected the content type. The client should send FormData for /auth/create-account."
+        );
+      } else if (status === 403) {
+        onError("You don't have permission to create staff accounts.");
+      } else if (status === 409) {
+        onError("A user with this email already exists.");
+      } else {
+        onError(message);
+      }
     } finally {
       setSaving(false);
     }
@@ -565,21 +618,6 @@ function AddStaffModal({
                   />
                 </FormField>
                 <FormField
-                  label="Initial password"
-                  required
-                  error={errors.password}
-                  hint="They can change it after first login."
-                >
-                  <Input
-                    type="password"
-                    value={form.password}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, password: e.target.value }))
-                    }
-                    placeholder="At least 6 characters"
-                  />
-                </FormField>
-                <FormField
                   label="Primary role"
                   required
                   error={errors.primaryRole}
@@ -596,6 +634,10 @@ function AddStaffModal({
                   />
                 </FormField>
               </div>
+              <p className="mt-3 text-[11px] text-surface-400">
+                A temporary password will be generated automatically and shown
+                after creation.
+              </p>
             </section>
 
             {/* Professional */}
@@ -732,6 +774,99 @@ function AddStaffModal({
             </Button>
             <Button icon={UserPlus} loading={saving} onClick={handleSubmit}>
               Create staff member
+            </Button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* =========================================================
+   Credentials modal — shown after successful creation
+   ========================================================= */
+
+interface CredentialsModalProps {
+  data: { fullName: string; role: string; password: string };
+  onClose: () => void;
+}
+
+function CredentialsModal({ data, onClose }: CredentialsModalProps) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(data.password);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard unavailable — user can select manually */
+    }
+  };
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 bg-surface-950/50 z-40"
+        onClick={onClose}
+        aria-hidden
+      />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+          <div className="text-center">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 grid place-items-center mx-auto mb-4">
+              <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+            </div>
+            <h2 className="text-[16px] font-semibold text-surface-900">
+              {data.fullName} created
+            </h2>
+            <p className="text-[12px] text-surface-500 mt-1">
+              Share these credentials with the staff member.
+            </p>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            <div className="p-3.5 rounded-xl bg-surface-50 border border-surface-100">
+              <p className="text-[11px] text-surface-500 mb-1">Role</p>
+              <p className="text-[13px] font-semibold text-surface-900">
+                {data.role}
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-surface-50 border border-surface-100">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-surface-500 mb-1 flex items-center gap-1">
+                    <KeyRound className="w-3 h-3" />
+                    Temporary password
+                  </p>
+                  <p className="text-[13px] font-mono font-semibold text-surface-900 break-all">
+                    {data.password}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={copy}
+                  className="p-2 rounded-lg text-surface-400 hover:text-emerald-600 hover:bg-emerald-50"
+                  title="Copy password"
+                >
+                  {copied ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-4 text-[11px] text-surface-500 text-center">
+            The staff member must change this password after first login.
+          </p>
+
+          <div className="mt-6">
+            <Button fullWidth onClick={onClose}>
+              Done
             </Button>
           </div>
         </div>
