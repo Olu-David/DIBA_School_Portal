@@ -21,7 +21,7 @@ namespace DIBA_School_Portal.Server.Services
         private readonly IAuditLog _auditLog;
         private readonly INotificationLog _notification;
         private readonly IHttpContextAccessor _http;
-        private readonly IPdfReportService _pdfService;        // ← add
+        private readonly IPdfReportService _pdfService;
 
         private static readonly string[] AdminOverrideRoles =
             { "SuperAdmin", "Principal", "VicePrincipal", "Headmaster", "Headmistress" };
@@ -34,7 +34,7 @@ namespace DIBA_School_Portal.Server.Services
             IAuditLog auditLog,
             INotificationLog notification,
             IHttpContextAccessor http,
-            IPdfReportService pdfService)                       // ← add
+            IPdfReportService pdfService)
         {
             _context = context;
             _userManager = userManager;
@@ -43,8 +43,9 @@ namespace DIBA_School_Portal.Server.Services
             _auditLog = auditLog;
             _notification = notification;
             _http = http;
-            _pdfService = pdfService;                            // ← add
+            _pdfService = pdfService;
         }
+
         private string Ip =>
             _http.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
 
@@ -79,6 +80,20 @@ namespace DIBA_School_Portal.Server.Services
                 return (false, "You are not assigned to teach this subject.");
 
             return (true, "Authorized");
+        }
+
+        // ==========================================================
+        // HELPER — Get the stream for a (class, subject) pair
+        // ==========================================================
+        private async Task<ClassStream?> GetClassSubjectStreamAsync(Guid classId, Guid subjectId)
+        {
+            var cs = await _context.ClassSubjects
+                .AsNoTracking()
+                .Where(x => x.SchoolClassId == classId && x.SubjectId == subjectId)
+                .Select(x => new { x.Stream })
+                .FirstOrDefaultAsync();
+
+            return cs?.Stream;
         }
 
         // ==========================================================
@@ -235,7 +250,7 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================================
-        // GET SCORE SHEET
+        // GET SCORE SHEET — filtered by stream
         // ==========================================================
         public async Task<ServiceResponse<PaginatedViewModel<StudentScoreEntryDto>>> GetStudentsForScoreEntryAsync(
             Guid classId, Guid subjectId, Guid termId, Guid academicSessionId,
@@ -270,10 +285,18 @@ namespace DIBA_School_Portal.Server.Services
                 pageSize = Math.Max(1, Math.Min(200, pageSize));
                 int skip = (pageNumber - 1) * pageSize;
 
+                // 👇 Stream filter — SS subjects only show that stream's students
+                var subjectStream = await GetClassSubjectStreamAsync(classId, subjectId);
+
                 var studentsQuery = _context.Students
                     .AsNoTracking()
                     .Include(s => s.User)
                     .Where(s => s.SchoolClassId == classId && s.User != null && !s.User.IsDeleted);
+
+                if (subjectStream.HasValue)
+                {
+                    studentsQuery = studentsQuery.Where(s => s.Stream == subjectStream.Value);
+                }
 
                 int totalCount = await studentsQuery.CountAsync();
 
@@ -337,7 +360,7 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================================
-        // SAVE SCORES
+        // SAVE SCORES — reject cross-stream students
         // ==========================================================
         public async Task<ServiceResponse<string>> SaveAndComputeSubjectScoresAsync(
             ClassScoreSubmissionDto model, string currentUserId)
@@ -357,6 +380,39 @@ namespace DIBA_School_Portal.Server.Services
                     .AnyAsync(t => t.Id == model.TermId && t.AcademicSessionId == model.AcademicSessionId);
                 if (!termExists)
                     return new ServiceResponse<string> { Success = false, Message = "Term mismatch.", StatusCode = 400 };
+
+                // 👇 Verify the subject is taught to this class and check stream match
+                var classSubject = await _context.ClassSubjects
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(cs => cs.SchoolClassId == model.ClassId && cs.SubjectId == model.SubjectId);
+
+                if (classSubject == null)
+                    return new ServiceResponse<string>
+                    {
+                        Success = false,
+                        Message = "This subject is not assigned to this class.",
+                        StatusCode = 404
+                    };
+
+                if (classSubject.Stream.HasValue)
+                {
+                    var studentIdsInRequest = model.StudentScores.Select(x => x.StudentId).ToList();
+
+                    var wrongStreamStudents = await _context.Students
+                        .AsNoTracking()
+                        .Where(s => studentIdsInRequest.Contains(s.UserId)
+                                 && s.Stream != classSubject.Stream.Value)
+                        .Select(s => s.FirstName + " " + s.LastName)
+                        .ToListAsync();
+
+                    if (wrongStreamStudents.Any())
+                        return new ServiceResponse<string>
+                        {
+                            Success = false,
+                            Message = $"Cannot save: {wrongStreamStudents.Count} student(s) are not in the {classSubject.Stream} stream.",
+                            StatusCode = 400
+                        };
+                }
 
                 var userRoles = await _userManager.GetRolesAsync(teacher);
                 bool isAdmin = userRoles.Any(r => AdminOverrideRoles.Contains(r));
@@ -547,7 +603,7 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================================
-        // REPORT CARD PDF — fetch + map + generate, one call
+        // REPORT CARD PDF — unchanged
         // ==========================================================
         public async Task<ServiceResponse<byte[]>> GenerateReportCardPdfAsync(
             string studentId, Guid termId, Guid academicSessionId)
@@ -555,7 +611,6 @@ namespace DIBA_School_Portal.Server.Services
             var response = new ServiceResponse<byte[]>();
             try
             {
-                // 1. Reuse the existing report-card builder
                 var card = await GetStudentReportCardAsync(studentId, termId, academicSessionId);
                 if (!card.Success || card.Data == null)
                 {
@@ -567,34 +622,32 @@ namespace DIBA_School_Portal.Server.Services
 
                 var dto = card.Data;
 
-                // 2. Map to the PDF DTO
                 var pdfDto = new StudentTermReportDto
                 {
-                    StudentName = dto.StudentName??"",
+                    StudentName = dto.StudentName ?? "",
                     AdmissionNumber = dto.AdmissionNumber,
                     ProfilePictureUrl = dto.ProfilePictureUrl,
-                    ClassName = dto.ClassName??"",
+                    ClassName = dto.ClassName ?? "",
                     Stream = dto.Stream,
-                    TermName = dto.TermName??"",
-                    SessionName = dto.SessionName??"",
+                    TermName = dto.TermName ?? "",
+                    SessionName = dto.SessionName ?? "",
                     AverageScore = dto.AverageScore,
                     ClassPosition = dto.ClassPosition,
                     OverallGrade = dto.OverallGrade!,
                     SubjectResults = (dto.SubjectResults ?? new List<SubjectScoreDto>())
                         .Select(s => new TermSubjectResultDto
                         {
-                            SubjectName = s.SubjectName??"",
+                            SubjectName = s.SubjectName ?? "",
                             Test1Score = s.Test1Score,
                             Test2Score = s.Test2Score,
                             ExamScore = s.ExamScore,
                             TotalScore = s.TotalScore,
                             Grade = s.Grade!,
                             SubjectPosition = s.SubjectPosition,
-                            Remark = s.Remark??"",
+                            Remark = s.Remark ?? "",
                         }).ToList(),
                 };
 
-                // 3. Generate
                 var bytes = _pdfService.GenerateReportCardPdf(pdfDto);
 
                 if (bytes == null || bytes.Length == 0)
@@ -621,7 +674,7 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================================
-        // UPDATE SINGLE RESULT
+        // UPDATE SINGLE RESULT — unchanged
         // ==========================================================
         public async Task<ServiceResponse<string>> UpdateTermSubjectResultAsync(
             Guid subjectResultId, decimal test1, decimal test2, decimal exam, string currentUserId)
@@ -691,7 +744,7 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================================
-        // REPORT CARD
+        // REPORT CARD — unchanged
         // ==========================================================
         public async Task<ServiceResponse<StudentReportCardDto>> GetStudentReportCardAsync(
             string studentId, Guid termId, Guid academicSessionId)
@@ -905,7 +958,7 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================================
-        // SCHOOL-WIDE RESULTS — live, no publish gate
+        // SCHOOL-WIDE RESULTS — per-student subject counts
         // ==========================================================
         public async Task<ServiceResponse<SchoolResultResponseDto>> GetAllSchoolResultsAsync(
             Guid academicSessionId, Guid termId, AcademicSection? sectionFilter = null)
@@ -925,7 +978,6 @@ namespace DIBA_School_Portal.Server.Services
                     return response;
                 }
 
-                // Only non-draft subjects appear.
                 var termResults = await _context.TermResults
                     .AsNoTracking()
                     .Include(tr => tr.Student)
@@ -966,11 +1018,16 @@ namespace DIBA_School_Portal.Server.Services
                     .Where(sp => userIds.Contains(sp.UserId))
                     .ToDictionaryAsync(sp => sp.UserId, sp => sp);
 
-                var classSubjectCounts = await _context.ClassSubjects
+                // 👇 Load class-subject streams for per-student expected counts
+                var classSubjectsForCount = await _context.ClassSubjects
                     .Where(cs => cs.SchoolClassId.HasValue && classIds.Contains(cs.SchoolClassId.Value))
-                    .GroupBy(cs => cs.SchoolClassId!.Value)
-                    .Select(g => new { ClassId = g.Key, Count = g.Count() })
-                    .ToDictionaryAsync(x => x.ClassId, x => x.Count);
+                    .Select(cs => new { ClassId = cs.SchoolClassId!.Value, Stream = cs.Stream })
+                    .ToListAsync();
+
+                int GetExpectedCountFor(Guid classId, ClassStream? studentStream) =>
+                    classSubjectsForCount.Count(cs =>
+                        cs.ClassId == classId
+                        && (cs.Stream == null || cs.Stream == studentStream));
 
                 if (sectionFilter.HasValue)
                 {
@@ -986,8 +1043,6 @@ namespace DIBA_School_Portal.Server.Services
                     var classResults = termResults.Where(tr => tr.ClassId == schoolClass.Id).ToList();
                     if (!classResults.Any()) continue;
 
-                    classSubjectCounts.TryGetValue(schoolClass.Id, out var totalSubjects);
-
                     var students = classResults.Select(tr =>
                     {
                         studentProfiles.TryGetValue(tr.StudentId, out var profile);
@@ -997,6 +1052,9 @@ namespace DIBA_School_Portal.Server.Services
                         var average = submitted.Any()
                             ? Math.Round(submitted.Average(sr => sr.TotalScore), 2)
                             : 0m;
+
+                        // 👇 Per-student expected subject count based on stream
+                        var totalSubjects = GetExpectedCountFor(schoolClass.Id, profile?.Stream);
 
                         return new StudentResultSummaryDto
                         {
@@ -1096,9 +1154,9 @@ namespace DIBA_School_Portal.Server.Services
                 return response;
             }
         }
-    
+
         // ==========================================================
-        // CLASS + SUBJECT RESULTS — teacher or admin
+        // CLASS + SUBJECT RESULTS — teacher or admin (stream-filtered)
         // ==========================================================
         public async Task<ServiceResponse<ClassSubjectResultDto>> GetClassSubjectResultsAsync(
             Guid classId, Guid subjectId, Guid termId, Guid academicSessionId, string currentUserId)
@@ -1106,7 +1164,6 @@ namespace DIBA_School_Portal.Server.Services
             var response = new ServiceResponse<ClassSubjectResultDto>();
             try
             {
-                // ---- 1. Authorization ----
                 var (authorized, reason) = await IsTeacherAuthorizedForClassSubjectAsync(
                     currentUserId, classId, subjectId);
                 if (!authorized)
@@ -1117,7 +1174,6 @@ namespace DIBA_School_Portal.Server.Services
                     return response;
                 }
 
-                // ---- 2. Load class, subject, term ----
                 var schoolClass = await _context.SchoolClasses
                     .AsNoTracking()
                     .FirstOrDefaultAsync(c => c.Id == classId);
@@ -1152,14 +1208,9 @@ namespace DIBA_School_Portal.Server.Services
                     return response;
                 }
 
-                // ==========================================================
-                // 
-                // 1. If scores exist → whoever entered them (TermSubjectResults.TeacherId)
-                // 2. Otherwise → the currently assigned teacher for this (class, subject)
-                // ==========================================================
+                // Teacher name — same logic as before
                 string teacherName = "—";
 
-                // 1. Prefer the teacher recorded on existing score rows
                 var enteredBy = await _context.TermSubjectResults
                     .AsNoTracking()
                     .Where(tsr => tsr.SubjectId == subjectId
@@ -1171,7 +1222,6 @@ namespace DIBA_School_Portal.Server.Services
 
                 if (!string.IsNullOrEmpty(enteredBy))
                 {
-                    // TeacherId is stored as a string — might be a User.Id
                     var enteringUser = await _context.Users
                         .AsNoTracking()
                         .FirstOrDefaultAsync(u => u.Id == enteredBy);
@@ -1182,7 +1232,6 @@ namespace DIBA_School_Portal.Server.Services
                     }
                 }
 
-                // 2. Fall back to the currently-assigned teacher for (class, subject)
                 if (teacherName == "—")
                 {
                     var assigned = await (
@@ -1202,20 +1251,28 @@ namespace DIBA_School_Portal.Server.Services
                     }
                 }
 
-                // ---- 3. Load students in the class ----
-                var students = await _context.Students
+                // 👇 Filter students by stream
+                var subjectStream = await GetClassSubjectStreamAsync(classId, subjectId);
+
+                var studentsQuery = _context.Students
                     .AsNoTracking()
                     .Include(s => s.User)
                     .Where(s => s.SchoolClassId == classId
                              && s.User != null
-                             && !s.User.IsDeleted)
+                             && !s.User.IsDeleted);
+
+                if (subjectStream.HasValue)
+                {
+                    studentsQuery = studentsQuery.Where(s => s.Stream == subjectStream.Value);
+                }
+
+                var students = await studentsQuery
                     .OrderBy(s => s.FirstName)
                     .ThenBy(s => s.LastName)
                     .ToListAsync();
 
                 var studentUserIds = students.Select(s => s.UserId).ToList();
 
-                // ---- 4. Load existing subject results ----
                 var subjectResults = await _context.TermSubjectResults
                     .AsNoTracking()
                     .Include(tsr => tsr.TermResult)
@@ -1230,7 +1287,6 @@ namespace DIBA_School_Portal.Server.Services
                     .GroupBy(tsr => tsr.TermResult.StudentId)
                     .ToDictionary(g => g.Key, g => g.First());
 
-                // ---- 5. Build rows ----
                 var rows = students.Select(s =>
                 {
                     resultByStudent.TryGetValue(s.UserId, out var tsr);
@@ -1252,7 +1308,6 @@ namespace DIBA_School_Portal.Server.Services
                     };
                 }).ToList();
 
-                // ---- 6. Stats ----
                 var scored = rows.Where(r => r.TotalScore > 0).ToList();
 
                 var classAvg = scored.Any()
@@ -1262,14 +1317,12 @@ namespace DIBA_School_Portal.Server.Services
                 var passCount = scored.Count(r => r.TotalScore >= 40);
                 var failCount = scored.Count(r => r.TotalScore > 0 && r.TotalScore < 40);
 
-                // ---- 7. Submission status ----
                 var submittedResults = subjectResults.Where(tsr => !tsr.IsDraft).ToList();
                 string status = "NotStarted";
                 if (subjectResults.Any()) status = "Draft";
                 if (students.Count > 0 && submittedResults.Count >= students.Count)
                     status = "Submitted";
 
-                // ---- 8. Response ----
                 response.Success = true;
                 response.StatusCode = 200;
                 response.Data = new ClassSubjectResultDto
@@ -1313,8 +1366,9 @@ namespace DIBA_School_Portal.Server.Services
                 return response;
             }
         }
+
         // ==========================================================
-        // OUTSTANDING SUBMISSIONS — who hasn't submitted yet
+        // OUTSTANDING SUBMISSIONS — skips stream-empty subjects
         // ==========================================================
         public async Task<ServiceResponse<List<OutstandingSubmissionDto>>> GetOutstandingSubmissionsAsync(
             Guid academicSessionId, Guid termId, Guid? classId = null)
@@ -1342,19 +1396,36 @@ namespace DIBA_School_Portal.Server.Services
                     return response;
                 }
 
-                // Every subject each class is supposed to teach
-                var classSubjects = await _context.ClassSubjects
+                // 👇 Load with Stream info
+                var classSubjectsRaw = await _context.ClassSubjects
                     .Where(cs => cs.SchoolClassId.HasValue
                               && cs.SubjectId.HasValue
                               && classIds.Contains(cs.SchoolClassId.Value))
                     .Select(cs => new
                     {
                         ClassId = cs.SchoolClassId!.Value,
-                        SubjectId = cs.SubjectId!.Value
+                        SubjectId = cs.SubjectId!.Value,
+                        Stream = cs.Stream,
                     })
                     .ToListAsync();
 
-                // Submitted subject results for this term/session
+                // 👇 Skip subjects whose stream has no students in the class
+                var studentsByClassStream = await _context.Students
+                    .Where(s => classIds.Contains(s.SchoolClassId))
+                    .GroupBy(s => new { s.SchoolClassId, s.Stream })
+                    .Select(g => new { g.Key.SchoolClassId, g.Key.Stream, Count = g.Count() })
+                    .ToListAsync();
+
+                var studentCountLookup = studentsByClassStream
+                    .ToDictionary(x => (x.SchoolClassId, x.Stream), x => x.Count);
+
+                var classSubjects = classSubjectsRaw
+                    .Where(cs =>
+                        cs.Stream == null
+                        || (studentCountLookup.TryGetValue((cs.ClassId, cs.Stream), out var n) && n > 0))
+                    .Select(cs => new { cs.ClassId, cs.SubjectId })
+                    .ToList();
+
                 var submitted = await _context.TermSubjectResults
                     .Where(tsr => !tsr.IsDraft
                                && tsr.TermResult.TermId == termId
@@ -1364,7 +1435,6 @@ namespace DIBA_School_Portal.Server.Services
                     .Select(g => new { g.Key.ClassId, g.Key.SubjectId, Count = g.Count() })
                     .ToListAsync();
 
-                // Draft rows — work started but not submitted
                 var drafts = await _context.TermSubjectResults
                     .Where(tsr => tsr.IsDraft
                                && tsr.TermResult.TermId == termId
@@ -1380,10 +1450,7 @@ namespace DIBA_School_Portal.Server.Services
                     .Select(s => new { s.Id, s.Name })
                     .ToDictionaryAsync(s => s.Id, s => s.Name);
 
-                // ==========================================================
-                // FIX: Teacher lookup must be (ClassId, SubjectId) → teacher.
-                // Not just SubjectId, which collapses all classes to one teacher.
-                // ==========================================================
+                // Teacher per (class, subject)
                 var teacherAssignments = await (
                     from ts in _context.TeacherSubjects.AsNoTracking()
                     join tc in _context.TeacherClasses.AsNoTracking()
@@ -1407,11 +1474,25 @@ namespace DIBA_School_Portal.Server.Services
                         g => g.Key,
                         g => $"{g.First().TeacherFirst} {g.First().TeacherLast}".Trim());
 
-                var studentCounts = await _context.Students
-                    .Where(s => classIds.Contains(s.SchoolClassId))
-                    .GroupBy(s => s.SchoolClassId)
-                    .Select(g => new { ClassId = g.Key, Count = g.Count() })
-                    .ToDictionaryAsync(x => x.ClassId, x => x.Count);
+                // Student counts — for stream-specific subjects, use the count in that stream
+                var studentCountsByClassSubject = new Dictionary<(Guid, Guid), int>();
+                foreach (var cs in classSubjects)
+                {
+                    var raw = classSubjectsRaw.First(x => x.ClassId == cs.ClassId && x.SubjectId == cs.SubjectId);
+                    if (raw.Stream.HasValue)
+                    {
+                        studentCountLookup.TryGetValue((cs.ClassId, raw.Stream.Value), out var cnt);
+                        studentCountsByClassSubject[(cs.ClassId, cs.SubjectId)] = cnt;
+                    }
+                    else
+                    {
+                        // Sum all streams (including null)
+                        var total = studentsByClassStream
+                            .Where(x => x.SchoolClassId == cs.ClassId)
+                            .Sum(x => x.Count);
+                        studentCountsByClassSubject[(cs.ClassId, cs.SubjectId)] = total;
+                    }
+                }
 
                 var result = new List<OutstandingSubmissionDto>();
 
@@ -1422,7 +1503,6 @@ namespace DIBA_School_Portal.Server.Services
 
                     var draftHit = drafts.FirstOrDefault(s => s.ClassId == cs.ClassId && s.SubjectId == cs.SubjectId);
 
-                    // 👇 Correct teacher for THIS class + subject
                     var teacherName = teacherByClassSubject.TryGetValue(
                         (cs.ClassId, cs.SubjectId), out var tn) ? tn : "—";
 
@@ -1433,7 +1513,7 @@ namespace DIBA_School_Portal.Server.Services
                         SubjectId = cs.SubjectId,
                         SubjectName = subjectNames.TryGetValue(cs.SubjectId, out var n) ? n : "—",
                         TeacherName = teacherName,
-                        StudentCount = studentCounts.TryGetValue(cs.ClassId, out var sc) ? sc : 0,
+                        StudentCount = studentCountsByClassSubject.TryGetValue((cs.ClassId, cs.SubjectId), out var sc) ? sc : 0,
                         ScoredCount = draftHit?.Count ?? 0,
                     });
                 }
@@ -1459,12 +1539,11 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================================
-        // HELPERS
+        // HELPERS — unchanged
         // ==========================================================
         private async Task RecalculateRankingsAndAveragesAsync(
             Guid classId, Guid subjectId, Guid termId, Guid academicSessionId)
         {
-            // 1. Rank subject results for this subject
             var classSubjectResults = await _context.TermSubjectResults
                 .Include(tsr => tsr.TermResult)
                 .Where(tsr => tsr.SubjectId == subjectId
@@ -1483,7 +1562,6 @@ namespace DIBA_School_Portal.Server.Services
             }
             await _context.SaveChangesAsync();
 
-            // 2. Recompute averages from submitted subjects only
             var termResults = await _context.TermResults
                 .Include(tr => tr.SubjectResults)
                 .Where(tr => tr.ClassId == classId
@@ -1502,7 +1580,6 @@ namespace DIBA_School_Portal.Server.Services
                     : 0;
             }
 
-            // 3. Rank students by their submitted average
             var ranked = termResults
                 .OrderByDescending(tr => tr.AverageScore)
                 .ThenByDescending(tr => tr.SubjectResults.Count(sr => !sr.IsDraft))

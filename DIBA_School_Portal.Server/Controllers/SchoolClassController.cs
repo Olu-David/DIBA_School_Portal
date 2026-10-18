@@ -1,4 +1,5 @@
 ﻿using DIBA_School_Portal.Server.Contracts;
+using DIBA_School_Portal.Server.Contracts.ClassDto;
 using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -60,11 +61,14 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // UPDATE SUBJECTS — SuperAdmin or Principal
+      
+
         [HttpPut("subjects/{classId:guid}")]
         [Authorize(Roles = "SuperAdmin,Principal")]
-        public async Task<IActionResult> UpdateSubjects(Guid classId, [FromBody] List<Guid> subjectIds)
+        public async Task<IActionResult> UpdateSubjects(
+    Guid classId, [FromBody] List<ClassSubjectAssignmentDto> items)
         {
-            var result = await _service.UpdateClassSubjectsAsync(classId, subjectIds, CurrentUserId);
+            var result = await _service.UpdateClassSubjectsAsync(classId, items, CurrentUserId);
             return result.Success ? Ok(result) : BadRequest(result);
         }
 

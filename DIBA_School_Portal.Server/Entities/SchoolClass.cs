@@ -11,12 +11,13 @@ namespace DIBA_School_Portal.Server.Entities
         [Required]
         [MaxLength(50)]
         public string Name { get; set; } = string.Empty; // e.g., "JSS 1", "SS 1"
-
+        [Required]
+        public Guid? SubjectId { get; set; }
         public int DisplayOrder { get; set; }
         public AcademicSection AcademicSection { get; set; }
         public virtual ICollection<ClassSubject> ClassSubjects { get; set; } = new List<ClassSubject>();
         public virtual ICollection<TeacherClass> TeacherClasses { get; set; } = new List<TeacherClass>();
         public virtual ICollection<Fee> Fees { get; set; } = new List<Fee>();
-        public bool IsDeleted { get; internal set; }
+        public bool IsDeleted { get;  set; }
     }
 }

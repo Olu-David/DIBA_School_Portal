@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using DIBA_School_Portal.Server.Enums;
+using System.ComponentModel.DataAnnotations;
 
 namespace DIBA_School_Portal.Server.Contracts
 {
@@ -15,6 +16,6 @@ namespace DIBA_School_Portal.Server.Contracts
         [Required]
         [MaxLength(20)]
         public string Code { get; set; } = string.Empty; // e.g., "MTH101"
-
+        public ClassStream? Stream { get; set; }
     }
 }

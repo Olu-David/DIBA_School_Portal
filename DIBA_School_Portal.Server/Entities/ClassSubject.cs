@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using DIBA_School_Portal.Server.Enums;
 
 namespace DIBA_School_Portal.Server.Entities
 {
@@ -19,5 +20,8 @@ namespace DIBA_School_Portal.Server.Entities
 
         [ForeignKey(nameof(SubjectId))]
         public Subject Subject { get; set; } = null!;
+
+     
+        public ClassStream? Stream { get; set; }
     }
 }

@@ -1,7 +1,9 @@
 ﻿using DIBA_School_Portal.Server.Configurations;
 using DIBA_School_Portal.Server.Contracts;
+using DIBA_School_Portal.Server.Contracts.ClassDto;
 using DIBA_School_Portal.Server.Database_Entities;
 using DIBA_School_Portal.Server.Entities;
+using DIBA_School_Portal.Server.Enums;
 using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -33,9 +35,6 @@ namespace DIBA_School_Portal.Server.Services
 
         // ==========================================================
         // HELPER — Which classes can the current user see?
-        //   null   → user sees every class (admin-tier)
-        //   list   → user only sees these class IDs (teacher)
-        //   empty  → user sees nothing (teacher with no assignments)
         // ==========================================================
         private async Task<List<Guid>?> GetAllowedClassIdsAsync()
         {
@@ -53,6 +52,7 @@ namespace DIBA_School_Portal.Server.Services
             {
                 "SuperAdmin", "Principal", "Headmaster", "Headmistress",
                 "VicePrincipal", "SchoolAdmin", "Registrar", "Accountant",
+                "Cashier",
             };
 
             if (roles.Any(r => adminRoles.Contains(r))) return null;
@@ -202,10 +202,10 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================================
-        // UPDATE CLASS SUBJECTS
+        // UPDATE CLASS SUBJECTS — with stream per subject
         // ==========================================================
         public async Task<ServiceResponse<string>> UpdateClassSubjectsAsync(
-            Guid classId, List<Guid> subjectIds, string currentUserId)
+            Guid classId, List<ClassSubjectAssignmentDto> items, string currentUserId)
         {
             var user = await _userManager.FindByIdAsync(currentUserId);
             if (user == null)
@@ -222,18 +222,42 @@ namespace DIBA_School_Portal.Server.Services
             if (schoolClass == null)
                 return new ServiceResponse<string> { Success = false, Message = "School class not found." };
 
+            // Normalize input
+            items ??= new List<ClassSubjectAssignmentDto>();
+            var deduped = items
+                .Where(x => x.SubjectId != Guid.Empty)
+                .GroupBy(x => x.SubjectId)
+                .Select(g => g.First())
+                .ToList();
+
+            // Validate subject IDs exist
+            if (deduped.Any())
+            {
+                var validIds = await _context.Subjects
+                    .Where(s => deduped.Select(d => d.SubjectId).Contains(s.Id))
+                    .Select(s => s.Id)
+                    .ToListAsync();
+
+                if (validIds.Count != deduped.Count)
+                    return new ServiceResponse<string>
+                    {
+                        Success = false,
+                        Message = "One or more subject IDs are invalid.",
+                    };
+            }
+
+            // Remove existing
             _context.ClassSubjects.RemoveRange(schoolClass.ClassSubjects);
 
-            if (subjectIds != null && subjectIds.Any())
+            // Insert new
+            foreach (var item in deduped)
             {
-                foreach (var subjectId in subjectIds)
+                _context.ClassSubjects.Add(new ClassSubject
                 {
-                    _context.ClassSubjects.Add(new ClassSubject
-                    {
-                        SchoolClassId = classId,
-                        SubjectId = subjectId,
-                    });
-                }
+                    SchoolClassId = classId,
+                    SubjectId = item.SubjectId,
+                    Stream = item.Stream,
+                });
             }
 
             await _context.SaveChangesAsync();
@@ -241,7 +265,8 @@ namespace DIBA_School_Portal.Server.Services
             await _auditLog.LogActivityAsync(
                 currentUserId,
                 "ClassSubjects Updated",
-                $"Class ID {classId} → {subjectIds?.Count ?? 0} subject(s).",
+                $"Class ID {classId} → {deduped.Count} subject(s) " +
+                $"({deduped.Count(d => d.Stream != null)} stream-specific).",
                 Ip);
 
             return new ServiceResponse<string>
@@ -256,7 +281,6 @@ namespace DIBA_School_Portal.Server.Services
         // ==========================================================
         public async Task<ServiceResponse<SchoolClassDTO>> GetSchoolClassByIdAsync(Guid id)
         {
-            // Teachers can only view classes they're assigned to
             var allowed = await GetAllowedClassIdsAsync();
             if (allowed != null && !allowed.Contains(id))
             {
@@ -330,11 +354,10 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================================
-        // GET SUBJECTS FOR CLASS (read-only)
+        // GET SUBJECTS FOR CLASS (read-only) — includes stream
         // ==========================================================
         public async Task<ServiceResponse<IEnumerable<SubjectDto>>> GetSubjectsForClassAsync(Guid classId)
         {
-            // Teachers can only view subjects for their own classes
             var allowed = await GetAllowedClassIdsAsync();
             if (allowed != null && !allowed.Contains(classId))
             {
@@ -367,6 +390,7 @@ namespace DIBA_School_Portal.Server.Services
                     Id = cs.Subject.Id,
                     Name = cs.Subject.Name,
                     Code = cs.Subject.Code,
+                    Stream = cs.Stream,   // 👈 new
                 })
                 .ToList();
 
@@ -374,7 +398,7 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================================
-        // GET SUBJECTS WITH CHECKBOX STATE (admin only)
+        // GET SUBJECTS WITH CHECKBOX STATE (admin only) — includes stream
         // ==========================================================
         public async Task<ServiceResponse<IEnumerable<SubjectCheckboxDto>>> GetClassSubjectsWithSelectionAsync(Guid classId)
         {
@@ -392,19 +416,27 @@ namespace DIBA_School_Portal.Server.Services
                 };
             }
 
-            var assignedSubjectIds = schoolClass.ClassSubjects
-                .Select(cs => cs.SubjectId)
-                .ToHashSet();
+            // Map of assigned subject → stream (or null)
+            var assigned = schoolClass.ClassSubjects
+                .Where(cs => cs.SubjectId.HasValue)
+                .ToDictionary(cs => cs.SubjectId!.Value, cs => cs.Stream);
 
-            var allSubjects = await _context.Subjects
+            // 👇 DB query — no reference to `assigned` inside
+            var subjects = await _context.Subjects
+                .OrderBy(s => s.Name)
+                .Select(s => new { s.Id, s.Name, s.Code })
+                .ToListAsync();
+
+            // 👇 In-memory projection — now we can freely use `assigned`
+            var allSubjects = subjects
                 .Select(s => new SubjectCheckboxDto
                 {
                     SubjectId = s.Id,
                     Name = s.Name,
                     Code = s.Code,
-                    IsAssigned = assignedSubjectIds.Contains(s.Id),
+                    Stream = assigned.TryGetValue(s.Id, out var stream) ? stream : null,
                 })
-                .ToListAsync();
+                .ToList();
 
             return new ServiceResponse<IEnumerable<SubjectCheckboxDto>>
             {
