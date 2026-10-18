@@ -13,7 +13,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
         {
             // ---------- DbContext (Dynamic Provider Switcher) ----------
             var connectionString = configuration.GetConnectionString("DefaultConnection")
-     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
+                ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 
             services.AddDbContext<AppDbContext>(options =>
             {
@@ -26,7 +26,8 @@ namespace DIBA_School_Portal.Server.Database_Entities
                         pgOptions.EnableRetryOnFailure(
                             maxRetryCount: 5,
                             maxRetryDelay: TimeSpan.FromSeconds(10),
-                            errorCodesToAdd: null));
+                            errorCodesToAdd: null))
+                           .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
                 }
                 else
                 {
@@ -35,9 +36,11 @@ namespace DIBA_School_Portal.Server.Database_Entities
                         sqlOptions.EnableRetryOnFailure(
                             maxRetryCount: 5,
                             maxRetryDelay: TimeSpan.FromSeconds(10),
-                            errorNumbersToAdd: null));
+                            errorNumbersToAdd: null))
+                           .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
                 }
             });
+
             // ---------- Identity ----------
             services.AddIdentity<ApplicationUser, IdentityRole>(options =>
             {
