@@ -112,6 +112,18 @@ const MANAGERS = [
   "Registrar",
 ] as const;
 
+// 👇 NEW — classroom roles: anyone who can teach / enter scores /
+// view their own assignments. Matches Sidebar's R.teaching.
+const CLASSROOM_ROLES = [
+  "Teacher",
+  "FormTeacher",
+  "Principal",
+  "VicePrincipal",
+  "Headmaster",
+  "Headmistress",
+  "SchoolAdmin",
+] as const;
+
 // ==========================================================
 // Loading fallback — shown while a lazy chunk downloads
 // ==========================================================
@@ -261,9 +273,14 @@ export default function App() {
                     <Route path="score-entry" element={<ScoreEntryPage />} />
                   </Route>
 
-                  {/* TEACHER-ONLY */}
+                  {/* MY CLASSROOM — teachers + leadership */}
+                  {/* 👇 CHANGED — was TEACHING_ROLES, now full classroom roles */}
                   <Route
-                    element={<ProtectedRoute allowedRoles={TEACHING_ROLES} />}
+                    element={
+                      <ProtectedRoute
+                        allowedRoles={[...CLASSROOM_ROLES] as any}
+                      />
+                    }
                   >
                     <Route path="my-assignments" element={<MyAssignmentsPage />} />
                     <Route path="my-results" element={<SubmittedResultsPage />} />
