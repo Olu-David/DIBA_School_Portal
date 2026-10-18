@@ -10,7 +10,7 @@ import { env } from 'process';
 // ==========================================================
 // Dev HTTPS certificate — only when a dev server is possible
 // ==========================================================
-const isDev = env.NODE_ENV !== 'production' || env.VITE_DEV === 'true';
+
 
 const baseFolder =
     env.APPDATA !== undefined && env.APPDATA !== ''
