@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DIBA_School_Portal.Server.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialPostgres : Migration
+    public partial class FixTimestampMigration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -52,7 +52,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     Action = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     Details = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
                     IpAddress = table.Column<string>(type: "character varying(45)", maxLength: 45, nullable: true),
-                    Timestamp = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "GETUTCDATE()")
+                    Timestamp = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "NOW()")
                 },
                 constraints: table =>
                 {

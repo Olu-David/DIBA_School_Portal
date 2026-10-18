@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DIBA_School_Portal.Server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261018105035_InitialPostgres")]
-    partial class InitialPostgres
+    [Migration("20261018110147_FixTimestampMigration")]
+    partial class FixTimestampMigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -179,7 +179,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Property<DateTime>("Timestamp")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("GETUTCDATE()");
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<string>("UserId")
                         .HasMaxLength(450)
