@@ -1,8 +1,8 @@
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  UserCog, UserPlus, Phone, Mail, X, GraduationCap,
-  Copy, CheckCircle2, KeyRound,
+  UserCog, UserPlus, Phone, Mail, X, GraduationCap, RefreshCw,
+  Copy, CheckCircle2, KeyRound, AlertCircle,
 } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
@@ -54,6 +54,10 @@ interface CreateAccountResponse {
   profilePictureUrl?: string | null;
 }
 
+/* =========================================================
+   Constants
+   ========================================================= */
+
 const STAFF_ROLES = [
   "Teacher",
   "FormTeacher",
@@ -63,8 +67,11 @@ const STAFF_ROLES = [
   "Headmistress",
   "SchoolAdmin",
   "Accountant",
+  "Cashier",
   "Registrar",
-];
+] as const;
+
+const TEACHING_ROLES = ["Teacher", "FormTeacher"] as const;
 
 /* =========================================================
    Page
@@ -76,6 +83,7 @@ export default function TeachersPage() {
 
   const [rows, setRows] = useState<TeacherRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [pageSize] = useState(20);
@@ -91,9 +99,18 @@ export default function TeachersPage() {
     password: string;
   } | null>(null);
 
+  // Abort stale requests (fixes race on fast typing / filter changes)
+  const abortRef = useRef<AbortController | null>(null);
+
   /* ---------- fetch ---------- */
-  const loadTeachers = async () => {
+  const loadTeachers = useCallback(async () => {
+    // Cancel any in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams({
         pageNumber: String(page),
@@ -102,38 +119,18 @@ export default function TeachersPage() {
       if (debounced.trim()) params.set("searchTerm", debounced.trim());
       if (role) params.set("primaryRole", role);
 
-      // Try the general staff endpoint first; fall back to /teacher.
-      let response;
-      try {
-        response = await api.get<ApiResponse<Paginated<TeacherRow>>>(
-          `/staff?${params}`
-        );
-      } catch (err: unknown) {
-        const status = (err as { response?: { status?: number } })?.response
-          ?.status;
-        if (status === 404) {
-          response = await api.get<ApiResponse<Paginated<TeacherRow>>>(
-            `/teacher?${params}`
-          );
-        } else {
-          throw err;
-        }
-      }
-
-      const { data } = response;
+      const { data } = await api.get<ApiResponse<Paginated<TeacherRow>>>(
+        `/teacher?${params}`,
+        { signal: controller.signal }
+      );
 
       if (!data.success || !data.data) {
-        toast({
-          variant: "error",
-          title: data.message ?? "Could not load staff list",
-        });
+        setError(data.message ?? "Could not load staff list.");
         setRows([]);
         setTotal(0);
         return;
       }
 
-      // Defensive shape handling — works with { items, totalCount }
-      // or { data, total } style payloads.
       const payload = data.data as unknown as {
         items?: TeacherRow[];
         totalCount?: number;
@@ -146,32 +143,52 @@ export default function TeachersPage() {
       setRows(items);
       setTotal(count);
     } catch (err: unknown) {
-      const e2 = err as {
+      // Ignore aborts — the newer request is already in flight
+      const e2 = err as { name?: string; code?: string };
+      if (e2?.name === "CanceledError" || e2?.code === "ERR_CANCELED") return;
+
+      const e3 = err as {
         response?: { status?: number; data?: { message?: string } };
         message?: string;
       };
-      const status = e2?.response?.status;
+      const status = e3?.response?.status;
       const message =
-        e2?.response?.data?.message ??
-        e2?.message ??
+        e3?.response?.data?.message ??
+        e3?.message ??
         (status === 401
           ? "Your session expired — please log in again."
           : status === 403
           ? "You don't have permission to view staff."
+          : status === 500
+          ? "Server error (500). Check the API logs."
+          : status === 502
+          ? "The API is not reachable (502). It may still be deploying."
           : "Could not load staff list.");
 
-      toast({ variant: "error", title: message });
+      setError(message);
       setRows([]);
       setTotal(0);
     } finally {
-      setLoading(false);
+      // Only unset loading if this request is still the active one
+      if (abortRef.current === controller) {
+        setLoading(false);
+      }
     }
-  };
+  }, [debounced, role, page, pageSize]);
 
   useEffect(() => {
     loadTeachers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debounced, role, page, pageSize]);
+    return () => abortRef.current?.abort();
+  }, [loadTeachers]);
+
+  /* ---------- select options (memoized) ---------- */
+  const roleOptions = useMemo(
+    () => [
+      { value: "", label: "All roles" },
+      ...STAFF_ROLES.map((r) => ({ value: r, label: r })),
+    ],
+    []
+  );
 
   /* ---------- render ---------- */
   return (
@@ -206,10 +223,7 @@ export default function TeachersPage() {
                 setRole(e.target.value);
                 setPage(1);
               }}
-              options={[
-                { value: "", label: "All roles" },
-                ...STAFF_ROLES.map((r) => ({ value: r, label: r })),
-              ]}
+              options={roleOptions}
             />
           </div>
         </div>
@@ -221,6 +235,23 @@ export default function TeachersPage() {
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} className="h-14" />
             ))}
+          </div>
+        ) : error ? (
+          <div className="p-6 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-[14px] font-semibold text-red-900">
+                Couldn't load staff
+              </p>
+              <p className="text-[13px] text-red-800/80 mt-1">{error}</p>
+            </div>
+            <Button
+              variant="secondary"
+              icon={RefreshCw}
+              onClick={loadTeachers}
+            >
+              Retry
+            </Button>
           </div>
         ) : rows.length === 0 ? (
           <EmptyState
@@ -257,60 +288,70 @@ export default function TeachersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-100">
-                  {rows.map((t) => (
-                    <tr
-                      key={t.id}
-                      onClick={() => navigate(`/admin/teachers/${t.id}`)}
-                      className="hover:bg-surface-50/60 cursor-pointer"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <Avatar
-                            name={t.fullName}
-                            src={t.profilePictureUrl}
-                            size="md"
-                          />
-                          <div>
-                            <p className="text-[13px] font-semibold text-surface-900">
-                              {t.fullName}
-                            </p>
-                            <p className="text-[11px] text-surface-400 font-mono">
-                              {t.staffId}
-                            </p>
+                  {rows.map((t) => {
+                    const canOpen = (TEACHING_ROLES as readonly string[]).includes(
+                      t.primaryRole
+                    );
+                    return (
+                      <tr
+                        key={t.id}
+                        onClick={() => canOpen && navigate(`/admin/teachers/${t.id}`)}
+                        title={canOpen ? undefined : "Non-teaching role — no detail page"}
+                        className={
+                          canOpen
+                            ? "hover:bg-surface-50/60 cursor-pointer"
+                            : "hover:bg-surface-50/40 cursor-default"
+                        }
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <Avatar
+                              name={t.fullName}
+                              src={t.profilePictureUrl}
+                              size="md"
+                            />
+                            <div>
+                              <p className="text-[13px] font-semibold text-surface-900">
+                                {t.fullName}
+                              </p>
+                              <p className="text-[11px] text-surface-400 font-mono">
+                                {t.staffId}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <Badge variant="violet">{t.primaryRole}</Badge>
-                      </td>
-                      <td className="px-6 py-4 text-[12px] text-surface-600">
-                        {t.qualification || "-"}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1 text-[12px] text-surface-600">
-                          {t.email && (
-                            <span className="inline-flex items-center gap-1.5">
-                              <Mail className="w-3 h-3 text-surface-400" />
-                              {t.email}
-                            </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <Badge variant="violet">{t.primaryRole}</Badge>
+                        </td>
+                        <td className="px-6 py-4 text-[12px] text-surface-600">
+                          {t.qualification || "-"}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1 text-[12px] text-surface-600">
+                            {t.email && (
+                              <span className="inline-flex items-center gap-1.5">
+                                <Mail className="w-3 h-3 text-surface-400" />
+                                {t.email}
+                              </span>
+                            )}
+                            {t.phoneNumber && (
+                              <span className="inline-flex items-center gap-1.5">
+                                <Phone className="w-3 h-3 text-surface-400" />
+                                {t.phoneNumber}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {t.isActive ? (
+                            <Badge variant="emerald">Active</Badge>
+                          ) : (
+                            <Badge variant="neutral">Inactive</Badge>
                           )}
-                          {t.phoneNumber && (
-                            <span className="inline-flex items-center gap-1.5">
-                              <Phone className="w-3 h-3 text-surface-400" />
-                              {t.phoneNumber}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        {t.isActive ? (
-                          <Badge variant="emerald">Active</Badge>
-                        ) : (
-                          <Badge variant="neutral">Inactive</Badge>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -391,7 +432,7 @@ function AddStaffModal({
     phoneNumber: "",
     qualification: "",
     dateEmployed: new Date().toISOString().slice(0, 10),
-    primaryRole: "Teacher",
+    primaryRole: "Teacher" as string,
   });
 
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
@@ -401,11 +442,13 @@ function AddStaffModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const [cRes, sRes] = await Promise.allSettled([
         api.get<ApiResponse<SchoolClass[]>>("/schoolclass/all"),
         api.get<ApiResponse<Subject[]>>("/subject/all"),
       ]);
+      if (cancelled) return;
 
       if (cRes.status === "fulfilled" && cRes.value.data.success) {
         const sorted = [...(cRes.value.data.data ?? [])].sort((a, b) => {
@@ -422,6 +465,9 @@ function AddStaffModal({
 
       setLoadingRefs(false);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const toggle = (
@@ -450,7 +496,6 @@ function AddStaffModal({
 
     setSaving(true);
     try {
-      // STEP 1: Create the account
       const fd = new FormData();
       fd.append("firstName", form.firstName.trim());
       fd.append("lastName", form.lastName.trim());
@@ -467,10 +512,8 @@ function AddStaffModal({
         return;
       }
 
-      // STEP 2: Find the teacher id (skip for non-teaching roles)
-      const teachingRoles = ["Teacher", "FormTeacher"];
       let teacherId: string | null = null;
-      if (teachingRoles.includes(createRes.data.role)) {
+      if ((TEACHING_ROLES as readonly string[]).includes(createRes.data.role)) {
         try {
           const { data: tRes } = await api.get<ApiResponse<{ id: string }>>(
             `/teacher/by-user/${createRes.data.userId}`
@@ -481,7 +524,6 @@ function AddStaffModal({
         }
       }
 
-      // STEP 3: Classes
       if (teacherId && selectedClassIds.length > 0) {
         try {
           await api.put<ApiResponse<boolean>>(
@@ -493,7 +535,6 @@ function AddStaffModal({
         }
       }
 
-      // STEP 4: Subjects
       if (teacherId && selectedSubjectIds.length > 0) {
         try {
           await api.put<ApiResponse<boolean>>(
@@ -505,7 +546,6 @@ function AddStaffModal({
         }
       }
 
-      // STEP 5: Refresh + show credentials
       onCreated();
       onSuccess({
         firstName: form.firstName.trim(),
