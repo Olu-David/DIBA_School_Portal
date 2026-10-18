@@ -38,7 +38,7 @@ namespace DIBA_School_Portal.Server.Entities
         public Guid? EnrollmentId { get; set; }
 
         [ForeignKey(nameof(EnrollmentId))]
-        public StudentEnrollments? StudentEnrollment { get; set; }
+        public StudentEnrollment? StudentEnrollment { get; set; }
 
         // ---------- The transaction ----------
         [Required]

@@ -49,10 +49,4 @@
 		<ProjectReference Include="..\DIBA_School_Portal.ServiceDefaults\DIBA_School_Portal.ServiceDefaults.csproj" />
 	</ItemGroup>
 
-	<ItemGroup>
-		<Compile Update="Entities\StudentEnrollments.cs">
-			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
-		</Compile>
-	</ItemGroup>
-
 </Project>

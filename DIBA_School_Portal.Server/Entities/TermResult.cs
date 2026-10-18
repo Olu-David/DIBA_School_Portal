@@ -60,7 +60,7 @@ namespace DIBA_School_Portal.Server.Entities
         public Guid EnrollmentId { get; set; }
 
         [ForeignKey(nameof(EnrollmentId))]
-        public virtual StudentEnrollments Enrollment { get; set; } = null!;
+        public virtual StudentEnrollment Enrollment { get; set; } = null!;
 
         public int Position { get; set; }
     }

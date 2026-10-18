@@ -1092,7 +1092,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         /// Finds the enrollment for the given student/session/term,
         /// or creates one with the full billed amount as outstanding.
         /// </summary>
-        private async Task<StudentEnrollments?> EnsureEnrollmentExistsAsync(
+        private async Task<StudentEnrollment?> EnsureEnrollmentExistsAsync(
             Guid studentProfileId, Guid academicSessionId, Guid termId)
         {
             var enrollment = await _context.StudentEnrollments
@@ -1122,7 +1122,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                               cfp.Fee.AcademicSessionId == academicSessionId)
                 .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
 
-            enrollment = new StudentEnrollments
+            enrollment = new StudentEnrollment
             {
                 Id = Guid.NewGuid(),
                 StudentProfileId = student.Id,
@@ -1155,7 +1155,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         /// is counted), and adds an optional extra amount on top of the DB sum.
         /// </summary>
         private async Task RecomputeEnrollmentTotalsAsync(
-            StudentEnrollments enrollment,
+            StudentEnrollment enrollment,
             Guid excludePaymentId,
             decimal addPaymentAmount)
         {

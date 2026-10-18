@@ -39,7 +39,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
         public DbSet<Teacher> Teachers { get; set; }
         public DbSet<TeacherSubject> TeacherSubjects { get; set; }
         public DbSet<TeacherClass> TeacherClasses { get; set; }
-        public DbSet<StudentEnrollments> StudentEnrollments { get; set; }
+        public DbSet<StudentEnrollment> StudentEnrollments { get; set; }
         public DbSet<ParentStudent> ParentStudents { get; set; }
 
         // ---- System ----

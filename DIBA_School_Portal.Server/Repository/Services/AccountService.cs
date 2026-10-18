@@ -521,7 +521,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                                       cfp.Fee.AcademicSessionId == request.AcademicSessionId)
                         .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
 
-                    enrollment = new StudentEnrollments
+                    enrollment = new StudentEnrollment
                     {
                         Id = Guid.NewGuid(),
                         StudentProfileId = student.Id,

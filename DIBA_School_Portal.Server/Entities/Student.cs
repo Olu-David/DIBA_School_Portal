@@ -40,7 +40,7 @@ namespace DIBA_School_Portal.Server.Entities
         public ClassStream? Stream { get; set; } 
 
         // --- Updated Collections to match your actual entities ---
-        public ICollection<StudentEnrollments> Enrollments { get; set; } = new List<StudentEnrollments>();
+        public ICollection<StudentEnrollment> Enrollments { get; set; } = new List<StudentEnrollment>();
 
         // Aligns with your StudentPayment entity
         public ICollection<StudentPayment> StudentPayments { get; set; } = new List<StudentPayment>();

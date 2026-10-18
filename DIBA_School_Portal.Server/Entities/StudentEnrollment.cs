@@ -4,8 +4,9 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DIBA_School_Portal.Server.Entities
 {
-    public class StudentEnrollments
+    public class StudentEnrollment
     {
+
         [Key]
         public Guid Id { get; set; } = Guid.NewGuid();
 
@@ -27,8 +28,11 @@ namespace DIBA_School_Portal.Server.Entities
         [ForeignKey(nameof(TermId))]
         public SchoolTerm Term { get; set; } = null!;
 
+        [Required]
         public Guid SchoolClassId { get; set; }
-        public SchoolClass SchoolClass { get; set; } = null!;    
+
+        [ForeignKey(nameof(SchoolClassId))]
+        public SchoolClass SchoolClass { get; set; } = null!;
 
         // --- Direct Financial Tracking for this Term ---
         [Column(TypeName = "decimal(18,2)")]
@@ -38,17 +42,18 @@ namespace DIBA_School_Portal.Server.Entities
         public decimal OutstandingBalance { get; set; } = 0.00m;
 
         public bool IsFullyPaid { get; set; } = false;
-         public StudentEnrollmentStatus Status { get; set; }
+
+        public StudentEnrollmentStatus Status { get; set; }
+
         public DateTime EnrolledAt { get; set; } = DateTime.UtcNow;
-        
+
         public bool IsActive { get; set; } = true;
 
+        // ---------- Navigation ----------
         public ICollection<StudentPayment> StudentPayment { get; set; } = new List<StudentPayment>();
         public ICollection<TermResult> TermResults { get; set; } = new List<TermResult>();
 
-        public Guid? EnrollmentId { get; set; }
 
-        [ForeignKey(nameof(EnrollmentId))]
-        public StudentEnrollments? StudentEnrollment { get; set; }
     }
+
 }
