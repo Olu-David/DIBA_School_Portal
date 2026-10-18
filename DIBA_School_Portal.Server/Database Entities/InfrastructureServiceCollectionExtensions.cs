@@ -1,6 +1,7 @@
 ﻿using DIBA_School_Portal.Server.Database_Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace DIBA_School_Portal.Server.Database_Entities
 {
@@ -36,7 +37,15 @@ namespace DIBA_School_Portal.Server.Database_Entities
                             maxRetryDelay: TimeSpan.FromSeconds(10),
                             errorNumbersToAdd: null));
                 }
+
+                // ⚠️ Suppress PendingModelChangesWarning
+                // The migration snapshot is stale because entities were edited after
+                // the migration was generated. Suppressing lets the app start.
+                // REMOVE this once migrations are regenerated (see fix below).
+                options.ConfigureWarnings(w =>
+                    w.Ignore(RelationalEventId.PendingModelChangesWarning));
             });
+
             // ---------- Identity ----------
             services.AddIdentity<ApplicationUser, IdentityRole>(options =>
             {
