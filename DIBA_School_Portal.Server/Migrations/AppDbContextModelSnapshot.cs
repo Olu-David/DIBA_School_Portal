@@ -666,7 +666,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.ToTable("Students");
                 });
 
-            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.StudentEnrollments", b =>
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.StudentEnrollment", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -677,9 +677,6 @@ namespace DIBA_School_Portal.Server.Migrations
 
                     b.Property<DateTime>("EnrolledAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("EnrollmentId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -708,8 +705,6 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AcademicSessionId");
-
-                    b.HasIndex("EnrollmentId");
 
                     b.HasIndex("SchoolClassId");
 
@@ -754,7 +749,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
-                    b.Property<Guid?>("StudentEnrollmentsId")
+                    b.Property<Guid?>("StudentEnrollmentId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("StudentProfileId")
@@ -775,7 +770,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasIndex("ReferenceNumber")
                         .IsUnique();
 
-                    b.HasIndex("StudentEnrollmentsId");
+                    b.HasIndex("StudentEnrollmentId");
 
                     b.HasIndex("TermId");
 
@@ -1382,17 +1377,13 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.StudentEnrollments", b =>
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.StudentEnrollment", b =>
                 {
                     b.HasOne("DIBA_School_Portal.Server.Entities.AcademicSession", "AcademicSession")
                         .WithMany()
                         .HasForeignKey("AcademicSessionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("DIBA_School_Portal.Server.Entities.StudentEnrollments", "StudentEnrollment")
-                        .WithMany()
-                        .HasForeignKey("EnrollmentId");
 
                     b.HasOne("DIBA_School_Portal.Server.Entities.SchoolClass", "SchoolClass")
                         .WithMany()
@@ -1416,8 +1407,6 @@ namespace DIBA_School_Portal.Server.Migrations
 
                     b.Navigation("SchoolClass");
 
-                    b.Navigation("StudentEnrollment");
-
                     b.Navigation("StudentProfile");
 
                     b.Navigation("Term");
@@ -1431,14 +1420,14 @@ namespace DIBA_School_Portal.Server.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("DIBA_School_Portal.Server.Entities.StudentEnrollments", "StudentEnrollment")
+                    b.HasOne("DIBA_School_Portal.Server.Entities.StudentEnrollment", "StudentEnrollment")
                         .WithMany()
                         .HasForeignKey("EnrollmentId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("DIBA_School_Portal.Server.Entities.StudentEnrollments", null)
+                    b.HasOne("DIBA_School_Portal.Server.Entities.StudentEnrollment", null)
                         .WithMany("StudentPayment")
-                        .HasForeignKey("StudentEnrollmentsId");
+                        .HasForeignKey("StudentEnrollmentId");
 
                     b.HasOne("DIBA_School_Portal.Server.Entities.Student", "StudentProfile")
                         .WithMany("StudentPayments")
@@ -1558,7 +1547,7 @@ namespace DIBA_School_Portal.Server.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("DIBA_School_Portal.Server.Entities.StudentEnrollments", "Enrollment")
+                    b.HasOne("DIBA_School_Portal.Server.Entities.StudentEnrollment", "Enrollment")
                         .WithMany("TermResults")
                         .HasForeignKey("EnrollmentId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1709,7 +1698,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Navigation("StudentPayments");
                 });
 
-            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.StudentEnrollments", b =>
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.StudentEnrollment", b =>
                 {
                     b.Navigation("StudentPayment");
 

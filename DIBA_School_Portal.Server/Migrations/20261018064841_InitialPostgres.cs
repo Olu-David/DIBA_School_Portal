@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace DIBA_School_Portal.Server.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class InitialPostgres : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -554,8 +554,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     IsFullyPaid = table.Column<bool>(type: "bit", nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),
                     EnrolledAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    EnrollmentId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    IsActive = table.Column<bool>(type: "bit", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -578,11 +577,6 @@ namespace DIBA_School_Portal.Server.Migrations
                         principalTable: "SchoolTerms",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_StudentEnrollments_StudentEnrollments_EnrollmentId",
-                        column: x => x.EnrollmentId,
-                        principalTable: "StudentEnrollments",
-                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_StudentEnrollments_Students_StudentProfileId",
                         column: x => x.StudentProfileId,
@@ -688,7 +682,7 @@ namespace DIBA_School_Portal.Server.Migrations
                     PaymentDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ProofOfPaymentUrl = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
-                    StudentEnrollmentsId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    StudentEnrollmentId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -712,8 +706,8 @@ namespace DIBA_School_Portal.Server.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_StudentPayments_StudentEnrollments_StudentEnrollmentsId",
-                        column: x => x.StudentEnrollmentsId,
+                        name: "FK_StudentPayments_StudentEnrollments_StudentEnrollmentId",
+                        column: x => x.StudentEnrollmentId,
                         principalTable: "StudentEnrollments",
                         principalColumn: "Id");
                     table.ForeignKey(
@@ -999,11 +993,6 @@ namespace DIBA_School_Portal.Server.Migrations
                 column: "AcademicSessionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentEnrollments_EnrollmentId",
-                table: "StudentEnrollments",
-                column: "EnrollmentId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_StudentEnrollments_SchoolClassId",
                 table: "StudentEnrollments",
                 column: "SchoolClassId");
@@ -1046,9 +1035,9 @@ namespace DIBA_School_Portal.Server.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentPayments_StudentEnrollmentsId",
+                name: "IX_StudentPayments_StudentEnrollmentId",
                 table: "StudentPayments",
-                column: "StudentEnrollmentsId");
+                column: "StudentEnrollmentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_StudentPayments_StudentProfileId_TermId",
