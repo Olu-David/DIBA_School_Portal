@@ -1,5 +1,7 @@
 **/.classpath
 **/.dockerignore
+**/*.tsbuildinfo
+**/.vite
 **/.env
 **/.git
 **/.gitignore
