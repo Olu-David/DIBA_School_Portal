@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DIBA_School_Portal.Server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261018064841_InitialPostgres")]
+    [Migration("20261018073344_InitialPostgres")]
     partial class InitialPostgres
     {
         /// <inheritdoc />
