@@ -29,7 +29,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private readonly ILogger<AuthService> _logger;
         private readonly INotificationLog _notification;
 
-        // ---------- Profile picture config ----------
         private const string ProfilePictureBucket = "DibaSchool";
         private const string ProfilePictureFolder = "profile-pictures";
         private const long MaxProfilePictureBytes = 200 * 1024;
@@ -44,10 +43,18 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private static readonly string[] AssignableRoles =
         {
             "Principal", "Headmaster", "Headmistress", "VicePrincipal",
-            "SchoolAdmin", "Accountant", "Cashier",   // 👈 CASHIER
+            "SchoolAdmin", "Accountant", "Cashier",
             "Registrar",
             "Teacher", "FormTeacher",
             "Student", "Parent"
+        };
+
+        // 👈 FIX — every staff role gets a Teachers (staff profile) row
+        private static readonly string[] StaffRoles =
+        {
+            "Teacher", "FormTeacher",
+            "Principal", "VicePrincipal", "Headmaster", "Headmistress",
+            "SchoolAdmin", "Accountant", "Cashier", "Registrar",
         };
 
         private static readonly string[] StudentPortalRoles = { "Student" };
@@ -55,7 +62,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         private static readonly string[] StaffPortalRoles =
         {
             "SuperAdmin", "Principal", "Headmaster", "Headmistress",
-            "VicePrincipal", "SchoolAdmin", "Accountant", "Cashier",   // 👈 CASHIER
+            "VicePrincipal", "SchoolAdmin", "Accountant", "Cashier",
             "Registrar",
             "Teacher", "FormTeacher"
         };
@@ -83,6 +90,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+        // ============================================================
+        // LOGIN — unchanged
+        // ============================================================
         #region Login - Student
         public async Task<ServiceResponse<LoginResponseDto>> StudentLoginAsync(
             StudentLoginRequestDto request, string ipAddress)
@@ -408,13 +418,15 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+        // ============================================================
+        // CREATE ACCOUNT — with Teachers row for every staff role
+        // ============================================================
         #region Create Account
         public async Task<ServiceResponse<CreateAccountResponseDto>> CreateAccountAsync(
             CreateAccountDto request, string currentUserId, string ipAddress)
         {
             var response = new ServiceResponse<CreateAccountResponseDto>();
 
-            // ---------- 1. Authorization ----------
             var caller = await _userManager.FindByIdAsync(currentUserId);
             if (caller == null)
             {
@@ -453,7 +465,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            // ---------- 2. Role-based validation ----------
             var isStudent = request.Role == "Student";
             var isParent = request.Role == "Parent";
             var email = request.Email?.Trim();
@@ -483,7 +494,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            // ---------- 2b. Stream validation ----------
             ClassStream? parsedStream = null;
 
             if (isStudent)
@@ -535,7 +545,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
             }
 
-            // ---------- 3. Uniqueness ----------
             if (!string.IsNullOrWhiteSpace(email) &&
                 await _userManager.FindByEmailAsync(email) != null)
             {
@@ -554,7 +563,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            // ---------- 4. Username + admission number ----------
             string? admissionNumber = null;
             string username;
 
@@ -574,7 +582,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             var tempPassword = GenerateTemporaryPassword();
 
-            // ---------- 5. Create user ----------
             var newUser = new ApplicationUser
             {
                 UserName = username,
@@ -602,7 +609,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             await _userManager.AddToRoleAsync(newUser, request.Role);
 
-            // ---------- 6. Role-specific records ----------
             Guid? studentProfileId = null;
 
             if (isStudent)
@@ -621,7 +627,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 _context.Students.Add(studentProfile);
                 studentProfileId = studentProfile.Id;
             }
-            else if (request.Role == "Teacher" || request.Role == "FormTeacher")
+            // 👈 FIX — every staff role gets a Teachers (staff profile) row
+            else if (StaffRoles.Contains(request.Role))
             {
                 var staffId = await GenerateStaffIdAsync();
                 _context.Teachers.Add(new Teacher
@@ -630,13 +637,13 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     StaffId = staffId,
                     FirstName = newUser.FirstName!,
                     LastName = newUser.LastName!,
+                    Qualification = "",
                     DateEmployed = DateTime.UtcNow,
                 });
             }
 
             await _context.SaveChangesAsync();
 
-            // ---------- 7. Profile picture upload ----------
             string? pictureWarning = null;
 
             if (request.ProfilePicture != null && request.ProfilePicture.Length > 0)
@@ -666,7 +673,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
             }
 
-            // ---------- 8. Audit ----------
             await _auditLog.LogActivityAsync(
                 currentUserId, "Account Created",
                 $"Created {request.Role} '{newUser.FirstName} {newUser.LastName}' (username: {username})." +
@@ -674,7 +680,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 (pictureWarning != null ? $" Warning: {pictureWarning}" : ""),
                 ipAddress);
 
-            // ---------- 9. Response ----------
             response.Success = true;
             response.Message = pictureWarning == null
                 ? "Account created successfully."
@@ -695,6 +700,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+        // ============================================================
+        // UPDATE PROFILE — unchanged (already syncs Teacher + Student)
+        // ============================================================
         #region Update Profile
         public async Task<ServiceResponse<UserProfileDto>> UpdateProfileAsync(
             string userId, UpdateProfileDto request, string ipAddress)
@@ -738,7 +746,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            // Sync to Teacher profile
             var teacher = await _context.Teachers.FirstOrDefaultAsync(t => t.UserId == user.Id);
             if (teacher != null)
             {
@@ -747,7 +754,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 await _context.SaveChangesAsync();
             }
 
-            // Sync to Student profile
             var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == user.Id);
             if (student != null)
             {
@@ -852,6 +858,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+        // ============================================================
+        // CHANGE ROLE — creates Teachers row for every staff role
+        // ============================================================
         #region Change Role
         public async Task<ServiceResponse<UserProfileDto>> ChangeRoleAsync(
             string targetUserId,
@@ -863,7 +872,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             try
             {
-                // ---------- 1. Authorize the caller ----------
                 var caller = await _userManager.FindByIdAsync(currentUserId);
                 if (caller == null)
                 {
@@ -885,7 +893,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 2. Validate target role ----------
                 if (string.IsNullOrWhiteSpace(request.NewRole))
                 {
                     response.Success = false;
@@ -899,7 +906,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 var roleWhitelist = new[]
                 {
                     "Principal", "Headmaster", "Headmistress", "VicePrincipal",
-                    "SchoolAdmin", "Accountant", "Cashier",   // 👈 CASHIER
+                    "SchoolAdmin", "Accountant", "Cashier",
                     "Registrar",
                     "Teacher", "FormTeacher",
                 };
@@ -912,7 +919,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 3. Load target user ----------
                 var target = await _userManager.FindByIdAsync(targetUserId);
                 if (target == null)
                 {
@@ -969,7 +975,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 4. No-op check ----------
                 var oldPrimaryRole = target.PrimaryRole
                                      ?? currentRoles.FirstOrDefault()
                                      ?? "";
@@ -982,7 +987,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 5. Swap the roles ----------
                 var removeResult = await _userManager.RemoveFromRolesAsync(target, currentRoles);
                 if (!removeResult.Succeeded)
                 {
@@ -1004,16 +1008,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 6. Update PrimaryRole ----------
                 target.PrimaryRole = newRole;
                 target.UpdatedAt = DateTime.UtcNow;
                 await _userManager.UpdateAsync(target);
 
-                // ---------- 7. Sync Teacher profile ----------
-                var newIsTeaching = newRole is "Teacher" or "FormTeacher";
-                var oldWasTeaching = oldPrimaryRole is "Teacher" or "FormTeacher";
-
-                if (newIsTeaching && !oldWasTeaching)
+                // 👈 FIX — ensure a Teachers row for any staff role
+                if (StaffRoles.Contains(newRole))
                 {
                     var existingTeacher = await _context.Teachers
                         .FirstOrDefaultAsync(t => t.UserId == target.Id);
@@ -1034,10 +1034,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     }
                 }
 
-                // ---------- 8. Force token invalidation ----------
                 await _userManager.UpdateSecurityStampAsync(target);
 
-                // ---------- 9. Audit ----------
                 await _auditLog.LogActivityAsync(
                     currentUserId,
                     "User Role Changed",
@@ -1045,7 +1043,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     $"from '{oldPrimaryRole}' to '{newRole}'.",
                     ipAddress);
 
-                // ---------- 10. Notify affected user ----------
                 try
                 {
                     await _notification.SendNotificationAsync(
@@ -1061,7 +1058,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         "Failed to notify user {UserId} about role change.", target.Id);
                 }
 
-                // ---------- 11. Response ----------
                 response.Success = true;
                 response.StatusCode = 200;
                 response.Message =
@@ -1090,6 +1086,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+        // ============================================================
+        // LINK PARENT — unchanged
+        // ============================================================
         #region Link Parent To Student
         public async Task<ServiceResponse<CreateAccountResponseDto>> LinkParentToStudentAsync(
             LinkParentToStudentDto request, string currentUserId, string ipAddress)
@@ -1387,7 +1386,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 "Student" => "students",
                 "Teacher" or "FormTeacher" => "teachers",
                 "Parent" => "parents",
-                _ => "staff",   // Cashier falls here — fine
+                _ => "staff",
             };
 
             var extension = picture.ContentType.ToLowerInvariant() switch
@@ -1397,7 +1396,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 _ => ".jpg",
             };
 
-            // Path inside bucket: profile-pictures/{role}/{userId}/{guid}.ext
             var key = $"{ProfilePictureFolder}/{roleFolder}/{userId}/{Guid.NewGuid():N}{extension}";
 
             await using var stream = picture.OpenReadStream();

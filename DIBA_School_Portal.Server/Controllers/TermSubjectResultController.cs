@@ -69,8 +69,11 @@ namespace DIBA_School_Portal.Server.Controllers
             return StatusCode(r.StatusCode, r);
         }
 
+        // ==========================================================
+        // SAVE SCORES — leadership can also save
+        // ==========================================================
         [HttpPost("save-scores")]
-        [Authorize(Roles = "Teacher,FormTeacher")]
+        [Authorize(Roles = "Teacher,FormTeacher,Principal,VicePrincipal,Headmaster,Headmistress,SuperAdmin")]
         public async Task<IActionResult> SaveScores([FromBody] ClassScoreSubmissionDto model)
         {
             var r = await _service.SaveAndComputeSubjectScoresAsync(model, CurrentUserId);
@@ -154,7 +157,6 @@ namespace DIBA_School_Portal.Server.Controllers
 
         // ==========================================================
         // CLASS SHEET — alias for class-subject-results
-        // Used by the "Download PDF" page to fetch data for the sheet
         // ==========================================================
         [HttpGet("class-sheet")]
         [Authorize(Roles = "Teacher,FormTeacher,Principal,VicePrincipal,Headmaster,Headmistress,SuperAdmin,SchoolAdmin")]

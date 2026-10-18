@@ -71,6 +71,7 @@ const STAFF_ROLES = [
   "Registrar",
 ] as const;
 
+// Used only in the create flow: only teaching roles get class/subject assignment
 const TEACHING_ROLES = ["Teacher", "FormTeacher"] as const;
 
 /* =========================================================
@@ -99,12 +100,10 @@ export default function TeachersPage() {
     password: string;
   } | null>(null);
 
-  // Abort stale requests (fixes race on fast typing / filter changes)
   const abortRef = useRef<AbortController | null>(null);
 
   /* ---------- fetch ---------- */
   const loadTeachers = useCallback(async () => {
-    // Cancel any in-flight request
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -143,7 +142,6 @@ export default function TeachersPage() {
       setRows(items);
       setTotal(count);
     } catch (err: unknown) {
-      // Ignore aborts — the newer request is already in flight
       const e2 = err as { name?: string; code?: string };
       if (e2?.name === "CanceledError" || e2?.code === "ERR_CANCELED") return;
 
@@ -169,7 +167,6 @@ export default function TeachersPage() {
       setRows([]);
       setTotal(0);
     } finally {
-      // Only unset loading if this request is still the active one
       if (abortRef.current === controller) {
         setLoading(false);
       }
@@ -181,7 +178,6 @@ export default function TeachersPage() {
     return () => abortRef.current?.abort();
   }, [loadTeachers]);
 
-  /* ---------- select options (memoized) ---------- */
   const roleOptions = useMemo(
     () => [
       { value: "", label: "All roles" },
@@ -190,7 +186,6 @@ export default function TeachersPage() {
     []
   );
 
-  /* ---------- render ---------- */
   return (
     <div className="space-y-6">
       <PageHeader
@@ -288,70 +283,60 @@ export default function TeachersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-100">
-                  {rows.map((t) => {
-                    const canOpen = (TEACHING_ROLES as readonly string[]).includes(
-                      t.primaryRole
-                    );
-                    return (
-                      <tr
-                        key={t.id}
-                        onClick={() => canOpen && navigate(`/admin/teachers/${t.id}`)}
-                        title={canOpen ? undefined : "Non-teaching role — no detail page"}
-                        className={
-                          canOpen
-                            ? "hover:bg-surface-50/60 cursor-pointer"
-                            : "hover:bg-surface-50/40 cursor-default"
-                        }
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <Avatar
-                              name={t.fullName}
-                              src={t.profilePictureUrl}
-                              size="md"
-                            />
-                            <div>
-                              <p className="text-[13px] font-semibold text-surface-900">
-                                {t.fullName}
-                              </p>
-                              <p className="text-[11px] text-surface-400 font-mono">
-                                {t.staffId}
-                              </p>
-                            </div>
+                  {rows.map((t) => (
+                    <tr
+                      key={t.id}
+                      onClick={() => navigate(`/admin/teachers/${t.id}`)}
+                      className="hover:bg-surface-50/60 cursor-pointer"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <Avatar
+                            name={t.fullName}
+                            src={t.profilePictureUrl}
+                            size="md"
+                          />
+                          <div>
+                            <p className="text-[13px] font-semibold text-surface-900">
+                              {t.fullName}
+                            </p>
+                            <p className="text-[11px] text-surface-400 font-mono">
+                              {t.staffId}
+                            </p>
                           </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <Badge variant="violet">{t.primaryRole}</Badge>
-                        </td>
-                        <td className="px-6 py-4 text-[12px] text-surface-600">
-                          {t.qualification || "-"}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col gap-1 text-[12px] text-surface-600">
-                            {t.email && (
-                              <span className="inline-flex items-center gap-1.5">
-                                <Mail className="w-3 h-3 text-surface-400" />
-                                {t.email}
-                              </span>
-                            )}
-                            {t.phoneNumber && (
-                              <span className="inline-flex items-center gap-1.5">
-                                <Phone className="w-3 h-3 text-surface-400" />
-                                {t.phoneNumber}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          {t.isActive ? (
-                            <Badge variant="emerald">Active</Badge>
-                          ) : (
-                            <Badge variant="neutral">Inactive</Badge>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge variant="violet">{t.primaryRole}</Badge>
+                      </td>
+                      <td className="px-6 py-4 text-[12px] text-surface-600">
+                        {t.qualification || "-"}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1 text-[12px] text-surface-600">
+                          {t.email && (
+                            <span className="inline-flex items-center gap-1.5">
+                              <Mail className="w-3 h-3 text-surface-400" />
+                              {t.email}
+                            </span>
                           )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          {t.phoneNumber && (
+                            <span className="inline-flex items-center gap-1.5">
+                              <Phone className="w-3 h-3 text-surface-400" />
+                              {t.phoneNumber}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {t.isActive ? (
+                          <Badge variant="emerald">Active</Badge>
+                        ) : (
+                          <Badge variant="neutral">Inactive</Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -367,7 +352,6 @@ export default function TeachersPage() {
         )}
       </Card>
 
-      {/* ADD STAFF MODAL */}
       {addOpen && (
         <AddStaffModal
           onClose={() => setAddOpen(false)}
@@ -388,7 +372,6 @@ export default function TeachersPage() {
         />
       )}
 
-      {/* CREDENTIALS MODAL */}
       {credentials && (
         <CredentialsModal
           data={credentials}
@@ -400,7 +383,7 @@ export default function TeachersPage() {
 }
 
 /* =========================================================
-   Add-staff modal
+   Add-staff modal — unchanged
    ========================================================= */
 
 interface AddStaffModalProps {

@@ -62,7 +62,13 @@ const R = {
     "Headmistress", "Teacher", "FormTeacher",
   ] as UserRole[],
 
-  teaching: ["Teacher", "FormTeacher"] as UserRole[],
+  // 👇 CHANGED — leadership + SchoolAdmin can also teach
+  // (they can be assigned classes and enter scores)
+  teaching: [
+    "Teacher", "FormTeacher",
+    "Principal", "VicePrincipal", "Headmaster", "Headmistress",
+    "SchoolAdmin",
+  ] as UserRole[],
 
   results: [
     "SuperAdmin", "Principal", "Headmaster", "Headmistress",
