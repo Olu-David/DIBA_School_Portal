@@ -30,7 +30,7 @@ namespace DIBA_School_Portal.Server.Configurations.EntityConfigurations
 
             builder.Property(x => x.Amount)
                 .HasColumnName("Amount")
-                .HasColumnType("decimal(18,2)")
+                .HasColumnType("numeric(18,2)")   // 👈 was decimal(18,2) — Postgres uses numeric
                 .IsRequired();
 
             builder.Property(x => x.PaymentGateway)
@@ -105,9 +105,8 @@ namespace DIBA_School_Portal.Server.Configurations.EntityConfigurations
                 .HasDatabaseName("IX_Expenses_ReferenceNumber")
                 .IsUnique();
 
-            // ---------- Global query filter ----------
-            // Soft-deleted expenses are invisible by default.
-            builder.HasQueryFilter(x => !x.IsDeleted);
+         
+            // builder.HasQueryFilter(x => !x.IsDeleted);
         }
     }
 }

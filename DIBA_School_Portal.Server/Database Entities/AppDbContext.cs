@@ -1,5 +1,4 @@
 ﻿using DIBA_School_Portal.Server.Configurations;
-using DIBA_School_Portal.Server.Database_Entities.Configurations;
 using DIBA_School_Portal.Server.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -31,7 +30,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
         public DbSet<StudentPayment> StudentPayments { get; set; }
         public DbSet<PaymentLog> PaymentLogs { get; set; }
         public DbSet<MiscellaneousIncome> MiscellaneousIncomes { get; set; }
-        public DbSet<Expense> Expenses { get; set; }    
+        public DbSet<Expense> Expenses { get; set; }
 
         // ---- People ----
         public DbSet<Student> Students { get; set; }
@@ -50,13 +49,13 @@ namespace DIBA_School_Portal.Server.Database_Entities
         {
             base.OnModelCreating(modelBuilder);
 
-            // Auto-discovery for all separate configuration files
+            // 1. Apply every IEntityTypeConfiguration<> in this assembly.
+            //    This picks up ExpenseConfiguration, MiscellaneousIncomeConfiguration,
+            //    and any other *Configuration files automatically.
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
-            // Explicit registration for MiscellaneousIncome configuration
-            modelBuilder.ApplyConfiguration(new MiscellaneousIncomeConfiguration());
-
-            // Global configuration to map all decimals to PostgreSQL numeric type safely
+            // 2. Global config — map every decimal/decimal? to PostgreSQL numeric(18,2).
+            //    Runs AFTER configurations so it doesn't get overwritten.
             foreach (var property in modelBuilder.Model.GetEntityTypes()
                 .SelectMany(t => t.GetProperties())
                 .Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
@@ -64,7 +63,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
                 property.SetColumnType("numeric(18,2)");
             }
 
-            // Enum-to-string conversions
+            // 3. Enum-to-string conversions for PaymentLog
             modelBuilder.Entity<PaymentLog>()
                 .Property(p => p.Gateway)
                 .HasConversion<string>();
