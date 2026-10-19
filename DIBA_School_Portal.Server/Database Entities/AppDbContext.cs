@@ -31,6 +31,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
         public DbSet<StudentPayment> StudentPayments { get; set; }
         public DbSet<PaymentLog> PaymentLogs { get; set; }
         public DbSet<MiscellaneousIncome> MiscellaneousIncomes { get; set; }
+        public DbSet<Expense> Expenses { get; set; }    
 
         // ---- People ----
         public DbSet<Student> Students { get; set; }

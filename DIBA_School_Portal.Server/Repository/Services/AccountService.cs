@@ -116,6 +116,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         // ==========================================================
         // DASHBOARD
         // ==========================================================
+  
         #region GetDashboardAsync
         public async Task<ServiceResponse<FinanceDashboardDto>> GetDashboardAsync(
             Guid academicSessionId, Guid termId)
@@ -156,7 +157,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 2. Aggregate enrollments in SQL ----------
+                // ---------- 2. Aggregate enrollments ----------
                 var enrollmentStats = await _context.StudentEnrollments
                     .AsNoTracking()
                     .Where(e => e.TermId == termId && e.AcademicSessionId == academicSessionId)
@@ -167,35 +168,16 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         FullyPaid = g.Count(e => e.IsFullyPaid),
                         Unpaid = g.Count(e => e.TotalAmountPaid == 0),
                         TotalExpected = g.Sum(e => e.TotalAmountPaid + e.OutstandingBalance),
-                        TotalPaid = g.Sum(e => e.TotalAmountPaid),
                     })
                     .FirstOrDefaultAsync();
 
-                if (enrollmentStats == null)
-                {
-                    // No enrollments — return an empty but valid dashboard
-                    response.Success = true;
-                    response.StatusCode = 200;
-                    response.Data = new FinanceDashboardDto
-                    {
-                        AcademicSessionId = academicSessionId,
-                        AcademicSessionName = ctx.Name,
-                        TermId = termId,
-                        TermName = ctx.Term.Name,
-                        ClassBreakdown = new(),
-                        GatewayBreakdown = new(),
-                        RecentPayments = new(),
+                int totalStudents = enrollmentStats?.TotalStudents ?? 0;
+                int fullyPaid = enrollmentStats?.FullyPaid ?? 0;
+                int unpaid = enrollmentStats?.Unpaid ?? 0;
+                int partiallyPaid = totalStudents - fullyPaid - unpaid;
+                decimal totalExpected = enrollmentStats?.TotalExpected ?? 0m;
 
-                        // Misc income (empty)
-                        MiscIncomeByCategory = new(),
-                        TotalMiscIncome = 0m,
-                        MiscIncomeTransactionCount = 0,
-                        GrandTotalInflow = 0m,
-                    };
-                    return response;
-                }
-
-                // ---------- 3. Aggregate fee payments in SQL ----------
+                // ---------- 3. Fee payments ----------
                 var paymentStats = await _context.StudentPayments
                     .AsNoTracking()
                     .Where(p => p.TermId == termId
@@ -218,13 +200,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     .FirstOrDefaultAsync();
 
                 decimal totalCollected = paymentStats?.TotalCollected ?? 0m;
-                decimal totalExpected = enrollmentStats.TotalExpected;
                 decimal totalOutstanding = Math.Max(0, totalExpected - totalCollected);
                 decimal collectionRate = totalExpected > 0
                     ? Math.Round(totalCollected / totalExpected * 100, 2)
                     : 0m;
 
-                // ---------- 3b. Aggregate MISC INCOME in SQL ----------
+                // ---------- 4. Misc income ----------
                 var miscStats = await _context.MiscellaneousIncomes
                     .AsNoTracking()
                     .Where(m => m.TermId == termId
@@ -243,7 +224,53 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 decimal totalMiscIncome = miscStats.Sum(x => x.TotalAmount);
                 int miscTxCount = miscStats.Sum(x => x.Count);
 
-                // ---------- 4. Class breakdown in SQL ----------
+                // ---------- 5. EXPENSES — totals + category + gateway ----------
+                var expensesForTerm = _context.Expenses
+                    .AsNoTracking()
+                    .Where(e => !e.IsDeleted
+                             && e.AcademicSessionId == academicSessionId
+                             && e.TermId == termId);
+
+                var expenseStats = await expensesForTerm
+                    .GroupBy(e => 1)
+                    .Select(g => new
+                    {
+                        TotalExpenses = g.Sum(e => e.Amount),
+                        Count = g.Count(),
+                    })
+                    .FirstOrDefaultAsync();
+
+                decimal totalExpenses = expenseStats?.TotalExpenses ?? 0m;
+                int expenseCount = expenseStats?.Count ?? 0;
+
+                var expensesByCategory = await expensesForTerm
+                    .GroupBy(e => e.Category)
+                    .Select(g => new ExpenseCategorySummaryDto
+                    {
+                        Category = g.Key,
+                        Count = g.Count(),
+                        TotalAmount = g.Sum(e => e.Amount),
+                    })
+                    .OrderByDescending(x => x.TotalAmount)
+                    .ToListAsync();
+
+                var expensesByGateway = await expensesForTerm
+                    .GroupBy(e => e.PaymentGateway)
+                    .Select(g => new ExpenseGatewaySummaryDto
+                    {
+                        Gateway = g.Key,
+                        GatewayName = g.Key.ToString(),
+                        Count = g.Count(),
+                        TotalAmount = g.Sum(e => e.Amount),
+                    })
+                    .OrderByDescending(x => x.TotalAmount)
+                    .ToListAsync();
+
+                // ---------- 6. Derived totals ----------
+                decimal totalIncome = totalCollected + totalMiscIncome;
+                decimal netInflow = totalIncome - totalExpenses;
+
+                // ---------- 7. Class breakdown ----------
                 var classBreakdown = await _context.StudentEnrollments
                     .AsNoTracking()
                     .Where(e => e.TermId == termId && e.AcademicSessionId == academicSessionId)
@@ -267,7 +294,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         ? Math.Round(c.Collected / c.Expected * 100, 2)
                         : 0m;
 
-                // ---------- 5. Recent fee payments (top 10) ----------
+                // ---------- 8. Recent fee payments ----------
                 var recent = await _context.StudentPayments
                     .AsNoTracking()
                     .Where(p => p.TermId == termId && p.AcademicSessionId == academicSessionId)
@@ -278,14 +305,14 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         Id = p.Id,
                         ReferenceNumber = p.ReferenceNumber,
                         StudentName = p.StudentProfile != null
-                                            ? p.StudentProfile.FirstName + " " + p.StudentProfile.LastName
-                                            : "—",
+                            ? p.StudentProfile.FirstName + " " + p.StudentProfile.LastName
+                            : "—",
                         AdmissionNumber = p.StudentProfile != null
-                                            ? p.StudentProfile.AdmissionNumber
-                                            : "—",
+                            ? p.StudentProfile.AdmissionNumber
+                            : "—",
                         ClassName = p.StudentProfile != null && p.StudentProfile.SchoolClass != null
-                                            ? p.StudentProfile.SchoolClass.Name
-                                            : "—",
+                            ? p.StudentProfile.SchoolClass.Name
+                            : "—",
                         AmountPaid = p.AmountPaid,
                         Gateway = p.Gateway,
                         Status = p.Status,
@@ -293,7 +320,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     })
                     .ToListAsync();
 
-                // ---------- 6. Fee transaction counts ----------
+                // ---------- 9. Fee transaction counts ----------
                 var txCounts = await _context.StudentPayments
                     .AsNoTracking()
                     .Where(p => p.TermId == termId && p.AcademicSessionId == academicSessionId)
@@ -307,11 +334,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     })
                     .FirstOrDefaultAsync();
 
-                int partiallyPaid = enrollmentStats.TotalStudents
-                                  - enrollmentStats.FullyPaid
-                                  - enrollmentStats.Unpaid;
-
-                // ---------- 7. Build response ----------
+                // ---------- 10. Build response ----------
                 response.Success = true;
                 response.StatusCode = 200;
                 response.Data = new FinanceDashboardDto
@@ -321,40 +344,54 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     TermId = termId,
                     TermName = ctx.Term.Name,
 
-                    // ---------- Fee collection ----------
+                    // Fee collection
                     TotalExpected = totalExpected,
                     TotalCollected = totalCollected,
                     TotalOutstanding = totalOutstanding,
                     CollectionRate = collectionRate,
 
-                    // ---------- Fee payment methods ----------
+                    // Fee payment methods
                     TotalOnline = paymentStats?.Online ?? 0m,
                     TotalCash = paymentStats?.Cash ?? 0m,
                     TotalBankTransfer = paymentStats?.Bank ?? 0m,
                     TotalManual = paymentStats?.Manual ?? 0m,
 
-                    // ---------- Student fee status ----------
-                    TotalStudents = enrollmentStats.TotalStudents,
-                    FullyPaidCount = enrollmentStats.FullyPaid,
+                    // Student fee status
+                    TotalStudents = totalStudents,
+                    FullyPaidCount = fullyPaid,
                     PartiallyPaidCount = partiallyPaid,
-                    UnpaidCount = enrollmentStats.Unpaid,
+                    UnpaidCount = unpaid,
 
-                    // ---------- Fee transaction counts ----------
+                    // Fee transaction counts
                     TotalTransactions = txCounts?.Total ?? 0,
                     SuccessfulTransactions = txCounts?.Success ?? 0,
                     PendingTransactions = txCounts?.Pending ?? 0,
                     FailedTransactions = txCounts?.Failed ?? 0,
 
-                    // ---------- Breakdowns ----------
+                    // Breakdowns
                     ClassBreakdown = classBreakdown,
                     GatewayBreakdown = new List<GatewaySummaryDto>(),
                     RecentPayments = recent,
 
-                    // ---------- Misc income (non-fee revenue) ----------
+                    // Misc income
                     TotalMiscIncome = totalMiscIncome,
                     MiscIncomeTransactionCount = miscTxCount,
-                    GrandTotalInflow = totalCollected + totalMiscIncome,
                     MiscIncomeByCategory = miscStats,
+
+                    // Income total
+                    TotalIncome = totalIncome,
+
+                    // Expenses
+                    TotalExpenses = totalExpenses,
+                    ExpenseTransactionCount = expenseCount,
+                    ExpensesByCategory = expensesByCategory,
+                    ExpensesByGateway = expensesByGateway,
+
+                    // Net
+                    NetInflow = netInflow,
+
+                    // Legacy
+                    GrandTotalInflow = totalIncome,
                 };
                 return response;
             }
@@ -368,7 +405,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
         }
         #endregion
-        
 
         // ==========================================================
         // PAYMENTS LIST
