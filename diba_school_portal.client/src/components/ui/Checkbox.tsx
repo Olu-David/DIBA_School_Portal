@@ -6,12 +6,17 @@ interface Props extends Omit<InputHTMLAttributes<HTMLInputElement>, "type"> {
 }
 
 const Checkbox = forwardRef<HTMLInputElement, Props>(
-  ({ checked, className = "", label, ...rest }, ref) => (
-    <div className="relative inline-flex items-center">
+  ({ checked, className = "", label, disabled, ...rest }, ref) => (
+    <label
+      className={`relative inline-flex items-center cursor-pointer select-none ${
+        disabled ? "cursor-not-allowed opacity-60" : ""
+      }`}
+    >
       <input
         ref={ref}
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         className="peer sr-only"
         {...rest}
       />
@@ -27,7 +32,7 @@ const Checkbox = forwardRef<HTMLInputElement, Props>(
         {checked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
       </div>
       {label && <span className="ml-2 text-[13px] text-surface-700">{label}</span>}
-    </div>
+    </label>
   )
 );
 
