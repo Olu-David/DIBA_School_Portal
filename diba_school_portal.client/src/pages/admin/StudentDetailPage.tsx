@@ -3,13 +3,14 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Mail, Phone, Calendar, GraduationCap, Users,
   Wallet, TrendingUp, Pencil, Trash2, Receipt, FileText, Plus,
-  X, AlertTriangle,
+  X, AlertTriangle, KeyRound,
 } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
   Button, Card, Avatar, Badge, Skeleton, EmptyState, StatCard,
   FormField, Input, Select,
 } from "../../components/ui";
+import ResetPasswordModal from "../../components/ResetPasswordModal";
 import { useToast } from "../../hooks/useToast";
 import { useRole } from "../../hooks/useRole";
 import { formatNaira, formatDate } from "../../lib/format";
@@ -49,14 +50,21 @@ const STREAM_TONE: Record<string, "sky" | "violet" | "amber" | "rose"> = {
 
 const STREAMS = ["Science", "Arts", "Commercial"];
 
-// Roles allowed to edit/delete a student (matches backend
-// [Authorize(Roles = "SuperAdmin,Principal,Registrar,SchoolAdmin")]
-// on PUT/DELETE /api/Student/{id})
+// Roles allowed to edit/delete a student
 const STUDENT_EDITOR_ROLES = [
   "SuperAdmin",
   "Principal",
   "Registrar",
   "SchoolAdmin",
+];
+
+// Roles allowed to reset a student's password
+// (matches backend [Authorize] on /api/auth/admin-reset-password)
+const PASSWORD_RESETTER_ROLES = [
+  "SuperAdmin",
+  "Principal",
+  "SchoolAdmin",
+  "Registrar",
 ];
 
 // ==========================================================
@@ -68,9 +76,11 @@ export default function StudentDetailPage() {
   const { toast } = useToast();
   const { role } = useRole();
 
-  // ---- Role check — simple and stable ----
+  // ---- Role checks ----
   const canEdit =
     role != null && STUDENT_EDITOR_ROLES.includes(role);
+  const canResetPassword =
+    role != null && PASSWORD_RESETTER_ROLES.includes(role);
 
   // ---- Data ----
   const [student, setStudent] = useState<StudentDetail | null>(null);
@@ -95,6 +105,9 @@ export default function StudentDetailPage() {
   // ---- Delete dialog state ----
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // ---- Reset password modal ----
+  const [resetOpen, setResetOpen] = useState(false);
 
   // ==========================================================
   // Load everything on mount
@@ -357,19 +370,39 @@ export default function StudentDetailPage() {
             </div>
           </div>
 
-          {canEdit && (
-            <div className="flex gap-2 shrink-0">
-              <Button variant="secondary" icon={Pencil} onClick={openEdit}>
-                Edit
-              </Button>
-              <Button
-                variant="ghost"
-                icon={Trash2}
-                className="text-flame-600 hover:bg-flame-50"
-                onClick={() => setDeleteOpen(true)}
-              >
-                Delete
-              </Button>
+          {(canEdit || canResetPassword) && (
+            <div className="flex flex-wrap gap-2 shrink-0">
+              {canEdit && (
+                <>
+                  <Button variant="secondary" icon={Pencil} onClick={openEdit}>
+                    Edit
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    icon={KeyRound}
+                    onClick={() => setResetOpen(true)}
+                  >
+                    Reset password
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    icon={Trash2}
+                    className="text-flame-600 hover:bg-flame-50"
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    Delete
+                  </Button>
+                </>
+              )}
+              {!canEdit && canResetPassword && (
+                <Button
+                  variant="secondary"
+                  icon={KeyRound}
+                  onClick={() => setResetOpen(true)}
+                >
+                  Reset password
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -558,7 +591,7 @@ export default function StudentDetailPage() {
       </Card>
 
       {/* ===============================================
-          EDIT MODAL — editors only
+          EDIT MODAL
           =============================================== */}
       {canEdit && editOpen && (
         <>
@@ -701,7 +734,7 @@ export default function StudentDetailPage() {
       )}
 
       {/* ===============================================
-          DELETE MODAL — editors only
+          DELETE MODAL
           =============================================== */}
       {canEdit && deleteOpen && (
         <>
@@ -749,6 +782,18 @@ export default function StudentDetailPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ===============================================
+          RESET PASSWORD MODAL — shared with TeacherDetailPage
+          =============================================== */}
+      {canResetPassword && resetOpen && student && (
+        <ResetPasswordModal
+          fullName={`${student.firstName} ${student.lastName}`}
+          role="Student"
+          studentProfileId={student.id}
+          onClose={() => setResetOpen(false)}
+        />
       )}
     </div>
   );
