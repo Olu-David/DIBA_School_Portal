@@ -1,15 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Users, Save, Check, BookOpen } from "lucide-react";
+import {
+  ArrowLeft, Users, Save, Check, BookOpen, Lock, Unlock, X,
+} from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
-  Button,
-  Card,
-  Avatar,
-  Badge,
-  Skeleton,
-  EmptyState,
-  Checkbox,
+  Button, Card, Avatar, Badge, Skeleton, EmptyState, Checkbox,
 } from "../../components/ui";
 import { useToast } from "../../hooks/useToast";
 import { useRole } from "../../hooks/useRole";
@@ -31,7 +27,7 @@ interface SubjectRow {
   subjectId: string;
   name: string;
   code: string;
-  isAssigned: boolean;
+  isAssigned: boolean;   // saved state from DB
   stream: StreamNum | null;
 }
 
@@ -46,30 +42,48 @@ export default function ClassDetailPage() {
   const { toast } = useToast();
   const { role } = useRole();
 
-  const canEditSubjects = !!role && EDIT_SUBJECTS_ROLES.includes(role);
+  const canEditRole = !!role && EDIT_SUBJECTS_ROLES.includes(role);
 
   const [cls, setCls] = useState<any>(null);
   const [students, setStudents] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
+
+  /* assignments = what's currently ticked in the editor (before save) */
   const [assignments, setAssignments] = useState<Map<string, StreamNum | null>>(
     new Map()
   );
+
+  /* savedSubjectIds = what was actually saved in the DB (from the last load) */
+  const [savedSubjectIds, setSavedSubjectIds] = useState<Set<string>>(new Set());
+
+  /* editSaved = when true, saved subjects become unlocked for re-editing */
+  const [editSaved, setEditSaved] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [savingSubjects, setSavingSubjects] = useState(false);
 
   const isSSClass = cls?.academicSection === "SeniorSecondary";
 
+  /* Anything that was saved counts as locked unless editSaved is on */
+  const isLocked = (subjectId: string) =>
+    savedSubjectIds.has(subjectId) && !editSaved;
+
+  /* If nothing is saved yet, the whole editor is editable */
+  const hasSavedSubjects = savedSubjectIds.size > 0;
+
+  const canEditSubjects = canEditRole;
+
   useEffect(() => {
     if (!classId) return;
     (async () => {
+      setLoading(true);
       try {
         const requests: Promise<any>[] = [
           api.get<ApiResponse<any>>(`/schoolclass/${classId}`),
           api.get<ApiResponse<any[]>>(`/student/by-class/${classId}`),
         ];
 
-        if (canEditSubjects) {
+        if (canEditRole) {
           requests.push(
             api.get<ApiResponse<SubjectRow[]>>(
               `/schoolclass/${classId}/subjects-selection`
@@ -91,26 +105,38 @@ export default function ClassDetailPage() {
             subjectId: x.subjectId ?? x.id,
             name: x.name,
             code: x.code ?? "",
-            isAssigned: x.isAssigned ?? true,
+            isAssigned: !!x.isAssigned,
             stream:
               typeof x.stream === "number" ? (x.stream as StreamNum) : null,
           }));
+
           setSubjects(rows);
 
+          /* Build the editor map from what's saved */
           const map = new Map<string, StreamNum | null>();
-          rows.filter((r) => r.isAssigned).forEach((r) => {
-            map.set(r.subjectId, r.stream);
+          const saved = new Set<string>();
+          rows.forEach((r) => {
+            if (r.isAssigned) {
+              map.set(r.subjectId, r.stream);
+              saved.add(r.subjectId);
+            }
           });
           setAssignments(map);
+          setSavedSubjectIds(saved);
         }
       } finally {
         setLoading(false);
       }
     })();
-  }, [classId, canEditSubjects]);
+  }, [classId, canEditRole]);
 
+  /* ==========================================================
+     Editor actions
+     ========================================================== */
   const toggleSubject = (id: string) => {
     if (!canEditSubjects) return;
+    if (isLocked(id)) return; // saved + locked → ignore
+
     const next = new Map(assignments);
     if (next.has(id)) next.delete(id);
     else next.set(id, null);
@@ -119,6 +145,8 @@ export default function ClassDetailPage() {
 
   const setStreamFor = (id: string, stream: StreamNum | null) => {
     if (!canEditSubjects) return;
+    if (isLocked(id)) return;
+
     const next = new Map(assignments);
     if (next.has(id)) {
       next.set(id, stream);
@@ -126,16 +154,43 @@ export default function ClassDetailPage() {
     }
   };
 
+  /* Select all = add every unsaved subject with stream=null.
+     Saved ones stay as they are (unless editSaved is on, then they're
+     still added — but they're already there). */
   const selectAll = () => {
     if (!canEditSubjects) return;
-    const next = new Map<string, StreamNum | null>();
-    subjects.forEach((s) => next.set(s.subjectId, null));
+    const next = new Map(assignments);
+    subjects.forEach((s) => {
+      if (!next.has(s.subjectId)) next.set(s.subjectId, null);
+    });
     setAssignments(next);
   };
 
+  /* Clear = remove everything that isn't locked */
   const clearAll = () => {
     if (!canEditSubjects) return;
-    setAssignments(new Map());
+    const next = new Map<string, StreamNum | null>();
+    assignments.forEach((stream, id) => {
+      if (isLocked(id)) next.set(id, stream); // keep locked ones
+    });
+    setAssignments(next);
+  };
+
+  /* Unlock saved subjects for re-editing */
+  const unlockSaved = () => {
+    if (!canEditSubjects) return;
+    setEditSaved(true);
+  };
+
+  /* Re-lock without saving changes */
+  const relockSaved = () => {
+    /* Reset assignments to what's saved in the DB */
+    const map = new Map<string, StreamNum | null>();
+    subjects.forEach((s) => {
+      if (s.isAssigned) map.set(s.subjectId, s.stream);
+    });
+    setAssignments(map);
+    setEditSaved(false);
   };
 
   const saveSubjects = async () => {
@@ -150,14 +205,32 @@ export default function ClassDetailPage() {
         `/schoolclass/subjects/${classId}`,
         payload
       );
-      if (data.success) {
-        toast({
-          variant: "success",
-          title: `${payload.length} subject(s) saved`,
-        });
-      } else {
-        toast({ variant: "error", title: data.message ?? "Failed" });
+
+      if (!data.success) {
+        toast({ variant: "error", title: data.message ?? "Failed to save." });
+        return;
       }
+
+      /* Reflect new saved state in the UI without a full reload */
+      const newSaved = new Set<string>(assignments.keys());
+      setSavedSubjectIds(newSaved);
+      setEditSaved(false);
+
+      /* Update isAssigned on the local rows so the badges stay correct */
+      setSubjects((prev) =>
+        prev.map((s) => ({
+          ...s,
+          isAssigned: newSaved.has(s.subjectId),
+          stream: newSaved.has(s.subjectId)
+            ? (assignments.get(s.subjectId) ?? null)
+            : s.stream,
+        }))
+      );
+
+      toast({
+        variant: "success",
+        title: `${payload.length} subject(s) saved`,
+      });
     } catch (err: unknown) {
       const e2 = err as { response?: { data?: { message?: string } } };
       toast({
@@ -169,6 +242,9 @@ export default function ClassDetailPage() {
     }
   };
 
+  /* ==========================================================
+     Render guards
+     ========================================================== */
   if (loading)
     return (
       <Card>
@@ -182,9 +258,7 @@ export default function ClassDetailPage() {
         <EmptyState
           icon={Users}
           title="Class not found"
-          action={
-            <Button onClick={() => navigate("/admin/classes")}>Back</Button>
-          }
+          action={<Button onClick={() => navigate("/admin/classes")}>Back</Button>}
         />
       </Card>
     );
@@ -204,7 +278,7 @@ export default function ClassDetailPage() {
       <PageHeader
         eyebrow={cls.academicSection}
         title={cls.name}
-        description={`${students.length} student${students.length !== 1 ? "s" : ""} - ${assignments.size} subject${assignments.size !== 1 ? "s" : ""}`}
+        description={`${students.length} student${students.length !== 1 ? "s" : ""} - ${savedSubjectIds.size} subject${savedSubjectIds.size !== 1 ? "s" : ""} saved`}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -231,11 +305,7 @@ export default function ClassDetailPage() {
                   onClick={() => navigate(`/admin/students/${s.id}`)}
                   className="w-full text-left px-6 py-3 flex items-center gap-3 hover:bg-surface-50"
                 >
-                  <Avatar
-                    name={s.fullName}
-                    src={s.profilePictureUrl}
-                    size="sm"
-                  />
+                  <Avatar name={s.fullName} src={s.profilePictureUrl} size="sm" />
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-medium text-surface-800 truncate">
                       {s.fullName}
@@ -261,31 +331,59 @@ export default function ClassDetailPage() {
                   Subjects taught
                 </h3>
                 <p className="text-[12px] text-surface-400 mt-0.5">
-                  {canEditSubjects
-                    ? isSSClass
-                      ? "Tick subjects. Pick a stream for SS-specific subjects, or leave 'All' for shared subjects."
-                      : "Tick every subject this class teaches, then Save."
-                    : "Subjects assigned to this class (read-only for your role)."}
+                  {!canEditRole
+                    ? "Read-only for your role."
+                    : editSaved
+                    ? "Editing saved subjects. Re-lock or save when done."
+                    : hasSavedSubjects
+                    ? "Saved subjects are locked. Click 'Edit saved' to change them."
+                    : isSSClass
+                    ? "Tick subjects. Pick a stream for SS-specific subjects."
+                    : "Tick every subject this class teaches, then Save."}
                 </p>
               </div>
 
               {canEditSubjects && (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={selectAll}
-                    className="text-[11px] font-medium text-brand-600 hover:text-brand-700"
-                  >
-                    Select all
-                  </button>
-                  <span className="text-surface-300">|</span>
-                  <button
-                    type="button"
-                    onClick={clearAll}
-                    className="text-[11px] font-medium text-surface-500 hover:text-surface-700"
-                  >
-                    Clear
-                  </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {hasSavedSubjects && !editSaved && (
+                    <button
+                      type="button"
+                      onClick={unlockSaved}
+                      className="text-[11px] font-medium text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
+                    >
+                      <Unlock className="w-3 h-3" />
+                      Edit saved
+                    </button>
+                  )}
+                  {hasSavedSubjects && editSaved && (
+                    <button
+                      type="button"
+                      onClick={relockSaved}
+                      className="text-[11px] font-medium text-surface-500 hover:text-surface-700 inline-flex items-center gap-1"
+                    >
+                      <X className="w-3 h-3" />
+                      Cancel edits
+                    </button>
+                  )}
+                  {!hasSavedSubjects && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={selectAll}
+                        className="text-[11px] font-medium text-brand-600 hover:text-brand-700"
+                      >
+                        Select all
+                      </button>
+                      <span className="text-surface-300">|</span>
+                      <button
+                        type="button"
+                        onClick={clearAll}
+                        className="text-[11px] font-medium text-surface-500 hover:text-surface-700"
+                      >
+                        Clear
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -304,24 +402,34 @@ export default function ClassDetailPage() {
               {subjects.map((s) => {
                 const isOn = assignments.has(s.subjectId);
                 const currentStream = assignments.get(s.subjectId) ?? null;
+                const wasSaved = s.isAssigned;
+                const rowLocked = wasSaved && !editSaved;
 
                 return (
                   <div
                     key={s.subjectId}
                     className={`px-6 py-3 flex items-center gap-3 ${
                       isOn ? "bg-brand-50/40" : ""
-                    }`}
+                    } ${rowLocked ? "bg-emerald-50/30" : ""}`}
                   >
                     <Checkbox
                       checked={isOn}
-                      disabled={!canEditSubjects}
+                      disabled={!canEditSubjects || rowLocked}
                       onChange={() => toggleSubject(s.subjectId)}
                     />
 
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium text-surface-800">
-                        {s.name}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[13px] font-medium text-surface-800">
+                          {s.name}
+                        </p>
+                        {wasSaved && (
+                          <Badge variant="emerald">
+                            <Lock className="w-2.5 h-2.5" />
+                            Saved
+                          </Badge>
+                        )}
+                      </div>
                       {s.code && (
                         <p className="text-[11px] text-surface-400 font-mono mt-0.5">
                           {s.code}
@@ -329,11 +437,9 @@ export default function ClassDetailPage() {
                       )}
                     </div>
 
-                    {isSSClass && isOn && canEditSubjects && (
+                    {isSSClass && isOn && canEditSubjects && !rowLocked && (
                       <select
-                        value={
-                          currentStream === null ? "" : String(currentStream)
-                        }
+                        value={currentStream === null ? "" : String(currentStream)}
                         onChange={(e) =>
                           setStreamFor(
                             s.subjectId,
@@ -353,22 +459,13 @@ export default function ClassDetailPage() {
                       </select>
                     )}
 
-                    {isSSClass &&
-                      isOn &&
-                      !canEditSubjects &&
-                      currentStream !== null && (
-                        <Badge variant="violet">
-                          {
-                            STREAM_OPTIONS.find(
-                              (o) => o.value === currentStream
-                            )?.label
-                          }
-                        </Badge>
-                      )}
-
-                    {isOn && (
-                      <Check className="w-4 h-4 text-brand-600 shrink-0" />
+                    {isSSClass && isOn && rowLocked && currentStream !== null && (
+                      <Badge variant="violet">
+                        {STREAM_OPTIONS.find((o) => o.value === currentStream)?.label}
+                      </Badge>
                     )}
+
+                    {isOn && <Check className="w-4 h-4 text-brand-600 shrink-0" />}
                   </div>
                 );
               })}
@@ -378,7 +475,8 @@ export default function ClassDetailPage() {
           {canEditSubjects && subjects.length > 0 && (
             <div className="p-6 pt-4 border-t border-surface-100 flex items-center justify-between gap-3">
               <p className="text-[12px] text-surface-500">
-                {assignments.size} of {subjects.length} selected
+                {assignments.size} subject{assignments.size !== 1 ? "s" : ""}{" "}
+                selected · {savedSubjectIds.size} saved
               </p>
               <Button
                 icon={Save}
