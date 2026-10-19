@@ -14,7 +14,7 @@ import {
 } from "./lib/roles";
 
 // ==========================================================
-// Layouts — loaded with the first matching route
+// Layouts
 // ==========================================================
 import PublicLayout from "./layouts/PublicLayout";
 import AuthLayout from "./layouts/AuthLayout";
@@ -23,7 +23,7 @@ import StudentLayout from "./layouts/StudentLayout";
 import ParentLayout from "./layouts/ParentLayout";
 
 // ==========================================================
-// Public pages — static (first-paint critical)
+// Public pages
 // ==========================================================
 import HomePage from "./pages/public/HomePage";
 import AboutPage from "./pages/public/AboutPage";
@@ -32,14 +32,14 @@ import AdmissionsPage from "./pages/public/AdmissionsPage";
 import ContactPage from "./pages/public/ContactPage";
 
 // ==========================================================
-// Auth pages — static (login happens early)
+// Auth pages
 // ==========================================================
 import StaffLogin from "./pages/auth/StaffLogin";
 import StudentLogin from "./pages/auth/StudentLogin";
 import ParentLogin from "./pages/auth/ParentLogin";
 
 // ==========================================================
-// Admin pages — lazy-loaded
+// Admin pages — lazy
 // ==========================================================
 const Dashboard = lazy(() => import("./pages/admin/Dashboard"));
 const StudentsPage = lazy(() => import("./pages/admin/StudentsPage"));
@@ -70,6 +70,9 @@ const RecordCash = lazy(() => import("./pages/finance/RecordCash"));
 const PaymentsListPage = lazy(() => import("./pages/finance/PaymentsListPage"));
 const ArrearsPage = lazy(() => import("./pages/finance/ArrearsPage"));
 const FeesPage = lazy(() => import("./pages/finance/FeesPage"));
+// 👇 NEW
+const ExpensesPage = lazy(() => import("./pages/finance/ExpensesPage"));
+const RecordExpense = lazy(() => import("./pages/finance/RecordExpense"));
 
 // ==========================================================
 // Teacher — lazy
@@ -112,8 +115,6 @@ const MANAGERS = [
   "Registrar",
 ] as const;
 
-// 👇 NEW — classroom roles: anyone who can teach / enter scores /
-// view their own assignments. Matches Sidebar's R.teaching.
 const CLASSROOM_ROLES = [
   "Teacher",
   "FormTeacher",
@@ -124,8 +125,24 @@ const CLASSROOM_ROLES = [
   "SchoolAdmin",
 ] as const;
 
+// 👇 NEW — tightened finance split
+// Full finance policy access
+const FINANCE_FULL_ROLES = [
+  "SuperAdmin",
+  "Principal",
+  "Accountant",
+] as const;
+
+// Cash collection access (Cashier + everyone above)
+const FINANCE_CASHIER_ROLES = [
+  "SuperAdmin",
+  "Principal",
+  "Accountant",
+  "Cashier",
+] as const;
+
 // ==========================================================
-// Loading fallback — shown while a lazy chunk downloads
+// Loading fallback
 // ==========================================================
 function PageLoader() {
   return (
@@ -162,9 +179,7 @@ export default function App() {
                 <Route path="parent" element={<ParentLogin />} />
               </Route>
 
-              {/* ================================================
-                  PAYMENT CALLBACK — SHARED ACROSS ROLES
-                  ================================================ */}
+              {/* PAYMENT CALLBACK */}
               <Route
                 element={
                   <ProtectedRoute
@@ -273,8 +288,7 @@ export default function App() {
                     <Route path="score-entry" element={<ScoreEntryPage />} />
                   </Route>
 
-                  {/* MY CLASSROOM — teachers + leadership */}
-                  {/* 👇 CHANGED — was TEACHING_ROLES, now full classroom roles */}
+                  {/* MY CLASSROOM */}
                   <Route
                     element={
                       <ProtectedRoute
@@ -290,15 +304,41 @@ export default function App() {
                     />
                   </Route>
 
-                  {/* FINANCE */}
-                  <Route element={<ProtectedRoute allowedRoles={FINANCE_ROLES} />}>
+                  {/* ================================================
+                      FINANCE — split into two permission tiers
+                      ================================================ */}
+
+                  {/* Full finance policy — SuperAdmin, Principal, Accountant */}
+                  <Route
+                    element={
+                      <ProtectedRoute
+                        allowedRoles={[...FINANCE_FULL_ROLES] as any}
+                      />
+                    }
+                  >
                     <Route path="finance" element={<FinanceDashboard />} />
+                    <Route path="finance/fees" element={<FeesPage />} />
+                    {/* 👇 NEW — expenses only for full finance roles */}
+                    <Route path="finance/expenses" element={<ExpensesPage />} />
+                    <Route
+                      path="finance/record-expense"
+                      element={<RecordExpense />}
+                    />
+                  </Route>
+
+                  {/* Cash collection — Cashier + everyone above */}
+                  <Route
+                    element={
+                      <ProtectedRoute
+                        allowedRoles={[...FINANCE_CASHIER_ROLES] as any}
+                      />
+                    }
+                  >
                     <Route
                       path="finance/payments"
                       element={<PaymentsListPage />}
                     />
                     <Route path="finance/arrears" element={<ArrearsPage />} />
-                    <Route path="finance/fees" element={<FeesPage />} />
                     <Route
                       path="finance/record-cash"
                       element={<RecordCash />}

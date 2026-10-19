@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Wallet, TrendingUp, TrendingDown, Users, BadgeDollarSign,
   CreditCard, Banknote, ArrowUpRight, PieChart as PieIcon,
-  AlertCircle, RefreshCw, Download, Coins,
+  AlertCircle, RefreshCw, Download, Coins, Plus,
 } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import { Button, Card, StatCard, Skeleton, Badge } from "../../components/ui";
@@ -104,7 +104,9 @@ export default function FinanceDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---------- Export report (CSV) ----------
+  /* ==========================================================
+     EXPORT — CSV financial statement
+     ========================================================== */
   const handleExport = () => {
     if (!data) return;
     setExporting(true);
@@ -113,7 +115,6 @@ export default function FinanceDashboard() {
       const now = new Date();
       const dateStamp = now.toISOString().slice(0, 10);
 
-      // ---------- Header ----------
       lines.push("DIBA School Portal — Financial Report");
       lines.push(`Session,${data.academicSessionName}`);
       lines.push(`Term,${data.termName}`);
@@ -153,17 +154,49 @@ export default function FinanceDashboard() {
         });
       }
       lines.push(`Total Other Income,,${data.totalMiscIncome}`);
-      lines.push(
-        `Total Other Income Transactions,${data.miscIncomeTransactionCount},`
-      );
+      lines.push(`Total Other Income Transactions,${data.miscIncomeTransactionCount},`);
       lines.push("");
 
-      // ---------- Grand total ----------
-      lines.push("GRAND TOTAL INFLOW");
+      // 👇 NEW — Expenses summary
+      lines.push("EXPENSES");
       lines.push("Metric,Value");
-      lines.push(`Fee Collected,${data.totalCollected}`);
+      lines.push(`Total Expenses,${data.totalExpenses}`);
+      lines.push(`Expense Transactions,${data.expenseTransactionCount}`);
+      lines.push("");
+
+      // 👇 NEW — Expenses by category
+      lines.push("EXPENSES BY CATEGORY");
+      lines.push("Category,Transactions,Amount");
+      if (!data.expensesByCategory || data.expensesByCategory.length === 0) {
+        lines.push("(none recorded this term),0,0");
+      } else {
+        data.expensesByCategory.forEach((c) => {
+          lines.push(`"${c.category}",${c.count},${c.totalAmount}`);
+        });
+      }
+      lines.push(`Total Expenses,,${data.totalExpenses}`);
+      lines.push("");
+
+      // 👇 NEW — Expenses by payment method
+      lines.push("EXPENSES BY PAYMENT METHOD");
+      lines.push("Method,Transactions,Amount");
+      if (!data.expensesByGateway || data.expensesByGateway.length === 0) {
+        lines.push("(none recorded this term),0,0");
+      } else {
+        data.expensesByGateway.forEach((g) => {
+          lines.push(`"${g.gatewayName}",${g.count},${g.totalAmount}`);
+        });
+      }
+      lines.push("");
+
+      // ---------- Income vs Expenses vs Net ----------
+      lines.push("INCOME vs EXPENSES");
+      lines.push("Metric,Value");
+      lines.push(`Fees Collected,${data.totalCollected}`);
       lines.push(`Other Income,${data.totalMiscIncome}`);
-      lines.push(`Grand Total Inflow,${data.grandTotalInflow}`);
+      lines.push(`Total Income,${data.totalIncome}`);
+      lines.push(`Total Expenses,${data.totalExpenses}`);
+      lines.push(`Net Inflow,${data.netInflow}`);
       lines.push("");
 
       // ---------- Class breakdown ----------
@@ -189,10 +222,13 @@ export default function FinanceDashboard() {
       // ---------- Notes ----------
       lines.push("NOTES");
       lines.push(
-        "This export contains income only. Expenses, payroll, and reconciliation are outside the scope of this system."
+        "Net Inflow = Fees + Other Income − Expenses. This reflects actual money retained by the school this term."
       );
       lines.push(
         "Total Other Income is non-fee revenue (uniforms, fines, donations, etc.) and does NOT affect student enrollment balances."
+      );
+      lines.push(
+        "Expenses include salaries, utilities, rent, supplies, and other operational costs."
       );
 
       const csv = lines.join("\n");
@@ -213,12 +249,20 @@ export default function FinanceDashboard() {
     }
   };
 
-  // ---------- Navigation ----------
+  /* ==========================================================
+     NAVIGATION
+     ========================================================== */
   const handleRecordCash = () => {
     navigate("/admin/finance/record-cash");
   };
 
-  // ---------- Loading ----------
+  const handleRecordExpense = () => {
+    navigate("/admin/finance/record-expense");
+  };
+
+  /* ==========================================================
+     LOADING
+     ========================================================== */
   if (loading) {
     return (
       <div className="space-y-6">
@@ -236,7 +280,9 @@ export default function FinanceDashboard() {
     );
   }
 
-  // ---------- Error ----------
+  /* ==========================================================
+     ERROR
+     ========================================================== */
   if (error || !data) {
     return (
       <div className="space-y-6">
@@ -269,18 +315,28 @@ export default function FinanceDashboard() {
     );
   }
 
+  /* ==========================================================
+     DERIVED
+     ========================================================== */
   const collectionPercent = Math.min(100, Math.round(data.collectionRate));
-  const totalInflowPercent =
-    data.grandTotalInflow > 0
-      ? Math.round((data.totalMiscIncome / data.grandTotalInflow) * 100)
+  const netPercentOfIncome =
+    data.totalIncome > 0
+      ? Math.round((data.netInflow / data.totalIncome) * 100)
+      : 0;
+  const expenseShareOfIncome =
+    data.totalIncome > 0
+      ? Math.round((data.totalExpenses / data.totalIncome) * 100)
       : 0;
 
+  /* ==========================================================
+     RENDER
+     ========================================================== */
   return (
     <div className="space-y-6 lg:space-y-8">
       <PageHeader
         eyebrow={`${data.academicSessionName} - ${data.termName}`}
         title="Financial overview"
-        description="Live collections, outstanding fees, non-fee income, and payment breakdown for the current term."
+        description="Live collections, outstanding fees, non-fee income, expenses, and net inflow for the current term."
         actions={
           <>
             <Button
@@ -291,6 +347,13 @@ export default function FinanceDashboard() {
             >
               Export report
             </Button>
+            <Button
+              variant="secondary"
+              icon={TrendingDown}
+              onClick={handleRecordExpense}
+            >
+              Record expense
+            </Button>
             <Button icon={BadgeDollarSign} onClick={handleRecordCash}>
               Record cash
             </Button>
@@ -299,7 +362,7 @@ export default function FinanceDashboard() {
       />
 
       {/* ---------- Stat strip ---------- */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 lg:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
         <StatCard
           label="Total collected"
           value={formatNairaShort(data.totalCollected)}
@@ -314,6 +377,28 @@ export default function FinanceDashboard() {
           icon={TrendingDown}
           tone="rose"
         />
+        <StatCard
+          label="Total expenses"
+          value={formatNairaShort(data.totalExpenses)}
+          hint={`${data.expenseTransactionCount} transaction(s)`}
+          icon={Coins}
+          tone="amber"
+        />
+        <StatCard
+          label="Net inflow"
+          value={formatNairaShort(data.netInflow)}
+          hint={
+            data.totalIncome > 0
+              ? `${netPercentOfIncome}% of income`
+              : "—"
+          }
+          icon={Wallet}
+          tone={data.netInflow >= 0 ? "emerald" : "rose"}
+        />
+      </div>
+
+      {/* ---------- Second stat strip ---------- */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
         <StatCard
           label="Expected this term"
           value={formatNairaShort(data.totalExpected)}
@@ -335,7 +420,14 @@ export default function FinanceDashboard() {
           value={formatNairaShort(data.totalMiscIncome)}
           hint={`${data.miscIncomeTransactionCount} transaction(s)`}
           icon={Coins}
-          tone="amber"
+          tone="sky"
+        />
+        <StatCard
+          label="Total income"
+          value={formatNairaShort(data.totalIncome)}
+          hint="Fees + other income"
+          icon={TrendingUp}
+          tone="emerald"
         />
       </div>
 
@@ -363,21 +455,71 @@ export default function FinanceDashboard() {
         </div>
       </Card>
 
-      {/* ---------- Grand total inflow ---------- */}
+      {/* ---------- Income vs Expenses ---------- */}
       <Card>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-[15px] font-semibold text-surface-900">
-              Grand total inflow
+              Income vs Expenses
             </h3>
             <p className="text-[12px] text-surface-400 mt-0.5">
-              {formatNaira(data.totalCollected)} fees +{" "}
-              {formatNaira(data.totalMiscIncome)} other ({totalInflowPercent}%)
+              Fees + other income − expenses = net
             </p>
           </div>
-          <span className="text-2xl font-semibold text-emerald-600 tabular-nums">
-            {formatNairaShort(data.grandTotalInflow)}
-          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="rounded-xl bg-emerald-50/60 border border-emerald-100 p-4">
+            <p className="text-[10px] uppercase tracking-wider text-emerald-700 font-medium">
+              Total income
+            </p>
+            <p className="text-xl font-semibold text-emerald-700 tabular-nums mt-1">
+              {formatNairaShort(data.totalIncome)}
+            </p>
+            <p className="text-[11px] text-emerald-600/80 mt-1">
+              {formatNaira(data.totalCollected)} fees +{" "}
+              {formatNaira(data.totalMiscIncome)} other
+            </p>
+          </div>
+          <div className="rounded-xl bg-rose-50/60 border border-rose-100 p-4">
+            <p className="text-[10px] uppercase tracking-wider text-rose-700 font-medium">
+              Total expenses
+            </p>
+            <p className="text-xl font-semibold text-rose-700 tabular-nums mt-1">
+              -{formatNairaShort(data.totalExpenses)}
+            </p>
+            <p className="text-[11px] text-rose-600/80 mt-1">
+              {expenseShareOfIncome}% of income
+            </p>
+          </div>
+          <div
+            className={`rounded-xl border p-4 ${
+              data.netInflow >= 0
+                ? "bg-brand-50/60 border-brand-100"
+                : "bg-rose-50/60 border-rose-100"
+            }`}
+          >
+            <p
+              className={`text-[10px] uppercase tracking-wider font-medium ${
+                data.netInflow >= 0 ? "text-brand-700" : "text-rose-700"
+              }`}
+            >
+              Net inflow
+            </p>
+            <p
+              className={`text-xl font-semibold tabular-nums mt-1 ${
+                data.netInflow >= 0 ? "text-brand-700" : "text-rose-700"
+              }`}
+            >
+              {formatNairaShort(data.netInflow)}
+            </p>
+            <p
+              className={`text-[11px] mt-1 ${
+                data.netInflow >= 0 ? "text-brand-600/80" : "text-rose-600/80"
+              }`}
+            >
+              {netPercentOfIncome}% of income retained
+            </p>
+          </div>
         </div>
       </Card>
 
@@ -456,6 +598,113 @@ export default function FinanceDashboard() {
                           data.totalMiscIncome > 0
                             ? Math.round(
                                 (c.totalAmount / data.totalMiscIncome) * 100
+                              )
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* ---------- Expenses by category + payment method ---------- */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <TrendingDown className="w-4 h-4 text-surface-500" />
+              <h3 className="text-[15px] font-semibold text-surface-900">
+                Expenses by category
+              </h3>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              iconRight={ArrowUpRight}
+              onClick={() => navigate("/admin/finance/expenses")}
+            >
+              View all
+            </Button>
+          </div>
+
+          {!data.expensesByCategory ||
+          data.expensesByCategory.length === 0 ? (
+            <div className="py-8 text-center text-[13px] text-surface-400">
+              No expenses recorded this term.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {data.expensesByCategory.slice(0, 8).map((c) => (
+                <div key={c.category}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[12px] font-medium text-surface-700">
+                      {c.category}{" "}
+                      <span className="text-surface-400">· {c.count}</span>
+                    </span>
+                    <span className="text-[12px] font-semibold text-rose-600 tabular-nums">
+                      -{formatNairaShort(c.totalAmount)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-surface-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-rose-500 rounded-full transition-all"
+                      style={{
+                        width: `${
+                          data.totalExpenses > 0
+                            ? Math.round(
+                                (c.totalAmount / data.totalExpenses) * 100
+                              )
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <PieIcon className="w-4 h-4 text-surface-500" />
+              <h3 className="text-[15px] font-semibold text-surface-900">
+                Expenses by payment method
+              </h3>
+            </div>
+          </div>
+
+          {!data.expensesByGateway ||
+          data.expensesByGateway.length === 0 ? (
+            <div className="py-8 text-center text-[13px] text-surface-400">
+              No expenses recorded this term.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {data.expensesByGateway.map((g) => (
+                <div key={g.gateway}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[12px] font-medium text-surface-700">
+                      {g.gatewayName}{" "}
+                      <span className="text-surface-400">· {g.count}</span>
+                    </span>
+                    <span className="text-[12px] font-semibold text-surface-900 tabular-nums">
+                      {formatNairaShort(g.totalAmount)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-surface-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-slate-500 rounded-full transition-all"
+                      style={{
+                        width: `${
+                          data.totalExpenses > 0
+                            ? Math.round(
+                                (g.totalAmount / data.totalExpenses) * 100
                               )
                             : 0
                         }%`,
@@ -593,9 +842,9 @@ export default function FinanceDashboard() {
   );
 }
 
-// ==========================================================
-// Sub-components
-// ==========================================================
+/* ==========================================================
+   Sub-components
+   ========================================================== */
 interface ChannelBarProps {
   icon: typeof Banknote;
   label: string;

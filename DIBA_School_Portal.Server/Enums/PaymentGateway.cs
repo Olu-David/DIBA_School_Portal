@@ -13,6 +13,7 @@ namespace DIBA_School_Portal.Server.Enums
         Flutterwave,
         BankTransfer,
         Cash,
-        Manual
+        Manual,
+        Pos,
     }
 }

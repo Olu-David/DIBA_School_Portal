@@ -22,9 +22,10 @@ namespace DIBA_School_Portal.Server.Database_Entities
             // ---------- Payments ----------
             services.AddHttpClient<IPaymentService, PaymentService>();
             services.AddScoped<IAccountService, AccountService>();
+            services.AddScoped<IExpenseService, ExpenseService>();
 
-                // ---------- Academics ----------
-                services.AddScoped<IAcademicSession, AcademicSessionService>();
+            // ---------- Academics ----------
+            services.AddScoped<IAcademicSession, AcademicSessionService>();
                 services.AddScoped<ISchoolClassService, SchoolClassService>();
                 services.AddScoped<ISchoolFeeService, SchoolFeeService>();
                 services.AddScoped<ISubjectService, SubjectService>();

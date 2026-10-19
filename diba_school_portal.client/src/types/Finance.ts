@@ -59,4 +59,20 @@ export interface FinanceDashboard {
   miscIncomeTransactionCount: number;
   grandTotalInflow: number;
   miscIncomeByCategory: MiscIncomeCategorySummary[];
+
+  totalIncome: number;
+  totalExpenses: number;
+  expenseTransactionCount: number;
+  netInflow: number;
+  expensesByCategory: {
+    category: string;
+    count: number;
+    totalAmount: number;
+  }[];
+  expensesByGateway: {
+    gateway: number;
+    gatewayName: string;
+    count: number;
+    totalAmount: number;
+  }[];
 }

@@ -3,6 +3,7 @@ import {
   LayoutDashboard, Users, Wallet, GraduationCap, LogOut, ScrollText,
   BookOpen, CalendarDays, ClipboardCheck, FileText, UserCog, Inbox,
   AlertTriangle, Receipt, BarChart3, Bell, User, CheckCircle2,
+  TrendingDown,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
@@ -62,8 +63,6 @@ const R = {
     "Headmistress", "Teacher", "FormTeacher",
   ] as UserRole[],
 
-  // 👇 CHANGED — leadership + SchoolAdmin can also teach
-  // (they can be assigned classes and enter scores)
   teaching: [
     "Teacher", "FormTeacher",
     "Principal", "VicePrincipal", "Headmaster", "Headmistress",
@@ -122,7 +121,6 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // ---- Finance — split between cash collection and full policy ----
   {
     label: "Finance",
     items: [
@@ -130,7 +128,9 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/finance/record-cash",  label: "Record Cash",     icon: Receipt,                 roles: R.cashier },
       { to: "/admin/finance/payments",     label: "Payments",        icon: Receipt,                 roles: R.cashier },
       { to: "/admin/finance/arrears",      label: "Arrears",         icon: AlertTriangle,           roles: R.cashier },
-      { to: "/admin/finance/fees",         label: "Fee Structures",  icon: Wallet,                  roles: R.finance }, // Accountant/management only
+      // 👇 NEW
+      { to: "/admin/finance/expenses",     label: "Expenses",        icon: TrendingDown,            roles: R.finance },
+      { to: "/admin/finance/fees",         label: "Fee Structures",  icon: Wallet,                  roles: R.finance },
     ],
   },
 
