@@ -10,7 +10,7 @@ namespace DIBA_School_Portal.Server.Configurations
         {
             builder.HasKey(x => x.Id);
 
-            builder.HasOne(x => x.StudentProfile)
+            builder.HasOne(x => x.Student)
                    .WithMany()
                    .HasForeignKey(x => x.StudentId)
                    .OnDelete(DeleteBehavior.Cascade);
