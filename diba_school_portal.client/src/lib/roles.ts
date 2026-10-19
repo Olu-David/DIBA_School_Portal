@@ -1,12 +1,8 @@
 ﻿import type { UserRole } from "../types/auth";
 
-// ==========================================================
-// ROLE GROUPS — map 1:1 to backend [Authorize(Roles=...)]
-// ==========================================================
-
 export const STAFF_ROLES: UserRole[] = [
   "SuperAdmin", "Principal", "Headmaster", "Headmistress", "VicePrincipal",
-  "SchoolAdmin", "Accountant", "Registrar", "Teacher", "FormTeacher",
+  "SchoolAdmin", "Accountant", "Cashier", "Registrar", "Teacher", "FormTeacher",
 ];
 
 export const LEADERSHIP_ROLES: UserRole[] = [
@@ -18,8 +14,19 @@ export const ADMIN_ROLES: UserRole[] = [
   "VicePrincipal", "SchoolAdmin",
 ];
 
+// 👇 tightened — VicePrincipal removed from full finance
 export const FINANCE_ROLES: UserRole[] = [
-  "SuperAdmin", "Principal", "VicePrincipal", "Accountant",
+  "SuperAdmin", "Principal", "Accountant", "Cashier",
+];
+
+// 👇 full policy — no cashier
+export const FINANCE_FULL_ROLES: UserRole[] = [
+  "SuperAdmin", "Principal", "Accountant",
+];
+
+// 👇 cash collection — cashier allowed
+export const FINANCE_CASHIER_ROLES: UserRole[] = [
+  "SuperAdmin", "Principal", "Accountant", "Cashier",
 ];
 
 export const AUDIT_ROLES: UserRole[] = ["SuperAdmin", "Principal"];
@@ -49,10 +56,6 @@ export const RESULT_VIEWERS: UserRole[] = [
   "VicePrincipal", "SchoolAdmin", "Teacher", "FormTeacher",
 ];
 
-// ==========================================================
-// HELPERS
-// ==========================================================
-
 export const hasRole = (
   userRole: UserRole | undefined,
   allowed: UserRole[]
@@ -75,6 +78,7 @@ export const roleLabel = (role: UserRole | undefined): string => {
     VicePrincipal: "Vice Principal",
     SchoolAdmin: "School Admin",
     Accountant: "Accountant",
+    Cashier: "Cashier",
     Registrar: "Registrar",
     Teacher: "Teacher",
     FormTeacher: "Form Teacher",
@@ -100,6 +104,8 @@ export const roleTone = (
       return "violet";
     case "Accountant":
       return "amber";
+    case "Cashier":
+      return "amber";
     case "Registrar":
       return "sky";
     case "Teacher":
@@ -113,9 +119,5 @@ export const roleTone = (
       return "neutral";
   }
 };
-
-// ==========================================================
-// RE-EXPORTS
-// ==========================================================
 
 export type { UserRole } from "../types/auth";
