@@ -20,6 +20,9 @@ const STREAM_OPTIONS: { value: StreamNum; label: string }[] = [
   { value: 2, label: "Commercial" },
 ];
 
+/* Only these roles can edit class-subject assignments */
+const EDIT_SUBJECTS_ROLES = ["SuperAdmin", "Principal", "SchoolAdmin"];
+
 interface SubjectRow {
   subjectId: string;
   name: string;
@@ -37,9 +40,11 @@ export default function ClassDetailPage() {
   const { classId } = useParams<{ classId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isTeacher, isAdmin } = useRole();
+  const { role } = useRole();
 
-  const canEditSubjects = !isTeacher && isAdmin;
+  // 👇 Only these three roles can edit class subjects
+  const canEditSubjects =
+    !!role && EDIT_SUBJECTS_ROLES.includes(role);
 
   const [cls, setCls] = useState<any>(null);
   const [students, setStudents] = useState<any[]>([]);
@@ -154,8 +159,12 @@ export default function ClassDetailPage() {
       } else {
         toast({ variant: "error", title: data.message ?? "Failed" });
       }
-    } catch {
-      toast({ variant: "error", title: "Could not save subjects" });
+    } catch (err: unknown) {
+      const e2 = err as { response?: { data?: { message?: string } } };
+      toast({
+        variant: "error",
+        title: e2?.response?.data?.message ?? "Could not save subjects",
+      });
     } finally {
       setSavingSubjects(false);
     }
@@ -246,7 +255,7 @@ export default function ClassDetailPage() {
                     ? isSSClass
                       ? "Tick subjects. Pick a stream for SS-specific subjects, or leave 'All' for shared subjects."
                       : "Tick every subject this class teaches, then Save."
-                    : "Subjects assigned to this class."}
+                    : "Subjects assigned to this class (read-only for your role)."}
                 </p>
               </div>
 
