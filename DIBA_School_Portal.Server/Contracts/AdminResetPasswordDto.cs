@@ -4,6 +4,6 @@
     {
         public string TargetUserId { get; set; } = string.Empty;
         public string NewPassword { get; set; } = string.Empty;
-        public object StudentProfileId { get; internal set; }
+        public Guid? StudentProfileId { get; internal set; }
     }
 }

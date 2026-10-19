@@ -1314,16 +1314,25 @@ namespace DIBA_School_Portal.Server.Repository.Services
         {
             var response = new ServiceResponse<bool>();
 
+            // ---------- 1. Authorize caller ----------
             var caller = await _userManager.FindByIdAsync(currentUserId);
             if (caller == null)
             {
                 response.Success = false;
+                response.Message = "Unauthorized.";
                 response.StatusCode = 401;
                 return response;
             }
 
             var callerRoles = await _userManager.GetRolesAsync(caller);
-            if (!callerRoles.Any(r => AccountCreators.Contains(r)))
+
+            // Roles allowed to reset other users' passwords
+            var passwordResetters = new[]
+            {
+        "SuperAdmin", "Principal", "SchoolAdmin", "Registrar"
+    };
+
+            if (!callerRoles.Any(r => passwordResetters.Contains(r)))
             {
                 response.Success = false;
                 response.Message = "Not authorized to reset passwords.";
@@ -1331,15 +1340,73 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
-            var target = await _userManager.FindByIdAsync(request.TargetUserId);
+            // ---------- 2. Resolve target user ----------
+            ApplicationUser? target = null;
+
+            if (!string.IsNullOrWhiteSpace(request.TargetUserId))
+            {
+                target = await _userManager.FindByIdAsync(request.TargetUserId);
+            }
+            else if (request.StudentProfileId.HasValue && request.StudentProfileId.Value != Guid.Empty)
+            {
+                // Resolve userId from the StudentProfileId
+                var student = await _context.Students
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.Id == request.StudentProfileId.Value);
+
+                if (student != null)
+                    target = await _userManager.FindByIdAsync(student.UserId);
+            }
+
             if (target == null)
             {
                 response.Success = false;
-                response.Message = "Target user not found.";
+                response.Message = "User not found. Provide a valid targetUserId or studentProfileId.";
                 response.StatusCode = 404;
                 return response;
             }
 
+            // ---------- 3. Validate password ----------
+            if (string.IsNullOrWhiteSpace(request.NewPassword) ||
+                request.NewPassword.Length < 8)
+            {
+                response.Success = false;
+                response.Message = "Password must be at least 8 characters.";
+                response.StatusCode = 400;
+                return response;
+            }
+
+            // ---------- 4. Privilege escalation guard ----------
+            var targetRoles = await _userManager.GetRolesAsync(target);
+            var isSuperAdmin = callerRoles.Contains("SuperAdmin");
+            var isPrincipal = callerRoles.Contains("Principal");
+
+            if (!isSuperAdmin && !isPrincipal)
+            {
+                var protectedRoles = new[]
+                {
+            "SuperAdmin", "Principal", "Headmaster", "Headmistress",
+            "VicePrincipal", "SchoolAdmin"
+        };
+
+                if (targetRoles.Any(r => protectedRoles.Contains(r)))
+                {
+                    response.Success = false;
+                    response.Message =
+                        "You don't have permission to reset this user's password. " +
+                        "Only SuperAdmin or Principal can reset higher-role accounts.";
+                    response.StatusCode = 403;
+
+                    await _auditLog.LogActivityAsync(
+                        currentUserId, "Password Reset DENIED",
+                        $"Attempted to reset password for protected user {target.Id} ({string.Join(",", targetRoles)}).",
+                        ipAddress);
+
+                    return response;
+                }
+            }
+
+            // ---------- 5. Reset ----------
             var token = await _userManager.GeneratePasswordResetTokenAsync(target);
             var result = await _userManager.ResetPasswordAsync(target, token, request.NewPassword);
 
@@ -1351,11 +1418,15 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
 
+            // Invalidate old sessions
             await _userManager.UpdateSecurityStampAsync(target);
 
+            // ---------- 6. Audit ----------
+            var targetRoleLabel = targetRoles.FirstOrDefault() ?? "User";
             await _auditLog.LogActivityAsync(
                 currentUserId, "Password Reset",
-                $"Reset password for {target.FirstName} {target.LastName} ({target.UserName}).",
+                $"Reset password for {target.FirstName} {target.LastName} " +
+                $"({target.UserName ?? target.Email}) — role: {targetRoleLabel}.",
                 ipAddress);
 
             response.Success = true;
