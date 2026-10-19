@@ -86,6 +86,43 @@ interface Session {
   terms: { id: string; name: string; isCurrentTerm: boolean }[];
 }
 
+/* ==========================================================
+   Class name ordering helper
+   Nursery → Pre-Nursery → Primary → JSS → SS
+   ========================================================== */
+const SECTION_ORDER_PREFIX: Record<string, number> = {
+  "Pre-Nursery": 0,
+  "Pre Nursery": 0,
+  "Nursery": 1,
+  "Primary": 2,
+  "JSS": 3,
+  "Junior Secondary": 3,
+  "SS": 4,
+  "Senior Secondary": 4,
+};
+
+function classSortKey(className: string): [number, number, string] {
+  const trimmed = (className ?? "").trim();
+  const parts = trimmed.split(/\s+/);
+
+  // Handle "Pre-Nursery 1" / "Pre Nursery 2" (two-word prefix)
+  let prefix = parts[0] ?? "";
+  let rest = parts.slice(1);
+  if (
+    (prefix === "Pre-Nursery" || prefix === "Pre" || prefix === "Junior" || prefix === "Senior") &&
+    parts[1]
+  ) {
+    prefix = `${parts[0]} ${parts[1]}`;
+    rest = parts.slice(2);
+  }
+
+  const num = parseInt(rest.join(" "), 10);
+  const numeric = Number.isFinite(num) ? num : 0;
+  const sectionRank = SECTION_ORDER_PREFIX[prefix] ?? 99;
+
+  return [sectionRank, numeric, trimmed];
+}
+
 export default function SchoolResultsPage() {
   const { toast } = useToast();
 
@@ -162,6 +199,18 @@ export default function SchoolResultsPage() {
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [outstanding]);
 
+  // 👇 Sort classes: Nursery → Primary → JSS → SS, numeric within each
+  const sortedClasses = useMemo(() => {
+    if (!data?.classes) return [];
+    return [...data.classes].sort((a, b) => {
+      const [sa, na, ta] = classSortKey(a.className);
+      const [sb, nb, tb] = classSortKey(b.className);
+      if (sa !== sb) return sa - sb;
+      if (na !== nb) return na - nb;
+      return ta.localeCompare(tb);
+    });
+  }, [data]);
+
   const downloadSchoolResultsPdf = async () => {
     if (!data) return;
     setDownloading(true);
@@ -174,7 +223,7 @@ export default function SchoolResultsPage() {
         totalComplete: data.totalComplete,
         totalPending: data.totalPending,
         overallAverage: data.overallAverage,
-        classes: data.classes.map((c) => ({
+        classes: sortedClasses.map((c) => ({
           className: c.className,
           studentCount: c.studentCount,
           classAverage: c.classAverage,
@@ -364,7 +413,8 @@ export default function SchoolResultsPage() {
             </Card>
           </div>
 
-          {data.classes.map((cls) => (
+          {/* 👇 Iterate over sortedClasses instead of data.classes */}
+          {sortedClasses.map((cls) => (
             <Card key={cls.classId} padding="none">
               <div className="p-6 pb-4 flex items-center justify-between gap-4 flex-wrap">
                 <div>
