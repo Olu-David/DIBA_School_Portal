@@ -107,7 +107,7 @@ namespace DIBA_School_Portal.Server.Controllers
 
         #region Admin Reset Password
         [HttpPost("admin-reset-password")]
-        [Authorize(Roles = "SuperAdmin,Principal,Registrar")]
+        [Authorize(Roles = "SuperAdmin,Principal,SchoolAdmin,Registrar")]   // ← add SchoolAdmin
         [ProducesResponseType(typeof(ServiceResponse<bool>), StatusCodes.Status200OK)]
         public async Task<IActionResult> AdminResetPassword([FromBody] AdminResetPasswordDto request)
         {
