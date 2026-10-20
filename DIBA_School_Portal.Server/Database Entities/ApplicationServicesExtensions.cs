@@ -31,9 +31,10 @@ namespace DIBA_School_Portal.Server.Database_Entities
                 services.AddScoped<ISubjectService, SubjectService>();
                 services.AddScoped<ITermSubjectResultService, TermSubjectResultService>();
                 services.AddScoped<IStudentService, StudentService>();
+                services.AddScoped<IPromotionService, PromotionService>();
 
-                // ---------- Teachers ----------
-                services.AddScoped<ITeacherService, TeacherService>();
+            // ---------- Teachers ----------
+            services.AddScoped<ITeacherService, TeacherService>();
 
                 // ---------- Parents ----------
                 services.AddScoped<IParentService, ParentService>();
