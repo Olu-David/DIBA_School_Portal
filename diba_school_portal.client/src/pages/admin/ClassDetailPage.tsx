@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Users, Save, Check, BookOpen, Lock, Unlock, X,
@@ -27,7 +27,7 @@ interface SubjectRow {
   subjectId: string;
   name: string;
   code: string;
-  isAssigned: boolean;   // saved state from DB
+  isAssigned: boolean;   // ← comes from server now
   stream: StreamNum | null;
 }
 
@@ -48,15 +48,17 @@ export default function ClassDetailPage() {
   const [students, setStudents] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
 
-  /* assignments = what's currently ticked in the editor (before save) */
+  /* assignments = what's currently ticked (before save) */
   const [assignments, setAssignments] = useState<Map<string, StreamNum | null>>(
-    new Map()
+    () => new Map()
   );
 
-  /* savedSubjectIds = what was actually saved in the DB (from the last load) */
-  const [savedSubjectIds, setSavedSubjectIds] = useState<Set<string>>(new Set());
+  /* savedSubjectIds = what was last persisted */
+  const [savedSubjectIds, setSavedSubjectIds] = useState<Set<string>>(
+    () => new Set()
+  );
 
-  /* editSaved = when true, saved subjects become unlocked for re-editing */
+  /* editSaved = unlock saved rows for re-editing */
   const [editSaved, setEditSaved] = useState(false);
 
   const [loading, setLoading] = useState(true);
@@ -64,17 +66,16 @@ export default function ClassDetailPage() {
 
   const isSSClass = cls?.academicSection === "SeniorSecondary";
 
-  /* Anything that was saved counts as locked unless editSaved is on */
   const isLocked = (subjectId: string) =>
     savedSubjectIds.has(subjectId) && !editSaved;
 
-  /* If nothing is saved yet, the whole editor is editable */
   const hasSavedSubjects = savedSubjectIds.size > 0;
 
-  const canEditSubjects = canEditRole;
-
+  /* ---------------- Load ---------------- */
   useEffect(() => {
     if (!classId) return;
+    let cancelled = false;
+
     (async () => {
       setLoading(true);
       try {
@@ -85,7 +86,7 @@ export default function ClassDetailPage() {
 
         if (canEditRole) {
           requests.push(
-            api.get<ApiResponse<SubjectRow[]>>(
+            api.get<ApiResponse<any[]>>(
               `/schoolclass/${classId}/subjects-selection`
             )
           );
@@ -96,23 +97,27 @@ export default function ClassDetailPage() {
         }
 
         const [c, s, subj] = await Promise.all(requests);
+        if (cancelled) return;
 
         if (c.data.success) setCls(c.data.data);
         if (s.data.success) setStudents(s.data.data);
 
         if (subj.data.success) {
+          /* The read-only endpoint returns only assigned subjects,
+             so default `isAssigned` to true for that path. */
+          const isReadOnlyList = !canEditRole;
+
           const rows: SubjectRow[] = subj.data.data.map((x: any) => ({
             subjectId: x.subjectId ?? x.id,
             name: x.name,
             code: x.code ?? "",
-            isAssigned: !!x.isAssigned,
+            isAssigned: isReadOnlyList ? true : !!x.isAssigned,
             stream:
               typeof x.stream === "number" ? (x.stream as StreamNum) : null,
           }));
 
           setSubjects(rows);
 
-          /* Build the editor map from what's saved */
           const map = new Map<string, StreamNum | null>();
           const saved = new Set<string>();
           rows.forEach((r) => {
@@ -124,67 +129,72 @@ export default function ClassDetailPage() {
           setAssignments(map);
           setSavedSubjectIds(saved);
         }
+      } catch (err: unknown) {
+        const e2 = err as { response?: { data?: { message?: string } } };
+        if (!cancelled)
+          toast({
+            variant: "error",
+            title: e2?.response?.data?.message ?? "Failed to load class",
+          });
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId, canEditRole]);
 
-  /* ==========================================================
-     Editor actions
-     ========================================================== */
+  /* ---------------- Editor actions ---------------- */
   const toggleSubject = (id: string) => {
-    if (!canEditSubjects) return;
-    if (isLocked(id)) return; // saved + locked → ignore
+    if (!canEditRole || isLocked(id)) return;
 
-    const next = new Map(assignments);
-    if (next.has(id)) next.delete(id);
-    else next.set(id, null);
-    setAssignments(next);
+    setAssignments((prev) => {
+      const next = new Map(prev);
+      if (next.has(id)) next.delete(id);
+      else next.set(id, null);
+      return next;
+    });
   };
 
   const setStreamFor = (id: string, stream: StreamNum | null) => {
-    if (!canEditSubjects) return;
-    if (isLocked(id)) return;
+    if (!canEditRole || isLocked(id)) return;
 
-    const next = new Map(assignments);
-    if (next.has(id)) {
+    setAssignments((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Map(prev);
       next.set(id, stream);
-      setAssignments(next);
-    }
+      return next;
+    });
   };
 
-  /* Select all = add every unsaved subject with stream=null.
-     Saved ones stay as they are (unless editSaved is on, then they're
-     still added — but they're already there). */
   const selectAll = () => {
-    if (!canEditSubjects) return;
-    const next = new Map(assignments);
-    subjects.forEach((s) => {
-      if (!next.has(s.subjectId)) next.set(s.subjectId, null);
+    if (!canEditRole) return;
+    setAssignments((prev) => {
+      const next = new Map(prev);
+      subjects.forEach((s) => {
+        if (!isLocked(s.subjectId)) next.set(s.subjectId, next.get(s.subjectId) ?? null);
+      });
+      return next;
     });
-    setAssignments(next);
   };
 
-  /* Clear = remove everything that isn't locked */
   const clearAll = () => {
-    if (!canEditSubjects) return;
-    const next = new Map<string, StreamNum | null>();
-    assignments.forEach((stream, id) => {
-      if (isLocked(id)) next.set(id, stream); // keep locked ones
+    if (!canEditRole) return;
+    setAssignments((prev) => {
+      const next = new Map<string, StreamNum | null>();
+      prev.forEach((stream, id) => {
+        if (isLocked(id)) next.set(id, stream);
+      });
+      return next;
     });
-    setAssignments(next);
   };
 
-  /* Unlock saved subjects for re-editing */
-  const unlockSaved = () => {
-    if (!canEditSubjects) return;
-    setEditSaved(true);
-  };
+  const unlockSaved = () => canEditRole && setEditSaved(true);
 
-  /* Re-lock without saving changes */
   const relockSaved = () => {
-    /* Reset assignments to what's saved in the DB */
     const map = new Map<string, StreamNum | null>();
     subjects.forEach((s) => {
       if (s.isAssigned) map.set(s.subjectId, s.stream);
@@ -194,7 +204,7 @@ export default function ClassDetailPage() {
   };
 
   const saveSubjects = async () => {
-    if (!classId || !canEditSubjects) return;
+    if (!classId || !canEditRole) return;
     setSavingSubjects(true);
     try {
       const payload: AssignmentItem[] = Array.from(assignments.entries()).map(
@@ -211,18 +221,16 @@ export default function ClassDetailPage() {
         return;
       }
 
-      /* Reflect new saved state in the UI without a full reload */
       const newSaved = new Set<string>(assignments.keys());
       setSavedSubjectIds(newSaved);
       setEditSaved(false);
 
-      /* Update isAssigned on the local rows so the badges stay correct */
       setSubjects((prev) =>
         prev.map((s) => ({
           ...s,
           isAssigned: newSaved.has(s.subjectId),
           stream: newSaved.has(s.subjectId)
-            ? (assignments.get(s.subjectId) ?? null)
+            ? assignments.get(s.subjectId) ?? null
             : s.stream,
         }))
       );
@@ -242,9 +250,16 @@ export default function ClassDetailPage() {
     }
   };
 
-  /* ==========================================================
-     Render guards
-     ========================================================== */
+  /* ---------------- Derived UI values ---------------- */
+  const unsavedCount = useMemo(() => {
+    let n = 0;
+    assignments.forEach((_, id) => {
+      if (!savedSubjectIds.has(id)) n++;
+    });
+    return n;
+  }, [assignments, savedSubjectIds]);
+
+  /* ---------------- Render guards ---------------- */
   if (loading)
     return (
       <Card>
@@ -258,7 +273,9 @@ export default function ClassDetailPage() {
         <EmptyState
           icon={Users}
           title="Class not found"
-          action={<Button onClick={() => navigate("/admin/classes")}>Back</Button>}
+          action={
+            <Button onClick={() => navigate("/admin/classes")}>Back</Button>
+          }
         />
       </Card>
     );
@@ -278,11 +295,15 @@ export default function ClassDetailPage() {
       <PageHeader
         eyebrow={cls.academicSection}
         title={cls.name}
-        description={`${students.length} student${students.length !== 1 ? "s" : ""} - ${savedSubjectIds.size} subject${savedSubjectIds.size !== 1 ? "s" : ""} saved`}
+        description={`${students.length} student${
+          students.length !== 1 ? "s" : ""
+        } - ${savedSubjectIds.size} subject${
+          savedSubjectIds.size !== 1 ? "s" : ""
+        } saved`}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Students */}
+        {/* ---------------- Students ---------------- */}
         <Card padding="none">
           <div className="p-6 pb-4">
             <h3 className="text-[15px] font-semibold text-surface-900">
@@ -321,7 +342,7 @@ export default function ClassDetailPage() {
           )}
         </Card>
 
-        {/* Subjects */}
+        {/* ---------------- Subjects ---------------- */}
         <Card padding="none">
           <div className="p-6 pb-4">
             <div className="flex items-start justify-between gap-3">
@@ -343,7 +364,7 @@ export default function ClassDetailPage() {
                 </p>
               </div>
 
-              {canEditSubjects && (
+              {canEditRole && (
                 <div className="flex items-center gap-2 flex-wrap">
                   {hasSavedSubjects && !editSaved && (
                     <button
@@ -365,25 +386,21 @@ export default function ClassDetailPage() {
                       Cancel edits
                     </button>
                   )}
-                  {!hasSavedSubjects && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={selectAll}
-                        className="text-[11px] font-medium text-brand-600 hover:text-brand-700"
-                      >
-                        Select all
-                      </button>
-                      <span className="text-surface-300">|</span>
-                      <button
-                        type="button"
-                        onClick={clearAll}
-                        className="text-[11px] font-medium text-surface-500 hover:text-surface-700"
-                      >
-                        Clear
-                      </button>
-                    </>
-                  )}
+                  <button
+                    type="button"
+                    onClick={selectAll}
+                    className="text-[11px] font-medium text-brand-600 hover:text-brand-700"
+                  >
+                    Select all
+                  </button>
+                  <span className="text-surface-300">|</span>
+                  <button
+                    type="button"
+                    onClick={clearAll}
+                    className="text-[11px] font-medium text-surface-500 hover:text-surface-700"
+                  >
+                    Clear
+                  </button>
                 </div>
               )}
             </div>
@@ -414,7 +431,7 @@ export default function ClassDetailPage() {
                   >
                     <Checkbox
                       checked={isOn}
-                      disabled={!canEditSubjects || rowLocked}
+                      disabled={!canEditRole || rowLocked}
                       onChange={() => toggleSubject(s.subjectId)}
                     />
 
@@ -437,7 +454,7 @@ export default function ClassDetailPage() {
                       )}
                     </div>
 
-                    {isSSClass && isOn && canEditSubjects && !rowLocked && (
+                    {isSSClass && isOn && canEditRole && !rowLocked && (
                       <select
                         value={currentStream === null ? "" : String(currentStream)}
                         onChange={(e) =>
@@ -465,24 +482,26 @@ export default function ClassDetailPage() {
                       </Badge>
                     )}
 
-                    {isOn && <Check className="w-4 h-4 text-brand-600 shrink-0" />}
+                    {isOn && (
+                      <Check className="w-4 h-4 text-brand-600 shrink-0" />
+                    )}
                   </div>
                 );
               })}
             </div>
           )}
 
-          {canEditSubjects && subjects.length > 0 && (
+          {canEditRole && subjects.length > 0 && (
             <div className="p-6 pt-4 border-t border-surface-100 flex items-center justify-between gap-3">
               <p className="text-[12px] text-surface-500">
-                {assignments.size} subject{assignments.size !== 1 ? "s" : ""}{" "}
-                selected · {savedSubjectIds.size} saved
+                {assignments.size} selected · {savedSubjectIds.size} saved
+                {unsavedCount > 0 && (
+                  <span className="text-brand-600 ml-1">
+                    · {unsavedCount} unsaved
+                  </span>
+                )}
               </p>
-              <Button
-                icon={Save}
-                loading={savingSubjects}
-                onClick={saveSubjects}
-              >
+              <Button icon={Save} loading={savingSubjects} onClick={saveSubjects}>
                 Save subjects
               </Button>
             </div>
