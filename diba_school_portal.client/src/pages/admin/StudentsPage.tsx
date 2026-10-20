@@ -10,10 +10,16 @@ import {
   Select, Avatar, Badge, Skeleton,
 } from "../../components/ui";
 import { useDebounce } from "../../hooks/useDebounce";
+import { useRole } from "../../hooks/useRole";
 import { formatNaira } from "../../lib/format";
 import api from "../../lib/api";
 import type { ApiResponse, Paginated } from "../../types/common";
 import type { StudentRow } from "../../types/student";
+
+/* Only these roles may open the enrolment form. Mirrors the server-side
+   [Authorize(Roles = ...)] on POST /student so the button never leads
+   into a redirect-to-home. */
+const ENROLL_ROLES = ["SuperAdmin", "Principal", "SchoolAdmin"];
 
 const STREAM_TONE: Record<string, "rose" | "sky" | "violet" | "brand" | "amber"> = {
   Science: "sky",
@@ -24,6 +30,9 @@ const STREAM_TONE: Record<string, "rose" | "sky" | "violet" | "brand" | "amber">
 
 export default function StudentsPage() {
   const navigate = useNavigate();
+  const { role } = useRole();
+
+  const canEnroll = !!role && ENROLL_ROLES.includes(role);
 
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,9 +101,14 @@ export default function StudentsPage() {
             <Button variant="secondary" icon={Download}>
               Export
             </Button>
-            <Button icon={UserPlus} onClick={() => navigate("/admin/students/new")}>
-              Enrol student
-            </Button>
+            {canEnroll && (
+              <Button
+                icon={UserPlus}
+                onClick={() => navigate("/admin/students/new")}
+              >
+                Enrol student
+              </Button>
+            )}
           </>
         }
       />
@@ -159,11 +173,20 @@ export default function StudentsPage() {
           <EmptyState
             icon={Users}
             title="No students found"
-            description="Try adjusting your filters, or enrol a new student."
+            description={
+              canEnroll
+                ? "Try adjusting your filters, or enrol a new student."
+                : "Try adjusting your filters."
+            }
             action={
-              <Button icon={UserPlus} onClick={() => navigate("/admin/students/new")}>
-                Enrol student
-              </Button>
+              canEnroll ? (
+                <Button
+                  icon={UserPlus}
+                  onClick={() => navigate("/admin/students/new")}
+                >
+                  Enrol student
+                </Button>
+              ) : undefined
             }
           />
         ) : (
@@ -332,7 +355,10 @@ export default function StudentsPage() {
               this page have unpaid balances.
             </p>
           </div>
-          <Button variant="secondary" onClick={() => navigate("/admin/finance/arrears")}>
+          <Button
+            variant="secondary"
+            onClick={() => navigate("/admin/finance/arrears")}
+          >
             View arrears
           </Button>
         </div>
