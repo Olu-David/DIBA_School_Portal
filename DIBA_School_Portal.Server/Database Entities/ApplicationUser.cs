@@ -46,6 +46,6 @@ namespace DIBA_School_Portal.Server.Database_Entities
         public virtual ICollection<NotificationLog> Notifications { get; set; }
             = new List<NotificationLog>();
         public bool MustChangePassword { get;  set; }
-        public virtual SchoolClass? Class { get;  set; }
+      
     }
 }
