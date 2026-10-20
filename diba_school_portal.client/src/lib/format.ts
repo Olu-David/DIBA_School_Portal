@@ -50,3 +50,12 @@ export function formatDateTime(value: string | Date | null | undefined): string 
     minute: "2-digit",
   });
 }
+export function withCacheBust(
+  url: string | null | undefined,
+  version?: string | number | null
+): string | undefined {
+  if (!url) return undefined;
+  if (version == null || version === "") return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}v=${encodeURIComponent(String(version))}`;
+}

@@ -6,7 +6,7 @@ export type UserRole =
   | "VicePrincipal"
   | "SchoolAdmin"
   | "Accountant"
-  | "Cashier"       
+  | "Cashier"
   | "Registrar"
   | "Teacher"
   | "FormTeacher"
@@ -24,6 +24,12 @@ export interface AuthUser {
   classId?: string | null;
   className?: string | null;
   mustChangePassword?: boolean;
+
+  /** Bumped whenever the picture changes — used for cache-busting. */
+  updatedAt?: string | null;
+
+  /** Used on the profile page (kept so it's not wiped on edit). */
+  phoneNumber?: string | null;
 }
 
 export interface LoginResponse {
@@ -39,4 +45,5 @@ export interface AuthContextValue {
   login: (data: LoginResponse) => void;
   logout: () => void;
   updateUser: (patch: Partial<AuthUser>) => void;
+  refreshUser: () => Promise<void>;
 }

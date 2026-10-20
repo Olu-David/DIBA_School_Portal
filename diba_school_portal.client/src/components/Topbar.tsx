@@ -3,7 +3,9 @@ import { Menu, Bell } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useRole } from "../hooks/useRole";
 import { roleLabel, roleTone } from "../lib/roles";
+import { withCacheBust } from "../lib/format";
 import { Badge } from "./ui";
+import Avatar from "./ui/Avatar";
 import NotificationsDrawer from "../pages/shared/NotificationsDrawer";
 
 interface TopbarProps {
@@ -14,6 +16,9 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
   const { user } = useAuth();
   const { role } = useRole();
   const [notifOpen, setNotifOpen] = useState(false);
+
+  const displayName =
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "?";
 
   return (
     <>
@@ -46,9 +51,11 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
         </button>
 
         <div className="flex items-center gap-2 pl-3 ml-1 border-l border-surface-200">
-          <div className="w-8 h-8 rounded-full bg-brand-500 grid place-items-center text-[11px] font-semibold text-white">
-            {(user?.firstName?.[0] ?? "") + (user?.lastName?.[0] ?? "")}
-          </div>
+          <Avatar
+            name={displayName}
+            src={withCacheBust(user?.profilePictureUrl, user?.updatedAt ?? null)}
+            size="sm"
+          />
         </div>
       </header>
 

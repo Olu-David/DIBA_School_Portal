@@ -8,6 +8,7 @@ import {
 } from "../../components/ui";
 import { useToast } from "../../hooks/useToast";
 import { useAuth } from "../../hooks/useAuth";
+import { withCacheBust } from "../../lib/format";
 import api from "../../lib/api";
 import type { ApiResponse } from "../../types/common";
 
@@ -16,6 +17,7 @@ interface UpdateProfileResponse {
   email: string | null;
   firstName: string;
   lastName: string;
+  phoneNumber: string | null;       // ← now included
   profilePictureUrl: string | null;
   role: string;
   classId: string | null;
@@ -30,7 +32,7 @@ export default function ProfilePage() {
   const [profileForm, setProfileForm] = useState({
     firstName: user?.firstName ?? "",
     lastName: user?.lastName ?? "",
-    phoneNumber: "",
+    phoneNumber: user?.phoneNumber ?? "",   // ← prefill, don't wipe
   });
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -44,11 +46,22 @@ export default function ProfilePage() {
   });
   const [pwSubmitting, setPwSubmitting] = useState(false);
 
+  // Keep the form prefill in sync if the user logs in / refreshes later.
+  useEffect(() => {
+    if (!editing) {
+      setProfileForm({
+        firstName: user?.firstName ?? "",
+        lastName: user?.lastName ?? "",
+        phoneNumber: user?.phoneNumber ?? "",
+      });
+    }
+  }, [user?.firstName, user?.lastName, user?.phoneNumber, editing]);
+
   const startEditing = () => {
     setProfileForm({
       firstName: user?.firstName ?? "",
       lastName: user?.lastName ?? "",
-      phoneNumber: "",
+      phoneNumber: user?.phoneNumber ?? "",   // ← prefill on open too
     });
     setEditing(true);
   };
@@ -82,6 +95,7 @@ export default function ProfilePage() {
       updateUser({
         firstName: data.data.firstName,
         lastName: data.data.lastName,
+        phoneNumber: data.data.phoneNumber,   // ← keep cached copy fresh
       });
 
       toast({ variant: "success", title: "Profile updated" });
@@ -108,13 +122,16 @@ export default function ProfilePage() {
 
     if (file.size > 200 * 1024) {
       toast({ variant: "error", title: "Picture must be under 200 KB." });
+      e.target.value = "";   // allow picking the same file again
       return;
     }
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       toast({ variant: "error", title: "Only JPG, PNG, or WEBP are allowed." });
+      e.target.value = "";
       return;
     }
 
+    // Local preview so the picture swaps instantly while uploading.
     const previewLocal = URL.createObjectURL(file);
     setPreviewUrl(previewLocal);
     setUploading(true);
@@ -134,7 +151,17 @@ export default function ProfilePage() {
         return;
       }
 
-      updateUser({ profilePictureUrl: data.data });
+      // Update the cached user AND bump the cache-bust version so the
+      // browser refetches the server image even if the URL didn't change.
+      updateUser({
+        profilePictureUrl: data.data,
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Drop the local blob preview — the render now falls back to the
+      // authoritative server URL (which we just cache-busted).
+      setPreviewUrl(null);
+
       toast({ variant: "success", title: "Profile picture updated" });
     } catch (err: unknown) {
       const e2 = err as {
@@ -238,7 +265,12 @@ export default function ProfilePage() {
     }
   };
 
-  const displayPicture = previewUrl ?? user?.profilePictureUrl ?? null;
+  // Blob preview wins while uploading; otherwise the server URL (cache-busted).
+  const serverPicture = withCacheBust(
+    user?.profilePictureUrl,
+    user?.updatedAt ?? null
+  );
+  const displayPicture = previewUrl ?? serverPicture ?? null;
 
   if (!user) {
     return (
@@ -272,7 +304,6 @@ export default function ProfilePage() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-6">
           {/* ---------- Avatar block ---------- */}
           <div className="flex flex-col items-center shrink-0">
-            {/* The clickable area — wraps avatar AND camera so any click works */}
             <button
               type="button"
               onClick={pickFile}
@@ -287,7 +318,6 @@ export default function ProfilePage() {
                 size="xl"
               />
 
-              {/* ---------- Camera badge — always visible ---------- */}
               <div className="absolute bottom-0 right-0 z-10 w-8 h-8 rounded-full bg-emerald-600 text-white ring-2 ring-white shadow-md grid place-items-center transition-transform group-hover:scale-110 group-disabled:scale-100">
                 {uploading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -297,7 +327,6 @@ export default function ProfilePage() {
               </div>
             </button>
 
-            {/* Hidden file input */}
             <input
               ref={fileInputRef}
               type="file"
@@ -306,7 +335,6 @@ export default function ProfilePage() {
               onChange={handleFileChange}
             />
 
-            {/* Help text under avatar so users know it's clickable */}
             <p className="mt-3 text-[11px] text-slate-500 text-center">
               {uploading ? "Uploading…" : "Click photo to change"}
             </p>

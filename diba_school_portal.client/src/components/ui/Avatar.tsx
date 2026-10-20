@@ -1,4 +1,6 @@
-﻿interface Props {
+﻿import { useEffect, useState } from "react";
+
+interface Props {
   name: string;
   src?: string | null;
   size?: "sm" | "md" | "lg" | "xl";
@@ -12,23 +14,38 @@ const s = {
 };
 
 function initials(name: string) {
-  const parts = name.trim().split(" ").filter(Boolean);
+  const parts = name.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "?";
-  return parts.slice(0, 2).map((p) => p[0].toUpperCase()).join("");
+  return parts
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
+    .join("");
 }
 
 export default function Avatar({ name, src, size = "md" }: Props) {
-  if (src) {
+  const [errored, setErrored] = useState(false);
+
+  // Reset when src changes — otherwise a bad URL (e.g. a transient 404)
+  // would leave the avatar stuck on initials forever, even after re-upload.
+  useEffect(() => {
+    setErrored(false);
+  }, [src]);
+
+  if (src && !errored) {
     return (
       <img
         src={src}
         alt={name}
-        className={`${s[size]} rounded-full object-cover border border-surface-200`}
+        onError={() => setErrored(true)}
+        className={`${s[size]} rounded-full object-cover border border-surface-200 shrink-0`}
       />
     );
   }
+
   return (
-    <div className={`${s[size]} rounded-full bg-gradient-to-br from-brand-400 to-brand-600 grid place-items-center text-white font-semibold shrink-0`}>
+    <div
+      className={`${s[size]} rounded-full bg-gradient-to-br from-brand-400 to-brand-600 grid place-items-center text-white font-semibold shrink-0`}
+    >
       {initials(name)}
     </div>
   );
