@@ -112,6 +112,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
                     AcademicSessionId = session.Id,
                     StartDate = startDate,
                     EndDate = startDate.AddMonths(4),
+                    TermOrder=1,
                     IsCurrentTerm = true,
                 },
                 new SchoolTerm
@@ -121,6 +122,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
                     AcademicSessionId = session.Id,
                     StartDate = startDate.AddMonths(4),
                     EndDate = startDate.AddMonths(8),
+                    TermOrder=2,
                     IsCurrentTerm = false,
                 },
                 new SchoolTerm
@@ -130,6 +132,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
                     AcademicSessionId = session.Id,
                     StartDate = startDate.AddMonths(8),
                     EndDate = endDate,
+                    TermOrder=3,
                     IsCurrentTerm = false,
                 }
             );

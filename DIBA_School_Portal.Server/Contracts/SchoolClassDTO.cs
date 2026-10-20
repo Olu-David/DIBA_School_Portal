@@ -11,5 +11,7 @@ namespace DIBA_School_Portal.Server.Contracts
         public AcademicSection AcademicSection { get; set; }
         public int DisplayOrder { get; set; }
         public int StudentCount { get; set; }
+        public Guid? NextClassId { get;  set; }
+        public string? NextClassName { get;  set; }
     }
 }

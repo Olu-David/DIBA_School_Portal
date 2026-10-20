@@ -21,6 +21,7 @@ namespace DIBA_School_Portal.Server.Entities
         public AcademicSession AcademicSession { get; set; } = null!;
 
         public virtual ICollection<Fee> Fees { get; set; } = new List<Fee>();
+        public int TermOrder { get; set; } // 1, 2, 3
         public DateTime? StartDate { get;  set; }
         public DateTime? EndDate { get;  set; }
     }

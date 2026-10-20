@@ -24,6 +24,9 @@ export interface AuthUser {
   classId?: string | null;
   className?: string | null;
   mustChangePassword?: boolean;
+   isGraduated?: boolean;
+  graduationDate?: string | null;
+  graduationSession?: string | null;
 
   /** Bumped whenever the picture changes — used for cache-busting. */
   updatedAt?: string | null;

@@ -37,7 +37,10 @@ namespace DIBA_School_Portal.Server.Entities
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        public ClassStream? Stream { get; set; } 
+        public ClassStream? Stream { get; set; }
+        public bool IsGraduated { get; set; }
+        public DateTime? GraduationDate { get; set; }
+        public string? GraduationSession { get; set; }
 
         // --- Updated Collections to match your actual entities ---
         public ICollection<StudentEnrollment> Enrollments { get; set; } = new List<StudentEnrollment>();

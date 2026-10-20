@@ -16,7 +16,9 @@ namespace DIBA_School_Portal.Server.Database_Entities
                 services.AddHostedService<EmailWorker>();
                 services.AddHostedService<SmsWorker>();
 
-                return services;
+            services.AddHostedService<PromotionAutoRunner>();
+
+            return services;
             }
   }
 }

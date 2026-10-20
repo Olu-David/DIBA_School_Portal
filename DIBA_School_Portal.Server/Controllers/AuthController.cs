@@ -1,23 +1,30 @@
 ﻿using DIBA_School_Portal.Server.Contracts;
 using DIBA_School_Portal.Server.Contracts.FinanceDto;
 using DIBA_School_Portal.Server.Contracts.StudentDTO;
+using DIBA_School_Portal.Server.Database_Entities;
 using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace DIBA_School_Portal.Server.Controllers
-{
+{ 
     [ApiController]
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
         #region Fields
         private readonly IAuthService _auth;
+        private UserManager<ApplicationUser> _userManager;
+        private AppDbContext _context;
 
-        public AuthController(IAuthService auth)
+        public AuthController(IAuthService auth, UserManager<ApplicationUser> userManager, AppDbContext Context)
         {
             _auth = auth ?? throw new ArgumentNullException(nameof(auth));
+            _userManager = userManager;
+            _context = Context;
         }
 
         // Current user's ID from JWT
@@ -149,5 +156,34 @@ namespace DIBA_School_Portal.Server.Controllers
             return StatusCode(result.StatusCode, result);
         }
         #endregion
+
+        [HttpGet("me")]
+        [Authorize]
+        public async Task<IActionResult> Me()
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user is null) return Unauthorized();
+
+            var student = await _context.Students
+                .FirstOrDefaultAsync(s => s.UserId == user.Id);
+
+            return Ok(new
+            {
+                user.Id,
+                user.FirstName,
+                user.LastName,
+                user.Email,
+                user.PhoneNumber,
+                user.ProfilePictureUrl,
+                Role = user.PrimaryRole,
+                user.ClassId,
+                ClassName = user.Class?.Name??"",
+                user.MustChangePassword,
+                user.UpdatedAt,
+                IsGraduated = student?.IsGraduated ?? false,
+                GraduationDate = student?.GraduationDate,
+                GraduationSession = student?.GraduationSession,
+            });
+        }
     }
 }

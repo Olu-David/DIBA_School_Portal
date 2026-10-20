@@ -27,6 +27,10 @@ namespace DIBA_School_Portal.Server.Configurations
                    .WithOne(f => f.SchoolClass)
                    .HasForeignKey(f => f.SchoolClassId)
                    .OnDelete(DeleteBehavior.Restrict);
+            builder.HasOne(x => x.NextClass)
+                  .WithMany(x => x.PreviousClasses)
+                        .HasForeignKey(x => x.NextClassId)
+                     .OnDelete(DeleteBehavior.SetNull);
 
 
 

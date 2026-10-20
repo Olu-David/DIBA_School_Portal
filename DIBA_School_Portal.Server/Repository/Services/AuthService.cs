@@ -1310,7 +1310,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
         #region Admin Reset Password
         public async Task<ServiceResponse<bool>> AdminResetPasswordAsync(
-            string currentUserId, AdminResetPasswordDto request, string ipAddress)
+     string currentUserId, AdminResetPasswordDto request, string ipAddress)
         {
             var response = new ServiceResponse<bool>();
 
@@ -1325,8 +1325,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
 
             var callerRoles = await _userManager.GetRolesAsync(caller);
-
-            // Roles allowed to reset other users' passwords
             var passwordResetters = new[]
             {
         "SuperAdmin", "Principal", "SchoolAdmin", "Registrar"
@@ -1342,33 +1340,54 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             // ---------- 2. Resolve target user ----------
             ApplicationUser? target = null;
+            string resolveReason = "no identifier provided";
 
             if (!string.IsNullOrWhiteSpace(request.TargetUserId))
             {
-                target = await _userManager.FindByIdAsync(request.TargetUserId);
+                var trimmedId = request.TargetUserId.Trim();
+                target = await _userManager.FindByIdAsync(trimmedId);
+                resolveReason = target != null
+                    ? $"resolved from targetUserId {trimmedId}"
+                    : $"targetUserId '{trimmedId}' does not match any user";
             }
             else if (request.StudentProfileId.HasValue && request.StudentProfileId.Value != Guid.Empty)
             {
-                // Resolve userId from the StudentProfileId
                 var student = await _context.Students
                     .AsNoTracking()
                     .FirstOrDefaultAsync(s => s.Id == request.StudentProfileId.Value);
 
-                if (student != null)
+                if (student == null)
+                {
+                    resolveReason = $"studentProfileId '{request.StudentProfileId}' does not exist";
+                }
+                else if (string.IsNullOrEmpty(student.UserId))
+                {
+                    resolveReason = $"student {student.AdmissionNumber} has no linked UserId";
+                }
+                else
+                {
                     target = await _userManager.FindByIdAsync(student.UserId);
+                    resolveReason = target != null
+                        ? $"resolved via student {student.AdmissionNumber} → user {student.UserId}"
+                        : $"student {student.AdmissionNumber} points to UserId {student.UserId} which does not exist";
+                }
             }
 
             if (target == null)
             {
+                await _auditLog.LogActivityAsync(
+                    currentUserId, "Password Reset FAILED",
+                    $"Could not resolve target. Reason: {resolveReason}.",
+                    ipAddress);
+
                 response.Success = false;
-                response.Message = "User not found. Provide a valid targetUserId or studentProfileId.";
+                response.Message = $"User not found ({resolveReason}).";
                 response.StatusCode = 404;
                 return response;
             }
 
             // ---------- 3. Validate password ----------
-            if (string.IsNullOrWhiteSpace(request.NewPassword) ||
-                request.NewPassword.Length < 8)
+            if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
             {
                 response.Success = false;
                 response.Message = "Password must be at least 8 characters.";
@@ -1399,7 +1418,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                     await _auditLog.LogActivityAsync(
                         currentUserId, "Password Reset DENIED",
-                        $"Attempted to reset password for protected user {target.Id} ({string.Join(",", targetRoles)}).",
+                        $"Attempted to reset password for protected user {target.Id} " +
+                        $"({string.Join(",", targetRoles)}).",
                         ipAddress);
 
                     return response;

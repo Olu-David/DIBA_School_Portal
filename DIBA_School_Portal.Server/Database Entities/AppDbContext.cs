@@ -17,6 +17,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
         public DbSet<SchoolClass> SchoolClasses { get; set; }
         public DbSet<Subject> Subjects { get; set; }
         public DbSet<ClassSubject> ClassSubjects { get; set; }
+        public DbSet<PromotionRecord> PromotionRecords { get; set; }
 
         // ---- Results ----
         public DbSet<TermResult> TermResults { get; set; }
