@@ -1,5 +1,5 @@
 import { GraduationCap, PartyPopper } from "lucide-react";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../../hooks/useAuth";                 // ← fixed
 
 export default function GraduationBanner() {
   const { user } = useAuth();

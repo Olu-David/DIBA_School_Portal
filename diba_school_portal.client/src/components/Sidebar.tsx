@@ -73,6 +73,10 @@ const R = {
     "SuperAdmin", "Principal", "Headmaster", "Headmistress",
     "VicePrincipal", "SchoolAdmin", "Teacher", "FormTeacher",
   ] as UserRole[],
+
+  // 👇 NEW — end-of-session promotion
+  // Matches App.tsx route guard and PromotionController's [Authorize]
+  promotion: ["SuperAdmin", "Principal", "SchoolAdmin"] as UserRole[],
 };
 
 const NAV_GROUPS: NavGroup[] = [
@@ -110,6 +114,9 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/subjects", label: "Subjects", icon: BookOpen, roles: R.admin },
       { to: "/admin/sessions", label: "Sessions & Terms", icon: CalendarDays, roles: R.admin },
       { to: "/admin/classes", label: "Classes", icon: GraduationCap, roles: R.admin },
+
+      // 👇 NEW — end-of-session promotion
+      { to: "/admin/promotions", label: "Promotions", icon: GraduationCap, roles: R.promotion },
     ],
   },
 
@@ -128,7 +135,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/finance/record-cash",  label: "Record Cash",     icon: Receipt,                 roles: R.cashier },
       { to: "/admin/finance/payments",     label: "Payments",        icon: Receipt,                 roles: R.cashier },
       { to: "/admin/finance/arrears",      label: "Arrears",         icon: AlertTriangle,           roles: R.cashier },
-      // 👇 NEW
       { to: "/admin/finance/expenses",     label: "Expenses",        icon: TrendingDown,            roles: R.finance },
       { to: "/admin/finance/fees",         label: "Fee Structures",  icon: Wallet,                  roles: R.finance },
     ],

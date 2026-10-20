@@ -1,7 +1,8 @@
 ﻿import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./hooks/useToast";
+import { useAuth } from "./hooks/useAuth";
 import ProtectedRoute from "./components/ProtectedRoute";
 import {
   STAFF_ROLES,
@@ -62,6 +63,9 @@ const ReportCardsPage = lazy(() => import("./pages/admin/ReportCardsPage"));
 const MyAssignmentsPage = lazy(() => import("./pages/admin/MyAssignmentsPage"));
 const SubmittedResultsPage = lazy(() => import("./pages/admin/SubmittedResultsPage"));
 
+// 👇 NEW: Promotions (end-of-session moves + graduation)
+const PromotionPage = lazy(() => import("./pages/admin/promotions"));
+
 // ==========================================================
 // Finance — lazy
 // ==========================================================
@@ -70,7 +74,6 @@ const RecordCash = lazy(() => import("./pages/finance/RecordCash"));
 const PaymentsListPage = lazy(() => import("./pages/finance/PaymentsListPage"));
 const ArrearsPage = lazy(() => import("./pages/finance/ArrearsPage"));
 const FeesPage = lazy(() => import("./pages/finance/FeesPage"));
-// 👇 NEW
 const ExpensesPage = lazy(() => import("./pages/finance/ExpensesPage"));
 const RecordExpense = lazy(() => import("./pages/finance/RecordExpense"));
 
@@ -105,6 +108,9 @@ const ProfilePage = lazy(() => import("./pages/shared/ProfilePage"));
 const ReportCardViewer = lazy(() => import("./pages/shared/ReportCardViewer"));
 const NotificationsPage = lazy(() => import("./pages/shared/NotificationsPage"));
 
+// ==========================================================
+// Role constants
+// ==========================================================
 const MANAGERS = [
   "SuperAdmin",
   "Principal",
@@ -125,13 +131,8 @@ const CLASSROOM_ROLES = [
   "SchoolAdmin",
 ] as const;
 
-// 👇 NEW — tightened finance split
-// Full finance policy access
-const FINANCE_FULL_ROLES = [
-  "SuperAdmin",
-  "Principal",
-  "Accountant",
-] as const;
+// Finance policy access
+const FINANCE_FULL_ROLES = ["SuperAdmin", "Principal", "Accountant"] as const;
 
 // Cash collection access (Cashier + everyone above)
 const FINANCE_CASHIER_ROLES = [
@@ -141,9 +142,14 @@ const FINANCE_CASHIER_ROLES = [
   "Cashier",
 ] as const;
 
+// Promotions — mirrors the backend [Authorize] on PromotionController
+const PROMOTION_ROLES = ["SuperAdmin", "Principal", "SchoolAdmin"] as const;
+
 // ==========================================================
-// Loading fallback
+// Loading fallbacks
 // ==========================================================
+
+/** Full-screen loader — only used for the very first app load. */
 function PageLoader() {
   return (
     <div className="grid place-items-center min-h-screen bg-slate-50">
@@ -155,6 +161,36 @@ function PageLoader() {
   );
 }
 
+/** Inline loader — used for route transitions so the layout stays put. */
+function InlineLoader() {
+  return (
+    <div className="grid place-items-center py-24">
+      <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-emerald-600 animate-spin" />
+    </div>
+  );
+}
+
+// ==========================================================
+// Role-aware redirect for unknown paths
+// ==========================================================
+function RoleAwareRedirect() {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  // If we're already on a real page, just bounce home.
+  if (location.pathname === "/") {
+    return <Navigate to="/" replace />;
+  }
+
+  if (!user) return <Navigate to="/" replace />;
+  if (user.role === "Student") return <Navigate to="/student" replace />;
+  if (user.role === "Parent") return <Navigate to="/parent" replace />;
+  return <Navigate to="/admin" replace />;
+}
+
+// ==========================================================
+// App
+// ==========================================================
 export default function App() {
   return (
     <BrowserRouter>
@@ -162,7 +198,9 @@ export default function App() {
         <ToastProvider>
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              {/* PUBLIC */}
+              {/* ================================================
+                  PUBLIC
+                  ================================================ */}
               <Route element={<PublicLayout />}>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/about" element={<AboutPage />} />
@@ -171,7 +209,9 @@ export default function App() {
                 <Route path="/contact" element={<ContactPage />} />
               </Route>
 
-              {/* AUTH */}
+              {/* ================================================
+                  AUTH
+                  ================================================ */}
               <Route path="/auth" element={<AuthLayout />}>
                 <Route index element={<Navigate to="/auth/staff" replace />} />
                 <Route path="staff" element={<StaffLogin />} />
@@ -179,27 +219,20 @@ export default function App() {
                 <Route path="parent" element={<ParentLogin />} />
               </Route>
 
-              {/* PAYMENT CALLBACK */}
+              {/* ================================================
+                  PAYMENT CALLBACK
+                  Public by design — the gateway redirects here and the
+                  session may have expired. The page itself verifies the
+                  reference server-side and shows a "log in" prompt if needed.
+                  ================================================ */}
               <Route
-                element={
-                  <ProtectedRoute
-                    allowedRoles={[
-                      "Student",
-                      "Parent",
-                      "Accountant",
-                      "SuperAdmin",
-                      "Principal",
-                    ]}
-                  />
-                }
-              >
-                <Route
-                  path="/student/payment/callback"
-                  element={<PaymentCallbackPage />}
-                />
-              </Route>
+                path="/student/payment/callback"
+                element={<PaymentCallbackPage />}
+              />
 
-              {/* ADMIN */}
+              {/* ================================================
+                  ADMIN (staff)
+                  ================================================ */}
               <Route element={<ProtectedRoute allowedRoles={STAFF_ROLES} />}>
                 <Route path="/admin" element={<AdminLayout />}>
                   <Route index element={<Dashboard />} />
@@ -209,9 +242,7 @@ export default function App() {
                   {/* CLASSES */}
                   <Route path="classes" element={<ClassesPage />} />
                   <Route
-                    element={
-                      <ProtectedRoute allowedRoles={[...MANAGERS] as any} />
-                    }
+                    element={<ProtectedRoute allowedRoles={[...MANAGERS] as any} />}
                   >
                     <Route path="classes/new" element={<NewClassPage />} />
                   </Route>
@@ -220,9 +251,7 @@ export default function App() {
                   {/* STUDENTS */}
                   <Route path="students" element={<StudentsPage />} />
                   <Route
-                    element={
-                      <ProtectedRoute allowedRoles={[...MANAGERS] as any} />
-                    }
+                    element={<ProtectedRoute allowedRoles={[...MANAGERS] as any} />}
                   >
                     <Route path="students/new" element={<NewStudentPage />} />
                   </Route>
@@ -237,9 +266,7 @@ export default function App() {
                   <Route
                     element={
                       <ProtectedRoute
-                        allowedRoles={
-                          ["SuperAdmin", "Principal", "Registrar"] as any
-                        }
+                        allowedRoles={["SuperAdmin", "Principal", "Registrar"] as any}
                       />
                     }
                   >
@@ -257,10 +284,17 @@ export default function App() {
                     <Route path="sessions" element={<AcademicSessionsPage />} />
                   </Route>
 
-                  {/* RESULTS */}
+                  {/* 👇 PROMOTIONS — end-of-session moves + graduation */}
                   <Route
-                    element={<ProtectedRoute allowedRoles={RESULT_VIEWERS} />}
+                    element={
+                      <ProtectedRoute allowedRoles={[...PROMOTION_ROLES] as any} />
+                    }
                   >
+                    <Route path="promotions" element={<PromotionPage />} />
+                  </Route>
+
+                  {/* RESULTS */}
+                  <Route element={<ProtectedRoute allowedRoles={RESULT_VIEWERS} />}>
                     <Route path="results" element={<SchoolResultsPage />} />
                     <Route path="report-cards" element={<ReportCardsPage />} />
                     <Route
@@ -291,9 +325,7 @@ export default function App() {
                   {/* MY CLASSROOM */}
                   <Route
                     element={
-                      <ProtectedRoute
-                        allowedRoles={[...CLASSROOM_ROLES] as any}
-                      />
+                      <ProtectedRoute allowedRoles={[...CLASSROOM_ROLES] as any} />
                     }
                   >
                     <Route path="my-assignments" element={<MyAssignmentsPage />} />
@@ -304,11 +336,7 @@ export default function App() {
                     />
                   </Route>
 
-                  {/* ================================================
-                      FINANCE — split into two permission tiers
-                      ================================================ */}
-
-                  {/* Full finance policy — SuperAdmin, Principal, Accountant */}
+                  {/* FINANCE — full policy */}
                   <Route
                     element={
                       <ProtectedRoute
@@ -318,7 +346,6 @@ export default function App() {
                   >
                     <Route path="finance" element={<FinanceDashboard />} />
                     <Route path="finance/fees" element={<FeesPage />} />
-                    {/* 👇 NEW — expenses only for full finance roles */}
                     <Route path="finance/expenses" element={<ExpensesPage />} />
                     <Route
                       path="finance/record-expense"
@@ -326,7 +353,7 @@ export default function App() {
                     />
                   </Route>
 
-                  {/* Cash collection — Cashier + everyone above */}
+                  {/* FINANCE — cash collection */}
                   <Route
                     element={
                       <ProtectedRoute
@@ -334,15 +361,9 @@ export default function App() {
                       />
                     }
                   >
-                    <Route
-                      path="finance/payments"
-                      element={<PaymentsListPage />}
-                    />
+                    <Route path="finance/payments" element={<PaymentsListPage />} />
                     <Route path="finance/arrears" element={<ArrearsPage />} />
-                    <Route
-                      path="finance/record-cash"
-                      element={<RecordCash />}
-                    />
+                    <Route path="finance/record-cash" element={<RecordCash />} />
                   </Route>
 
                   {/* ENQUIRIES */}
@@ -357,7 +378,9 @@ export default function App() {
                 </Route>
               </Route>
 
-              {/* STUDENT */}
+              {/* ================================================
+                  STUDENT
+                  ================================================ */}
               <Route element={<ProtectedRoute allowedRoles={["Student"]} />}>
                 <Route path="/student" element={<StudentLayout />}>
                   <Route index element={<StudentDashboard />} />
@@ -372,7 +395,9 @@ export default function App() {
                 </Route>
               </Route>
 
-              {/* PARENT */}
+              {/* ================================================
+                  PARENT
+                  ================================================ */}
               <Route element={<ProtectedRoute allowedRoles={["Parent"]} />}>
                 <Route path="/parent" element={<ParentLayout />}>
                   <Route index element={<ParentDashboard />} />
@@ -398,7 +423,10 @@ export default function App() {
                 </Route>
               </Route>
 
-              <Route path="*" element={<Navigate to="/" replace />} />
+              {/* ================================================
+                  CATCH-ALL — role-aware redirect
+                  ================================================ */}
+              <Route path="*" element={<RoleAwareRedirect />} />
             </Routes>
           </Suspense>
         </ToastProvider>
