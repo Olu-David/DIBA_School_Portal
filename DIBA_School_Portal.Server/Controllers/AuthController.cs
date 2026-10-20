@@ -177,7 +177,7 @@ namespace DIBA_School_Portal.Server.Controllers
                 user.ProfilePictureUrl,
                 Role = user.PrimaryRole,
                 user.ClassId,
-                ClassName = user.Class?.Name??"",
+                ClassName = user.SchoolClass?.Name??"",
                 user.MustChangePassword,
                 user.UpdatedAt,
                 IsGraduated = student?.IsGraduated ?? false,
