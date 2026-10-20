@@ -1,6 +1,7 @@
 ﻿using DIBA_School_Portal.Server.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using System.Reflection.Emit;
 
 namespace DIBA_School_Portal.Server.Configurations
 {
@@ -26,6 +27,7 @@ namespace DIBA_School_Portal.Server.Configurations
                    .WithOne(f => f.SchoolClass)
                    .HasForeignKey(f => f.SchoolClassId)
                    .OnDelete(DeleteBehavior.Restrict);
+
 
 
 

@@ -224,6 +224,9 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.Property<Guid>("SchoolClassId")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("Stream")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("SubjectId")
                         .HasColumnType("uuid");
 
@@ -232,7 +235,9 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasIndex("SubjectId");
 
                     b.HasIndex("SchoolClassId", "SubjectId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_ClassSubjects_SchoolClassId_SubjectId")
+                        .HasFilter("\"SubjectId\" IS NOT NULL");
 
                     b.ToTable("ClassSubjects");
                 });
@@ -303,6 +308,106 @@ namespace DIBA_School_Portal.Server.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Enquiries");
+                });
+
+            modelBuilder.Entity("DIBA_School_Portal.Server.Entities.Expense", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("Id");
+
+                    b.Property<Guid?>("AcademicSessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("AcademicSessionId");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("Amount");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("Category");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("Description");
+
+                    b.Property<DateTime>("ExpenseDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ExpenseDate");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text")
+                        .HasColumnName("Notes");
+
+                    b.Property<int>("PaymentGateway")
+                        .HasColumnType("integer")
+                        .HasColumnName("PaymentGateway");
+
+                    b.Property<string>("ReceiptUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("ReceiptUrl");
+
+                    b.Property<string>("RecordedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("RecordedByUserId");
+
+                    b.Property<string>("ReferenceNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("ReferenceNumber");
+
+                    b.Property<Guid?>("TermId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("TermId");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt");
+
+                    b.Property<string>("Vendor")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("Vendor");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademicSessionId")
+                        .HasDatabaseName("IX_Expenses_AcademicSessionId");
+
+                    b.HasIndex("Category")
+                        .HasDatabaseName("IX_Expenses_Category");
+
+                    b.HasIndex("ExpenseDate")
+                        .HasDatabaseName("IX_Expenses_ExpenseDate");
+
+                    b.HasIndex("IsDeleted")
+                        .HasDatabaseName("IX_Expenses_IsDeleted");
+
+                    b.HasIndex("PaymentGateway")
+                        .HasDatabaseName("IX_Expenses_PaymentGateway");
+
+                    b.HasIndex("ReferenceNumber")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Expenses_ReferenceNumber");
+
+                    b.ToTable("Expenses", (string)null);
                 });
 
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.Fee", b =>
@@ -1466,7 +1571,7 @@ namespace DIBA_School_Portal.Server.Migrations
 
             modelBuilder.Entity("DIBA_School_Portal.Server.Entities.StudentSubject", b =>
                 {
-                    b.HasOne("DIBA_School_Portal.Server.Entities.Student", "StudentProfile")
+                    b.HasOne("DIBA_School_Portal.Server.Entities.Student", "Student")
                         .WithMany()
                         .HasForeignKey("StudentId")
                         .OnDelete(DeleteBehavior.Cascade);
@@ -1476,7 +1581,7 @@ namespace DIBA_School_Portal.Server.Migrations
                         .HasForeignKey("SubjectId")
                         .OnDelete(DeleteBehavior.Cascade);
 
-                    b.Navigation("StudentProfile");
+                    b.Navigation("Student");
 
                     b.Navigation("Subject");
                 });

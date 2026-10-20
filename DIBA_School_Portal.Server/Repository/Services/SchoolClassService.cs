@@ -18,6 +18,12 @@ namespace DIBA_School_Portal.Server.Services
         private readonly IAuditLog _auditLog;
         private readonly IHttpContextAccessor _http;
 
+        private static readonly string[] AdminRoles =
+        {
+            "SuperAdmin", "Principal", "Headmaster", "Headmistress",
+            "VicePrincipal", "SchoolAdmin", "Registrar", "Accountant", "Cashier",
+        };
+
         public SchoolClassService(
             AppDbContext context,
             UserManager<ApplicationUser> userManager,
@@ -34,7 +40,7 @@ namespace DIBA_School_Portal.Server.Services
             _http.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
 
         // ==========================================================
-        // HELPER — Which classes can the current user see?
+        // HELPERS
         // ==========================================================
         private async Task<List<Guid>?> GetAllowedClassIdsAsync()
         {
@@ -47,15 +53,7 @@ namespace DIBA_School_Portal.Server.Services
             if (user == null) return null;
 
             var roles = await _userManager.GetRolesAsync(user);
-
-            var adminRoles = new[]
-            {
-                "SuperAdmin", "Principal", "Headmaster", "Headmistress",
-                "VicePrincipal", "SchoolAdmin", "Registrar", "Accountant",
-                "Cashier",
-            };
-
-            if (roles.Any(r => adminRoles.Contains(r))) return null;
+            if (roles.Any(r => AdminRoles.Contains(r))) return null;
 
             var teacher = await _context.Teachers
                 .AsNoTracking()
@@ -70,29 +68,49 @@ namespace DIBA_School_Portal.Server.Services
                 .ToListAsync();
         }
 
+        private async Task<bool> IsAdminAsync(string userId)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) return false;
+
+            return await _userManager.IsInRoleAsync(user, "SuperAdmin")
+                || await _userManager.IsInRoleAsync(user, "Principal");
+        }
+
         // ==========================================================
         // CREATE
         // ==========================================================
         public async Task<ServiceResponse<string>> CreateSchoolClassAsync(
             SchoolClassDTO model, string currentUserId)
         {
-            var user = await _userManager.FindByIdAsync(currentUserId);
-            if (user == null)
-                return new ServiceResponse<string> { Success = false, Message = "Unauthorized: User not found." };
+            if (!await IsAdminAsync(currentUserId))
+                return new ServiceResponse<string>
+                {
+                    Success = false,
+                    Message = "Forbidden: Insufficient privileges.",
+                };
 
-            if (!await _userManager.IsInRoleAsync(user, "SuperAdmin") &&
-                !await _userManager.IsInRoleAsync(user, "Principal"))
-                return new ServiceResponse<string> { Success = false, Message = "Forbidden: Insufficient privileges." };
+            var name = model.Name?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+                return new ServiceResponse<string>
+                {
+                    Success = false,
+                    Message = "Class name is required.",
+                };
 
-            var existingClass = await _context.SchoolClasses
-                .FirstOrDefaultAsync(c => c.Name.ToLower() == model.Name.ToLower());
+            var exists = await _context.SchoolClasses
+                .AnyAsync(c => c.Name.ToLower() == name.ToLower());
 
-            if (existingClass != null)
-                return new ServiceResponse<string> { Success = false, Message = "A class with this name already exists." };
+            if (exists)
+                return new ServiceResponse<string>
+                {
+                    Success = false,
+                    Message = "A class with this name already exists.",
+                };
 
             var schoolClass = new SchoolClass
             {
-                Name = model.Name.Trim(),
+                Name = name,
                 AcademicSection = model.AcademicSection,
             };
 
@@ -119,24 +137,43 @@ namespace DIBA_School_Portal.Server.Services
         public async Task<ServiceResponse<string>> UpdateSchoolClassAsync(
             SchoolClassDTO model, string currentUserId)
         {
-            var user = await _userManager.FindByIdAsync(currentUserId);
-            if (user == null)
-                return new ServiceResponse<string> { Success = false, Message = "Unauthorized: User not found." };
-
-            if (!await _userManager.IsInRoleAsync(user, "SuperAdmin") &&
-                !await _userManager.IsInRoleAsync(user, "Principal"))
-                return new ServiceResponse<string> { Success = false, Message = "Forbidden: Insufficient privileges." };
+            if (!await IsAdminAsync(currentUserId))
+                return new ServiceResponse<string>
+                {
+                    Success = false,
+                    Message = "Forbidden: Insufficient privileges.",
+                };
 
             var schoolClass = await _context.SchoolClasses.FindAsync(model.Id);
             if (schoolClass == null)
-                return new ServiceResponse<string> { Success = false, Message = "School class not found." };
+                return new ServiceResponse<string>
+                {
+                    Success = false,
+                    Message = "School class not found.",
+                };
+
+            var name = model.Name?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+                return new ServiceResponse<string>
+                {
+                    Success = false,
+                    Message = "Class name is required.",
+                };
+
+            var nameTaken = await _context.SchoolClasses
+                .AnyAsync(c => c.Id != model.Id && c.Name.ToLower() == name.ToLower());
+
+            if (nameTaken)
+                return new ServiceResponse<string>
+                {
+                    Success = false,
+                    Message = "Another class with this name already exists.",
+                };
 
             var oldName = schoolClass.Name;
-
-            schoolClass.Name = model.Name.Trim();
+            schoolClass.Name = name;
             schoolClass.AcademicSection = model.AcademicSection;
 
-            _context.SchoolClasses.Update(schoolClass);
             await _context.SaveChangesAsync();
 
             await _auditLog.LogActivityAsync(
@@ -153,20 +190,18 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================================
-        // SOFT DELETE
+        // SOFT DELETE / RESTORE
+        //   NOTE: adjust the "IsDeleted" property below to whatever
+        //   your SchoolClass entity actually uses for soft-delete.
         // ==========================================================
         public async Task<bool> SoftDeleteSchoolClass(Guid id, string currentUserId)
         {
-            var user = await _userManager.FindByIdAsync(currentUserId);
-            if (user == null) return false;
-
-            if (!await _userManager.IsInRoleAsync(user, "SuperAdmin") &&
-                !await _userManager.IsInRoleAsync(user, "Principal"))
-                return false;
+            if (!await IsAdminAsync(currentUserId)) return false;
 
             var schoolClass = await _context.SchoolClasses.FindAsync(id);
             if (schoolClass == null) return false;
 
+            schoolClass.IsDeleted = true;                 // ← adjust to your entity
             await _context.SaveChangesAsync();
 
             await _auditLog.LogActivityAsync(
@@ -175,17 +210,9 @@ namespace DIBA_School_Portal.Server.Services
             return true;
         }
 
-        // ==========================================================
-        // RESTORE
-        // ==========================================================
         public async Task<bool> RestoreSchoolClass(Guid id, string currentUserId)
         {
-            var user = await _userManager.FindByIdAsync(currentUserId);
-            if (user == null) return false;
-
-            if (!await _userManager.IsInRoleAsync(user, "SuperAdmin") &&
-                !await _userManager.IsInRoleAsync(user, "Principal"))
-                return false;
+            if (!await IsAdminAsync(currentUserId)) return false;
 
             var schoolClass = await _context.SchoolClasses
                 .IgnoreQueryFilters()
@@ -193,6 +220,7 @@ namespace DIBA_School_Portal.Server.Services
 
             if (schoolClass == null) return false;
 
+            schoolClass.IsDeleted = false;                // ← adjust to your entity
             await _context.SaveChangesAsync();
 
             await _auditLog.LogActivityAsync(
@@ -202,43 +230,56 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================================
-        // UPDATE CLASS SUBJECTS — with stream per subject
+        // UPDATE CLASS SUBJECTS (replace all — one row per subject)
         // ==========================================================
         public async Task<ServiceResponse<string>> UpdateClassSubjectsAsync(
             Guid classId, List<ClassSubjectAssignmentDto> items, string currentUserId)
         {
-            var user = await _userManager.FindByIdAsync(currentUserId);
-            if (user == null)
-                return new ServiceResponse<string> { Success = false, Message = "Unauthorized: User not found." };
-
-            if (!await _userManager.IsInRoleAsync(user, "SuperAdmin") &&
-                !await _userManager.IsInRoleAsync(user, "Principal"))
-                return new ServiceResponse<string> { Success = false, Message = "Forbidden: Insufficient privileges." };
+            if (!await IsAdminAsync(currentUserId))
+                return new ServiceResponse<string>
+                {
+                    Success = false,
+                    Message = "Forbidden: Insufficient privileges.",
+                };
 
             var schoolClass = await _context.SchoolClasses
                 .Include(c => c.ClassSubjects)
                 .FirstOrDefaultAsync(c => c.Id == classId);
 
             if (schoolClass == null)
-                return new ServiceResponse<string> { Success = false, Message = "School class not found." };
+                return new ServiceResponse<string>
+                {
+                    Success = false,
+                    Message = "School class not found.",
+                };
 
-            // Normalize input
+            // ---- Normalize input (dedupe + drop empty + validate stream) ----
             items ??= new List<ClassSubjectAssignmentDto>();
+            var isSeniorSecondary = schoolClass.AcademicSection == AcademicSection.SeniorSecondary;
+
             var deduped = items
                 .Where(x => x.SubjectId != Guid.Empty)
                 .GroupBy(x => x.SubjectId)
-                .Select(g => g.First())
+                .Select(g =>
+                {
+                    var first = g.First();
+                    // Streams only make sense for SS classes
+                    return new ClassSubjectAssignmentDto
+                    {
+                        SubjectId = first.SubjectId,
+                        Stream = isSeniorSecondary ? first.Stream : null,
+                    };
+                })
                 .ToList();
 
-            // Validate subject IDs exist
-            if (deduped.Any())
+            // ---- Validate every subject exists ----
+            if (deduped.Count > 0)
             {
-                var validIds = await _context.Subjects
-                    .Where(s => deduped.Select(d => d.SubjectId).Contains(s.Id))
-                    .Select(s => s.Id)
-                    .ToListAsync();
+                var ids = deduped.Select(d => d.SubjectId).ToList();
+                var validCount = await _context.Subjects
+                    .CountAsync(s => ids.Contains(s.Id));
 
-                if (validIds.Count != deduped.Count)
+                if (validCount != deduped.Count)
                     return new ServiceResponse<string>
                     {
                         Success = false,
@@ -246,10 +287,9 @@ namespace DIBA_School_Portal.Server.Services
                     };
             }
 
-            // Remove existing
+            // ---- Replace ----
             _context.ClassSubjects.RemoveRange(schoolClass.ClassSubjects);
 
-            // Insert new
             foreach (var item in deduped)
             {
                 _context.ClassSubjects.Add(new ClassSubject
@@ -283,28 +323,24 @@ namespace DIBA_School_Portal.Server.Services
         {
             var allowed = await GetAllowedClassIdsAsync();
             if (allowed != null && !allowed.Contains(id))
-            {
                 return new ServiceResponse<SchoolClassDTO>
                 {
                     Success = false,
                     Message = "You are not assigned to this class.",
                     StatusCode = 403,
                 };
-            }
 
             var schoolClass = await _context.SchoolClasses
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.Id == id);
 
             if (schoolClass == null)
-            {
                 return new ServiceResponse<SchoolClassDTO>
                 {
                     Success = false,
                     Message = "School class not found.",
                     StatusCode = 404,
                 };
-            }
 
             var dto = new SchoolClassDTO
             {
@@ -327,11 +363,8 @@ namespace DIBA_School_Portal.Server.Services
             var allowed = await GetAllowedClassIdsAsync();
 
             var query = _context.SchoolClasses.AsNoTracking();
-
             if (allowed != null)
-            {
                 query = query.Where(c => allowed.Contains(c.Id));
-            }
 
             var classes = await query
                 .Select(c => new SchoolClassDTO
@@ -354,87 +387,110 @@ namespace DIBA_School_Portal.Server.Services
         }
 
         // ==========================================================
-        // GET SUBJECTS FOR CLASS (read-only) — includes stream
+        // GET SUBJECTS FOR CLASS (read-only)
+        //   Returns ONLY assigned subjects. Dedupes in case legacy
+        //   duplicate rows still exist before the index is applied.
         // ==========================================================
         public async Task<ServiceResponse<IEnumerable<SubjectDto>>> GetSubjectsForClassAsync(Guid classId)
         {
             var allowed = await GetAllowedClassIdsAsync();
             if (allowed != null && !allowed.Contains(classId))
-            {
                 return new ServiceResponse<IEnumerable<SubjectDto>>
                 {
                     Success = false,
                     Message = "You are not assigned to this class.",
                     StatusCode = 403,
                 };
-            }
 
             var schoolClass = await _context.SchoolClasses
                 .Include(c => c.ClassSubjects)
                 .ThenInclude(cs => cs.Subject)
+                .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.Id == classId);
 
             if (schoolClass == null)
-            {
                 return new ServiceResponse<IEnumerable<SubjectDto>>
                 {
                     Success = false,
                     Message = "School class not found.",
                     StatusCode = 404,
                 };
-            }
 
             var subjects = schoolClass.ClassSubjects
+                .Where(cs => cs.Subject != null)
+                .GroupBy(cs => cs.SubjectId)                 // dedupe
+                .Select(g => g.First())
                 .Select(cs => new SubjectDto
                 {
-                    Id = cs.Subject.Id,
+                    Id = cs.Subject!.Id,
                     Name = cs.Subject.Name,
                     Code = cs.Subject.Code,
-                    Stream = cs.Stream,   // 👈 new
+                    Stream = cs.Stream,
                 })
+                .OrderBy(s => s.Name)
                 .ToList();
 
-            return new ServiceResponse<IEnumerable<SubjectDto>> { Success = true, Data = subjects };
+            return new ServiceResponse<IEnumerable<SubjectDto>>
+            {
+                Success = true,
+                Data = subjects,
+            };
         }
 
         // ==========================================================
-        // GET SUBJECTS WITH CHECKBOX STATE (admin only) — includes stream
+        // GET SUBJECTS WITH CHECKBOX STATE  (admin/editor path)
+        //   ⚠️ FIXED: now returns IsAssigned so the UI can rebuild
+        //   `savedSubjectIds` on refresh.
         // ==========================================================
         public async Task<ServiceResponse<IEnumerable<SubjectCheckboxDto>>> GetClassSubjectsWithSelectionAsync(Guid classId)
         {
+            var allowed = await GetAllowedClassIdsAsync();
+            if (allowed != null && !allowed.Contains(classId))
+                return new ServiceResponse<IEnumerable<SubjectCheckboxDto>>
+                {
+                    Success = false,
+                    Message = "You are not assigned to this class.",
+                    StatusCode = 403,
+                };
+
             var schoolClass = await _context.SchoolClasses
                 .Include(c => c.ClassSubjects)
+                .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.Id == classId);
 
             if (schoolClass == null)
-            {
                 return new ServiceResponse<IEnumerable<SubjectCheckboxDto>>
                 {
                     Success = false,
                     Message = "School class not found.",
                     StatusCode = 404,
                 };
-            }
 
-            // Map of assigned subject → stream (or null)
+            // Dedupe defensively — legacy data may have duplicate rows.
             var assigned = schoolClass.ClassSubjects
                 .Where(cs => cs.SubjectId.HasValue)
-                .ToDictionary(cs => cs.SubjectId!.Value, cs => cs.Stream);
+                .GroupBy(cs => cs.SubjectId!.Value)
+                .ToDictionary(g => g.Key, g => g.First().Stream);
 
-            // 👇 DB query — no reference to `assigned` inside
-            var subjects = await _context.Subjects
+            // Materialize first, then project — no closures inside the SQL.
+            var catalogue = await _context.Subjects
+                .AsNoTracking()
                 .OrderBy(s => s.Name)
                 .Select(s => new { s.Id, s.Name, s.Code })
                 .ToListAsync();
 
-            // 👇 In-memory projection — now we can freely use `assigned`
-            var allSubjects = subjects
-                .Select(s => new SubjectCheckboxDto
+            var allSubjects = catalogue
+                .Select(s =>
                 {
-                    SubjectId = s.Id,
-                    Name = s.Name,
-                    Code = s.Code,
-                    Stream = assigned.TryGetValue(s.Id, out var stream) ? stream : null,
+                    var isAssigned = assigned.ContainsKey(s.Id);
+                    return new SubjectCheckboxDto
+                    {
+                        SubjectId = s.Id,
+                        Name = s.Name,
+                        Code = s.Code,
+                        IsAssigned = isAssigned,
+                        Stream = isAssigned ? assigned[s.Id] : null,
+                    };
                 })
                 .ToList();
 

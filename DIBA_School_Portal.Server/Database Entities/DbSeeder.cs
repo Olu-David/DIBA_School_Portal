@@ -13,9 +13,12 @@ namespace DIBA_School_Portal.Server.Database_Entities
     {
         // ---------------- All roles ----------------
         private static readonly string[] Roles = new[]
-    { "SuperAdmin", "Principal", "Headmaster", "Headmistress",
-    "VicePrincipal", "SchoolAdmin", "Accountant", "Cashier", 
-    "Registrar", "Teacher", "FormTeacher", "Student", "Parent"};
+        {
+            "SuperAdmin", "Principal", "Headmaster", "Headmistress",
+            "VicePrincipal", "SchoolAdmin", "Accountant", "Cashier",
+            "Registrar", "Teacher", "FormTeacher", "Student", "Parent"
+        };
+
         public static async Task SeedAsync(IServiceProvider services)
         {
             using var scope = services.CreateScope();
@@ -36,20 +39,22 @@ namespace DIBA_School_Portal.Server.Database_Entities
                 // -------- 3. Classes --------
                 var classes = await SeedClassesAsync(context, logger);
 
-                // -------- 4. Users (all roles) --------
-                var admissionCounter = await SeedUsersAsync(userManager, context, classes, logger);
-
-                // -------- 5. Subjects --------
+                // -------- 4. Subjects --------
                 await SeedSubjectsAsync(context, logger);
 
-                // -------- 5b. Teacher assignments + class subjects --------
-                await SeedTeacherAssignmentsAsync(context, classes, logger);
+                // -------- 5. Class → Subject curriculum --------
+                await SeedClassSubjectsAsync(context, classes, logger);
 
-                // -------- 6. Link parents to students --------
-                await SeedParentLinksAsync(userManager, context, logger);
+                // ============================================================
+                // DISABLED — Fake users / teachers / students / parents
+                // To re-enable: uncomment the three lines below AND the
+                // matching method blocks further down in this file.
+                // ============================================================
+                // var admissionCounter = await SeedUsersAsync(userManager, context, classes, logger);
+                // await SeedTeacherAssignmentsAsync(context, classes, logger);
+                // await SeedParentLinksAsync(userManager, context, logger);
 
-                logger.LogInformation("Database seeding completed. {Count} students admitted.",
-                    admissionCounter);
+                logger.LogInformation("Database seeding completed.");
             }
             catch (Exception ex)
             {
@@ -141,14 +146,14 @@ namespace DIBA_School_Portal.Server.Database_Entities
         {
             var wanted = new (string Name, AcademicSection Section, int Order)[]
             {
-                ("Nursery 1", AcademicSection.Nursery,         1),
-                ("Nursery 2", AcademicSection.Nursery,         2),
-                ("Primary 1", AcademicSection.Primary,        10),
-                ("Primary 2", AcademicSection.Primary,        11),
-                ("Primary 3", AcademicSection.Primary,        12),
-                ("Primary 4", AcademicSection.Primary,        13),
-                ("Primary 5", AcademicSection.Primary,        14),
-                ("Primary 6", AcademicSection.Primary,        15),
+                ("Nursery 1", AcademicSection.Nursery,          1),
+                ("Nursery 2", AcademicSection.Nursery,          2),
+                ("Primary 1", AcademicSection.Primary,         10),
+                ("Primary 2", AcademicSection.Primary,         11),
+                ("Primary 3", AcademicSection.Primary,         12),
+                ("Primary 4", AcademicSection.Primary,         13),
+                ("Primary 5", AcademicSection.Primary,         14),
+                ("Primary 6", AcademicSection.Primary,         15),
                 ("JSS 1",     AcademicSection.JuniorSecondary, 20),
                 ("JSS 2",     AcademicSection.JuniorSecondary, 21),
                 ("JSS 3",     AcademicSection.JuniorSecondary, 22),
@@ -190,166 +195,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
         }
 
         // =====================================================
-        // 4. USERS
-        // =====================================================
-        private static async Task<int> SeedUsersAsync(
-            UserManager<ApplicationUser> userManager,
-            AppDbContext context,
-            Dictionary<string, Guid> classes,
-            ILogger logger)
-        {
-            var seeds = new (
-                string Email,
-                string First,
-                string Last,
-                string Role,
-                string Password,
-                string Phone,
-                string? ClassName,
-                ClassStream? Stream
-            )[]
-            {
-                // ---- Admin tier ----
-                ("superadmin@diba.com.ng",  "System",   "Administrator", "SuperAdmin",    "SuperAdmin@2026", "08000000001", null, null),
-                ("principal@diba.com.ng",   "Ada",      "Obi",           "Principal",     "Test@1234",       "08000000002", null, null),
-                ("headmaster@diba.com.ng",  "Emeka",    "Nwosu",         "Headmaster",    "Test@1234",       "08000000003", null, null),
-                ("headmistress@diba.com.ng","Ngozi",    "Eze",           "Headmistress",  "Test@1234",       "08000000004", null, null),
-                ("vp@diba.com.ng",          "Samuel",   "Adeyemi",       "VicePrincipal", "Test@1234",       "08000000005", null, null),
-                ("admin@diba.com.ng",       "Blessing", "Ige",           "SchoolAdmin",   "Test@1234",       "08000000006", null, null),
-                ("accountant@diba.com.ng",  "Kunle",    "Ojo",           "Accountant",    "Test@1234",       "08000000007", null, null),
-                ("registrar@diba.com.ng",   "Halima",   "Yusuf",         "Registrar",     "Test@1234",       "08000000008", null, null),
-
-                // ---- Teachers ----
-                ("teacher1@diba.com.ng",    "Grace",    "Uche",          "Teacher",       "Test@1234",       "08000000009", null, null),
-                ("teacher2@diba.com.ng",    "Peter",    "Bello",         "Teacher",       "Test@1234",       "08000000010", null, null),
-                ("formteacher@diba.com.ng", "Chioma",   "Okeke",         "FormTeacher",   "Test@1234",       "08000000011", null, null),
-                ("cashier@diba.com.ng", "Tola", "Bakare", "Cashier", "Test@1234", "08000000009", null, null),
-                // ---- Students — JSS (no stream) ----
-                ("student1@diba.com.ng",    "Chidi",    "Okafor",        "Student",       "Test@1234",       "08000000012", "JSS 1", null),
-                ("student2@diba.com.ng",    "Amaka",    "Uche",          "Student",       "Test@1234",       "08000000013", "JSS 1", null),
-                ("student3@diba.com.ng",    "Tunde",    "Adeyemi",       "Student",       "Test@1234",       "08000000014", "JSS 2", null),
-                ("student4@diba.com.ng",    "Fatima",   "Bello",         "Student",       "Test@1234",       "08000000015", "JSS 2", null),
-
-                // ---- Students — SS (with streams) ----
-                ("student5@diba.com.ng",    "Ibrahim",  "Musa",          "Student",       "Test@1234",       "08000000016", "SS 1", ClassStream.Science),
-                ("student6@diba.com.ng",    "Ngozi",    "Eze",           "Student",       "Test@1234",       "08000000017", "SS 1", ClassStream.Arts),
-                ("student7@diba.com.ng",    "Samuel",   "Ade",           "Student",       "Test@1234",       "08000000018", "SS 2", ClassStream.Commercial),
-                ("student8@diba.com.ng",    "Rachael",  "John",          "Student",       "Test@1234",       "08000000019", "SS 2", ClassStream.Science),
-
-                // ---- Parents ----
-                ("parent1@diba.com.ng",     "Yemi",     "Okafor",        "Parent",        "Test@1234",       "08111111111", null, null),
-                ("parent2@diba.com.ng",     "Kemi",     "Bello",         "Parent",        "Test@1234",       "08222222222", null, null),
-            };
-
-            int admissionCounter = 1;
-            int staffCounter = 1;
-
-            foreach (var s in seeds)
-            {
-                if (await userManager.FindByEmailAsync(s.Email) != null) continue;
-
-                var isStudent = s.Role == "Student";
-                var isParent = s.Role == "Parent";
-
-                var username = isParent ? s.Phone : s.Email;
-
-                var user = new ApplicationUser
-                {
-                    UserName = username,
-                    Email = s.Email,
-                    EmailConfirmed = true,
-                    PhoneNumber = s.Phone,
-                    FirstName = s.First,
-                    LastName = s.Last,
-                    PrimaryRole = s.Role,
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow,
-                };
-
-                Guid? classIdForUser = null;
-                if (isStudent && s.ClassName != null && classes.TryGetValue(s.ClassName, out var cid))
-                {
-                    classIdForUser = cid;
-                    user.ClassId = cid;
-                }
-
-                var result = await userManager.CreateAsync(user, s.Password);
-                if (!result.Succeeded)
-                {
-                    logger.LogError("Failed to create {Email}: {Err}",
-                        s.Email, string.Join(", ", result.Errors.Select(e => e.Description)));
-                    continue;
-                }
-
-                await userManager.AddToRoleAsync(user, s.Role);
-
-                // -------- Student profile --------
-                if (isStudent && classIdForUser.HasValue)
-                {
-                    var year = DateTime.UtcNow.Year;
-                    var admissionNumber = $"DIBA/{year}/{admissionCounter:D3}";
-                    admissionCounter++;
-
-                    user.UserName = admissionNumber;
-                    await userManager.UpdateAsync(user);
-
-                    Enums.ClassStream? parsedStream = null;
-
-                    var targetClass = await context.SchoolClasses
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(c => c.Id == classIdForUser.Value);
-
-                    if (targetClass?.AcademicSection == AcademicSection.SeniorSecondary)
-                    {
-                        parsedStream = s.Stream;
-                    }
-
-                    context.Students.Add(new Student
-                    {
-                        UserId = user.Id,
-                        AdmissionNumber = admissionNumber,
-                        FirstName = user.FirstName!,
-                        LastName = user.LastName!,
-                        SchoolClassId = classIdForUser.Value,
-                        Stream = parsedStream,
-                        CreatedAt = DateTime.UtcNow,
-                    });
-
-                    logger.LogInformation(
-                        "Student created: {Admission} ({First} {Last}) - {Class} - Stream: {Stream}",
-                        admissionNumber,
-                        user.FirstName,
-                        user.LastName,
-                        targetClass?.Name ?? "?",
-                        parsedStream?.ToString() ?? "none");
-                }
-
-                // -------- Teacher record --------
-                if (s.Role == "Teacher" || s.Role == "FormTeacher")
-                {
-                    var staffId = $"DIBA/STF/{staffCounter:D3}";
-                    staffCounter++;
-
-                    context.Teachers.Add(new Teacher
-                    {
-                        UserId = user.Id,
-                        StaffId = staffId,
-                        FirstName = user.FirstName!,
-                        LastName = user.LastName!,
-                        Qualification = "B.Ed",
-                        DateEmployed = DateTime.UtcNow,
-                    });
-                }
-
-                logger.LogInformation("User created: {Email} ({Role})", s.Email, s.Role);
-            }
-
-            await context.SaveChangesAsync();
-            return admissionCounter - 1;
-        }
-
-        // =====================================================
-        // 5. SUBJECTS
+        // 4. SUBJECTS
         // =====================================================
         private static async Task SeedSubjectsAsync(AppDbContext context, ILogger logger)
         {
@@ -389,19 +235,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
         }
 
         // =====================================================
-        // 6. TEACHER ASSIGNMENTS + CLASS SUBJECTS
-        // =====================================================
-        private static async Task SeedTeacherAssignmentsAsync(
-            AppDbContext context,
-            Dictionary<string, Guid> classes,
-            ILogger logger)
-        {
-            await SeedClassSubjectsAsync(context, classes, logger);
-            await SeedTeacherClassesAndSubjectsAsync(context, classes, logger);
-        }
-
-        // =====================================================
-        // 6a. CLASS SUBJECTS
+        // 5. CLASS → SUBJECT CURRICULUM  (ESSENTIAL — always runs)
         // =====================================================
         private static async Task SeedClassSubjectsAsync(
             AppDbContext context,
@@ -455,6 +289,7 @@ namespace DIBA_School_Portal.Server.Database_Entities
                             Id = Guid.NewGuid(),
                             SchoolClassId = classId,
                             SubjectId = subjectId.Value,
+                            Stream = null,   // "all students" — editable in the admin UI
                         });
                     }
                 }
@@ -464,9 +299,190 @@ namespace DIBA_School_Portal.Server.Database_Entities
             logger.LogInformation("Class subjects seeded.");
         }
 
+
+        // ═════════════════════════════════════════════════════════════════
+        // DISABLED — Fake users / teachers / students / parents
+        //
+        // To re-enable: uncomment the whole method below, and uncomment
+        // the matching call in SeedAsync above.
+        // ═════════════════════════════════════════════════════════════════
+        /*
         // =====================================================
-        // 6b. TEACHER -> CLASS -> SUBJECT
+        // 4. USERS  (fake admins, teachers, students, parents)
         // =====================================================
+        private static async Task<int> SeedUsersAsync(
+            UserManager<ApplicationUser> userManager,
+            AppDbContext context,
+            Dictionary<string, Guid> classes,
+            ILogger logger)
+        {
+            var seeds = new (
+                string Email,
+                string First,
+                string Last,
+                string Role,
+                string Password,
+                string Phone,
+                string? ClassName,
+                ClassStream? Stream
+            )[]
+            {
+                // ---- Admin tier ----
+                ("superadmin@diba.com.ng",  "System",   "Administrator", "SuperAdmin",    "SuperAdmin@2026", "08000000001", null, null),
+                ("principal@diba.com.ng",   "Ada",      "Obi",           "Principal",     "Test@1234",       "08000000002", null, null),
+                ("headmaster@diba.com.ng",  "Emeka",    "Nwosu",         "Headmaster",    "Test@1234",       "08000000003", null, null),
+                ("headmistress@diba.com.ng","Ngozi",    "Eze",           "Headmistress",  "Test@1234",       "08000000004", null, null),
+                ("vp@diba.com.ng",          "Samuel",   "Adeyemi",       "VicePrincipal", "Test@1234",       "08000000005", null, null),
+                ("admin@diba.com.ng",       "Blessing", "Ige",           "SchoolAdmin",   "Test@1234",       "08000000006", null, null),
+                ("accountant@diba.com.ng",  "Kunle",    "Ojo",           "Accountant",    "Test@1234",       "08000000007", null, null),
+                ("registrar@diba.com.ng",   "Halima",   "Yusuf",         "Registrar",     "Test@1234",       "08000000008", null, null),
+
+                // ---- Teachers ----
+                ("teacher1@diba.com.ng",    "Grace",    "Uche",          "Teacher",       "Test@1234",       "08000000009", null, null),
+                ("teacher2@diba.com.ng",    "Peter",    "Bello",         "Teacher",       "Test@1234",       "08000000010", null, null),
+                ("formteacher@diba.com.ng", "Chioma",   "Okeke",         "FormTeacher",   "Test@1234",       "08000000011", null, null),
+                ("cashier@diba.com.ng",     "Tola",     "Bakare",        "Cashier",       "Test@1234",       "08000000009", null, null),
+
+                // ---- Students — JSS (no stream) ----
+                ("student1@diba.com.ng",    "Chidi",    "Okafor",        "Student",       "Test@1234",       "08000000012", "JSS 1", null),
+                ("student2@diba.com.ng",    "Amaka",    "Uche",          "Student",       "Test@1234",       "08000000013", "JSS 1", null),
+                ("student3@diba.com.ng",    "Tunde",    "Adeyemi",       "Student",       "Test@1234",       "08000000014", "JSS 2", null),
+                ("student4@diba.com.ng",    "Fatima",   "Bello",         "Student",       "Test@1234",       "08000000015", "JSS 2", null),
+
+                // ---- Students — SS (with streams) ----
+                ("student5@diba.com.ng",    "Ibrahim",  "Musa",          "Student",       "Test@1234",       "08000000016", "SS 1", ClassStream.Science),
+                ("student6@diba.com.ng",    "Ngozi",    "Eze",           "Student",       "Test@1234",       "08000000017", "SS 1", ClassStream.Arts),
+                ("student7@diba.com.ng",    "Samuel",   "Ade",           "Student",       "Test@1234",       "08000000018", "SS 2", ClassStream.Commercial),
+                ("student8@diba.com.ng",    "Rachael",  "John",          "Student",       "Test@1234",       "08000000019", "SS 2", ClassStream.Science),
+
+                // ---- Parents ----
+                ("parent1@diba.com.ng",     "Yemi",     "Okafor",        "Parent",        "Test@1234",       "08111111111", null, null),
+                ("parent2@diba.com.ng",     "Kemi",     "Bello",         "Parent",        "Test@1234",       "08222222222", null, null),
+            };
+
+            int admissionCounter = 1;
+            int staffCounter = 1;
+
+            foreach (var s in seeds)
+            {
+                if (await userManager.FindByEmailAsync(s.Email) != null) continue;
+
+                var isStudent = s.Role == "Student";
+                var isParent  = s.Role == "Parent";
+
+                var username = isParent ? s.Phone : s.Email;
+
+                var user = new ApplicationUser
+                {
+                    UserName      = username,
+                    Email         = s.Email,
+                    EmailConfirmed = true,
+                    PhoneNumber   = s.Phone,
+                    FirstName     = s.First,
+                    LastName      = s.Last,
+                    PrimaryRole   = s.Role,
+                    IsActive      = true,
+                    CreatedAt     = DateTime.UtcNow,
+                };
+
+                Guid? classIdForUser = null;
+                if (isStudent && s.ClassName != null && classes.TryGetValue(s.ClassName, out var cid))
+                {
+                    classIdForUser = cid;
+                    user.ClassId = cid;
+                }
+
+                var result = await userManager.CreateAsync(user, s.Password);
+                if (!result.Succeeded)
+                {
+                    logger.LogError("Failed to create {Email}: {Err}",
+                        s.Email, string.Join(", ", result.Errors.Select(e => e.Description)));
+                    continue;
+                }
+
+                await userManager.AddToRoleAsync(user, s.Role);
+
+                // -------- Student profile --------
+                if (isStudent && classIdForUser.HasValue)
+                {
+                    var year = DateTime.UtcNow.Year;
+                    var admissionNumber = $"DIBA/{year}/{admissionCounter:D3}";
+                    admissionCounter++;
+
+                    user.UserName = admissionNumber;
+                    await userManager.UpdateAsync(user);
+
+                    Enums.ClassStream? parsedStream = null;
+
+                    var targetClass = await context.SchoolClasses
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(c => c.Id == classIdForUser.Value);
+
+                    if (targetClass?.AcademicSection == AcademicSection.SeniorSecondary)
+                    {
+                        parsedStream = s.Stream;
+                    }
+
+                    context.Students.Add(new Student
+                    {
+                        UserId          = user.Id,
+                        AdmissionNumber = admissionNumber,
+                        FirstName       = user.FirstName!,
+                        LastName        = user.LastName!,
+                        SchoolClassId   = classIdForUser.Value,
+                        Stream          = parsedStream,
+                        CreatedAt       = DateTime.UtcNow,
+                    });
+
+                    logger.LogInformation(
+                        "Student created: {Admission} ({First} {Last}) - {Class} - Stream: {Stream}",
+                        admissionNumber,
+                        user.FirstName,
+                        user.LastName,
+                        targetClass?.Name ?? "?",
+                        parsedStream?.ToString() ?? "none");
+                }
+
+                // -------- Teacher record --------
+                if (s.Role == "Teacher" || s.Role == "FormTeacher")
+                {
+                    var staffId = $"DIBA/STF/{staffCounter:D3}";
+                    staffCounter++;
+
+                    context.Teachers.Add(new Teacher
+                    {
+                        UserId       = user.Id,
+                        StaffId      = staffId,
+                        FirstName    = user.FirstName!,
+                        LastName     = user.LastName!,
+                        Qualification = "B.Ed",
+                        DateEmployed = DateTime.UtcNow,
+                    });
+                }
+
+                logger.LogInformation("User created: {Email} ({Role})", s.Email, s.Role);
+            }
+
+            await context.SaveChangesAsync();
+            return admissionCounter - 1;
+        }
+        */
+
+        // ═════════════════════════════════════════════════════════════════
+        // DISABLED — Teacher → class → subject assignments
+        //
+        // Depends on fake teachers from SeedUsersAsync. Re-enable both
+        // together if you want demo teacher assignments.
+        // ═════════════════════════════════════════════════════════════════
+        /*
+        private static async Task SeedTeacherAssignmentsAsync(
+            AppDbContext context,
+            Dictionary<string, Guid> classes,
+            ILogger logger)
+        {
+            await SeedTeacherClassesAndSubjectsAsync(context, classes, logger);
+        }
+
         private static async Task SeedTeacherClassesAndSubjectsAsync(
             AppDbContext context,
             Dictionary<string, Guid> classes,
@@ -525,10 +541,10 @@ namespace DIBA_School_Portal.Server.Database_Entities
                     {
                         context.TeacherClasses.Add(new TeacherClass
                         {
-                            Id = Guid.NewGuid(),
-                            TeacherId = teacherId,
+                            Id            = Guid.NewGuid(),
+                            TeacherId     = teacherId,
                             SchoolClassId = classId,
-                            AssignedAt = DateTime.UtcNow,
+                            AssignedAt    = DateTime.UtcNow,
                         });
                     }
                 }
@@ -558,9 +574,9 @@ namespace DIBA_School_Portal.Server.Database_Entities
                     {
                         context.TeacherSubjects.Add(new TeacherSubject
                         {
-                            Id = Guid.NewGuid(),
-                            TeacherId = teacherId,
-                            SubjectId = subjectId.Value,
+                            Id         = Guid.NewGuid(),
+                            TeacherId  = teacherId,
+                            SubjectId  = subjectId.Value,
                             AssignedAt = DateTime.UtcNow,
                         });
                     }
@@ -570,10 +586,15 @@ namespace DIBA_School_Portal.Server.Database_Entities
             await context.SaveChangesAsync();
             logger.LogInformation("Teacher assignments seeded.");
         }
+        */
 
-        // =====================================================
-        // 7. LINK PARENTS TO STUDENTS
-        // =====================================================
+        // ═════════════════════════════════════════════════════════════════
+        // DISABLED — Parent ↔ student links
+        //
+        // Depends on fake parents/students from SeedUsersAsync.
+        // Re-enable all three together if you want demo relationships.
+        // ═════════════════════════════════════════════════════════════════
+        /*
         private static async Task SeedParentLinksAsync(
             UserManager<ApplicationUser> userManager,
             AppDbContext context,
@@ -597,11 +618,11 @@ namespace DIBA_School_Portal.Server.Database_Entities
                 {
                     context.ParentStudents.Add(new ParentStudent
                     {
-                        ParentUserId = parent1.Id,
-                        StudentProfileId = child.Id,
-                        Relationship = "Father",
-                        IsPrimaryContact = true,
-                        CreatedAt = DateTime.UtcNow,
+                        ParentUserId      = parent1.Id,
+                        StudentProfileId  = child.Id,
+                        Relationship      = "Father",
+                        IsPrimaryContact  = true,
+                        CreatedAt         = DateTime.UtcNow,
                     });
                 }
             }
@@ -618,11 +639,11 @@ namespace DIBA_School_Portal.Server.Database_Entities
                 {
                     context.ParentStudents.Add(new ParentStudent
                     {
-                        ParentUserId = parent2.Id,
-                        StudentProfileId = p2Child.Id,
-                        Relationship = "Mother",
-                        IsPrimaryContact = true,
-                        CreatedAt = DateTime.UtcNow,
+                        ParentUserId      = parent2.Id,
+                        StudentProfileId  = p2Child.Id,
+                        Relationship      = "Mother",
+                        IsPrimaryContact  = true,
+                        CreatedAt         = DateTime.UtcNow,
                     });
                 }
             }
@@ -630,5 +651,6 @@ namespace DIBA_School_Portal.Server.Database_Entities
             await context.SaveChangesAsync();
             logger.LogInformation("Parent links seeded.");
         }
+        */
     }
 }

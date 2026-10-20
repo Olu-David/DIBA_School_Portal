@@ -8,22 +8,23 @@ namespace DIBA_School_Portal.Server.Configurations
     {
         public void Configure(EntityTypeBuilder<ClassSubject> builder)
         {
-           
-                builder.HasKey(cs => cs.Id);
+            builder.HasKey(x => x.Id);
 
-                builder.HasIndex(cs => new { cs.SchoolClassId, cs.SubjectId })
-                       .IsUnique();
+            builder.HasOne(cs => cs.SchoolClass)
+                   .WithMany(c => c.ClassSubjects)
+                   .HasForeignKey(cs => cs.SchoolClassId)
+                   .OnDelete(DeleteBehavior.Cascade);
 
-                builder.HasOne(cs => cs.SchoolClass)
-                       .WithMany(sc => sc.ClassSubjects)
-                       .HasForeignKey(cs => cs.SchoolClassId)
-                       .OnDelete(DeleteBehavior.Cascade);
+            builder.HasOne(cs => cs.Subject)
+                   .WithMany()
+                   .HasForeignKey(cs => cs.SubjectId)
+                   .OnDelete(DeleteBehavior.Restrict);   // see note below
 
-                builder.HasOne(cs => cs.Subject)
-                       .WithMany(s => s.ClassSubjects)
-                       .HasForeignKey(cs => cs.SubjectId)
-                       .OnDelete(DeleteBehavior.Cascade);
-            }
+            // PostgreSQL filtered unique index — double quotes, not brackets
+            builder.HasIndex(cs => new { cs.SchoolClassId, cs.SubjectId })
+                   .IsUnique()
+                   .HasFilter("\"SubjectId\" IS NOT NULL")
+                   .HasDatabaseName("UX_ClassSubjects_SchoolClassId_SubjectId");
         }
-
     }
+}
