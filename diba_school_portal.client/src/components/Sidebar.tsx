@@ -19,7 +19,7 @@ interface NavItem {
   icon: LucideIcon;
   end?: boolean;
   roles?: UserRole[];
-  badgeKey?: "studentSubjects"; // 👈 new
+  badgeKey?: "studentSubjects";
 }
 
 interface NavGroup {
@@ -48,16 +48,9 @@ const R = {
     "VicePrincipal", "SchoolAdmin",
   ] as UserRole[],
 
-  finance: [
-    "SuperAdmin", "Principal", "VicePrincipal", "Accountant",
-  ] as UserRole[],
-
-  cashier: [
-    "SuperAdmin", "Principal", "VicePrincipal", "Accountant", "Cashier",
-  ] as UserRole[],
-
+  finance: ["SuperAdmin", "Principal", "VicePrincipal", "Accountant"] as UserRole[],
+  cashier: ["SuperAdmin", "Principal", "VicePrincipal", "Accountant", "Cashier"] as UserRole[],
   registrar: ["SuperAdmin", "Principal", "Registrar"] as UserRole[],
-
   audit: ["SuperAdmin", "Principal"] as UserRole[],
 
   score: [
@@ -78,7 +71,7 @@ const R = {
 
   promotion: ["SuperAdmin", "Principal", "SchoolAdmin"] as UserRole[],
 
-  // 👇 new — students only
+  // 👇 Students
   student: ["Student"] as UserRole[],
 };
 
@@ -91,16 +84,22 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // 👇 NEW — student-only group
+  // 👇 Students-only group
   {
     label: "My Learning",
     items: [
       {
-        to: "/admin/my-subjects",
+        to: "/student/subjects",
         label: "My Subjects",
         icon: BookOpen,
         roles: R.student,
         badgeKey: "studentSubjects",
+      },
+      {
+        to: "/student/results",
+        label: "My Results",
+        icon: FileText,
+        roles: R.student,
       },
     ],
   },
@@ -146,12 +145,12 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Finance",
     items: [
-      { to: "/admin/finance",              label: "Overview",        icon: Wallet,        end: true, roles: R.cashier },
-      { to: "/admin/finance/record-cash",  label: "Record Cash",     icon: Receipt,                 roles: R.cashier },
-      { to: "/admin/finance/payments",     label: "Payments",        icon: Receipt,                 roles: R.cashier },
-      { to: "/admin/finance/arrears",      label: "Arrears",         icon: AlertTriangle,           roles: R.cashier },
-      { to: "/admin/finance/expenses",     label: "Expenses",        icon: TrendingDown,            roles: R.finance },
-      { to: "/admin/finance/fees",         label: "Fee Structures",  icon: Wallet,                  roles: R.finance },
+      { to: "/admin/finance",             label: "Overview",       icon: Wallet,        end: true, roles: R.cashier },
+      { to: "/admin/finance/record-cash", label: "Record Cash",    icon: Receipt,                 roles: R.cashier },
+      { to: "/admin/finance/payments",    label: "Payments",       icon: Receipt,                 roles: R.cashier },
+      { to: "/admin/finance/arrears",     label: "Arrears",        icon: AlertTriangle,           roles: R.cashier },
+      { to: "/admin/finance/expenses",    label: "Expenses",       icon: TrendingDown,            roles: R.finance },
+      { to: "/admin/finance/fees",        label: "Fee Structures", icon: Wallet,                  roles: R.finance },
     ],
   },
 
@@ -179,7 +178,6 @@ export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
   const { user, logout } = useAuth();
   const { role } = useRole();
 
-  // 🔹 Student subject-count badge
   const isStudent = role === "Student";
   const [subjectCount, setSubjectCount] = useState<number | null>(null);
 
