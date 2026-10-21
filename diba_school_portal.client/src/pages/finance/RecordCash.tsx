@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { BadgeDollarSign, Search, Coins, User, Receipt, X } from "lucide-react";
+import { BadgeDollarSign, Search, Coins, User, Receipt, Wallet } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
   Button,
@@ -45,17 +45,13 @@ export default function RecordCash() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // ---------- Top-level toggle ----------
   const [kind, setKind] = useState<PaymentKind>("student");
 
-  // ---------- Sessions ----------
   const [sessions, setSessions] = useState<AcademicSession[]>([]);
   const [sessionId, setSessionId] = useState("");
   const [termId, setTermId] = useState("");
 
-  // ==========================================================
-  // STUDENT PAYMENT STATE
-  // ==========================================================
+  // ---------- Student payment ----------
   const [selectedStudent, setSelectedStudent] = useState<StudentRow | null>(null);
   const [search, setSearch] = useState("");
   const debounced = useDebounce(search, 400);
@@ -66,9 +62,11 @@ export default function RecordCash() {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // ==========================================================
-  // OTHER INCOME STATE
-  // ==========================================================
+  // 👇 NEW — set outstanding state
+  const [outstandingAmount, setOutstandingAmount] = useState("");
+  const [savingOutstanding, setSavingOutstanding] = useState(false);
+
+  // ---------- Other income ----------
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [otherAmount, setOtherAmount] = useState("");
@@ -78,14 +76,7 @@ export default function RecordCash() {
   const [otherNote, setOtherNote] = useState("");
   const [submittingOther, setSubmittingOther] = useState(false);
 
-  // 👇 NEW — optional student link for other income
-  const [otherStudent, setOtherStudent] = useState<StudentRow | null>(null);
-  const [otherSearch, setOtherSearch] = useState("");
-  const otherDebounced = useDebounce(otherSearch, 400);
-  const [otherResults, setOtherResults] = useState<StudentRow[]>([]);
-  const [otherSearching, setOtherSearching] = useState(false);
-
-  // ---------- Load sessions once ----------
+  // ---------- Load sessions ----------
   useEffect(() => {
     (async () => {
       try {
@@ -109,7 +100,7 @@ export default function RecordCash() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---------- Search students (student payment) ----------
+  // ---------- Search students ----------
   useEffect(() => {
     if (kind !== "student") return;
     if (!debounced.trim()) {
@@ -131,29 +122,6 @@ export default function RecordCash() {
     })();
   }, [debounced, kind]);
 
-  // 👇 NEW — Search students (other income, optional)
-  useEffect(() => {
-    if (kind !== "other") return;
-    if (!otherDebounced.trim()) {
-      setOtherResults([]);
-      return;
-    }
-    setOtherSearching(true);
-    (async () => {
-      try {
-        const { data } = await api.get<ApiResponse<Paginated<StudentRow>>>(
-          `/student?searchTerm=${encodeURIComponent(
-            otherDebounced
-          )}&pageNumber=1&pageSize=8`
-        );
-        if (data.success) setOtherResults(data.data.items);
-      } finally {
-        setOtherSearching(false);
-      }
-    })();
-  }, [otherDebounced, kind]);
-
-  // ---------- Handlers ----------
   const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) =>
     setSearch(e.target.value);
 
@@ -170,9 +138,7 @@ export default function RecordCash() {
   const handleTermChange = (e: ChangeEvent<HTMLSelectElement>) =>
     setTermId(e.target.value);
 
-  // ==========================================================
-  // SUBMIT — Student payment
-  // ==========================================================
+  // ---------- SUBMIT — Student payment ----------
   const submitStudent = async () => {
     if (!selectedStudent) {
       toast({ variant: "error", title: "Pick a student first" });
@@ -216,9 +182,57 @@ export default function RecordCash() {
     }
   };
 
-  // ==========================================================
-  // SUBMIT — Other income
-  // ==========================================================
+  // 👇 NEW — save outstanding
+  const onSaveOutstanding = async () => {
+    if (!selectedStudent) return;
+
+    const amt = parseFloat(outstandingAmount);
+    if (isNaN(amt) || amt < 0) {
+      toast({ variant: "error", title: "Enter a valid amount (0 or more)." });
+      return;
+    }
+
+    setSavingOutstanding(true);
+    try {
+      const { data } = await api.post<ApiResponse<number>>(
+        `/account/student/${selectedStudent.id}/outstanding`,
+        {
+          academicSessionId: sessionId,
+          termId,
+          amount: amt,
+        }
+      );
+
+      if (!data.success) {
+        toast({ variant: "error", title: data.message ?? "Failed to save." });
+        return;
+      }
+
+      toast({
+        variant: "success",
+        title: "Outstanding set",
+        description: `New balance: ${formatNaira(data.data ?? amt)}`,
+      });
+
+      // Refresh the selected student's balance
+      const { data: sd } = await api.get<ApiResponse<Paginated<StudentRow>>>(
+        `/student?searchTerm=${encodeURIComponent(
+          selectedStudent.admissionNumber
+        )}&pageNumber=1&pageSize=1`
+      );
+      if (sd.success && sd.data.items[0]) {
+        setSelectedStudent(sd.data.items[0]);
+      }
+
+      setOutstandingAmount("");
+    } catch {
+      toast({ variant: "error", title: "Could not save outstanding." });
+    } finally {
+      setSavingOutstanding(false);
+    }
+  };
+
+  // ---------- SUBMIT — Other income ----------
   const submitOther = async () => {
     const amt = parseFloat(otherAmount);
     if (!category.trim()) {
@@ -249,8 +263,6 @@ export default function RecordCash() {
           gateway: "Cash",
           externalReference: otherReference || undefined,
           note: otherNote || undefined,
-          // 👇 NEW — optional student link (null if none selected)
-          studentProfileId: otherStudent?.id ?? null,
         }
       );
 
@@ -272,7 +284,6 @@ export default function RecordCash() {
     }
   };
 
-  // ---------- Derived ----------
   const selectedSession = sessions.find((s) => s.id === sessionId);
   const amountNumber = parseFloat(amount) || 0;
   const newBalance = selectedStudent
@@ -352,6 +363,11 @@ export default function RecordCash() {
           amountNumber={amountNumber}
           newBalance={newBalance}
           isOverpaying={isOverpaying}
+          // 👇 NEW
+          outstandingAmount={outstandingAmount}
+          setOutstandingAmount={setOutstandingAmount}
+          savingOutstanding={savingOutstanding}
+          onSaveOutstanding={onSaveOutstanding}
         />
       ) : (
         <OtherIncomeForm
@@ -377,15 +393,6 @@ export default function RecordCash() {
           setOtherNote={setOtherNote}
           submitting={submittingOther}
           onSubmit={submitOther}
-          // 👇 NEW
-          otherStudent={otherStudent}
-          setOtherStudent={setOtherStudent}
-          otherSearch={otherSearch}
-          setOtherSearch={setOtherSearch}
-          otherDebounced={otherDebounced}
-          otherResults={otherResults}
-          setOtherResults={setOtherResults}
-          otherSearching={otherSearching}
         />
       )}
     </div>
@@ -393,7 +400,7 @@ export default function RecordCash() {
 }
 
 // ==========================================================
-// STUDENT PAYMENT FORM  (unchanged)
+// STUDENT PAYMENT FORM
 // ==========================================================
 interface StudentPaymentFormProps {
   sessions: AcademicSession[];
@@ -421,12 +428,19 @@ interface StudentPaymentFormProps {
   amountNumber: number;
   newBalance: number;
   isOverpaying: boolean;
+  // 👇 NEW
+  outstandingAmount: string;
+  setOutstandingAmount: (v: string) => void;
+  savingOutstanding: boolean;
+  onSaveOutstanding: () => void;
 }
 
 function StudentPaymentForm(p: StudentPaymentFormProps) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* LEFT — form */}
       <div className="lg:col-span-2 space-y-6">
+        {/* Step 1 — student picker */}
         <Card>
           <div className="flex items-center gap-3 mb-5">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 grid place-items-center text-[13px] font-semibold">
@@ -527,6 +541,7 @@ function StudentPaymentForm(p: StudentPaymentFormProps) {
           )}
         </Card>
 
+        {/* Step 2 — payment details */}
         <Card>
           <div className="flex items-center gap-3 mb-5">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 grid place-items-center text-[13px] font-semibold">
@@ -603,8 +618,64 @@ function StudentPaymentForm(p: StudentPaymentFormProps) {
             </FormField>
           </div>
         </Card>
+
+        {/* 👇 NEW Step 3 — set outstanding */}
+        {p.selectedStudent && (
+          <Card>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 grid place-items-center text-[13px] font-semibold">
+                <Wallet className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-[15px] font-semibold text-slate-900">
+                  Set outstanding{" "}
+                  <span className="text-[11px] font-normal text-slate-400">
+                    (optional)
+                  </span>
+                </h2>
+                <p className="text-[12px] text-slate-400">
+                  Use this to set the student's true balance — including any
+                  amount owed from before the system.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <FormField
+                  label="Outstanding amount (₦)"
+                  hint="This overwrites the current balance. Payments after this reduce it."
+                >
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="0"
+                    value={p.outstandingAmount}
+                    onChange={(e) => p.setOutstandingAmount(e.target.value)}
+                  />
+                </FormField>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={p.onSaveOutstanding}
+                loading={p.savingOutstanding}
+                disabled={p.outstandingAmount.trim() === ""}
+              >
+                Save
+              </Button>
+            </div>
+
+            <p className="mt-3 text-[11px] text-slate-400">
+              Current outstanding:{" "}
+              <span className="font-semibold text-slate-700">
+                {formatNaira(p.selectedStudent.outstandingBalance)}
+              </span>
+            </p>
+          </Card>
+        )}
       </div>
 
+      {/* RIGHT — summary */}
       <div className="space-y-6">
         <Card className="sticky top-24">
           <h3 className="text-[15px] font-semibold text-slate-900 mb-4">
@@ -672,7 +743,7 @@ function StudentPaymentForm(p: StudentPaymentFormProps) {
 }
 
 // ==========================================================
-// OTHER INCOME FORM  (with optional student link)
+// OTHER INCOME FORM  (unchanged)
 // ==========================================================
 interface OtherIncomeFormProps {
   sessions: AcademicSession[];
@@ -697,15 +768,6 @@ interface OtherIncomeFormProps {
   setOtherNote: (v: string) => void;
   submitting: boolean;
   onSubmit: () => void;
-  // 👇 NEW
-  otherStudent: StudentRow | null;
-  setOtherStudent: (s: StudentRow | null) => void;
-  otherSearch: string;
-  setOtherSearch: (v: string) => void;
-  otherDebounced: string;
-  otherResults: StudentRow[];
-  setOtherResults: (r: StudentRow[]) => void;
-  otherSearching: boolean;
 }
 
 function OtherIncomeForm(p: OtherIncomeFormProps) {
@@ -783,107 +845,6 @@ function OtherIncomeForm(p: OtherIncomeFormProps) {
           </div>
         </Card>
 
-        {/* 👇 NEW — link to a student */}
-        <Card>
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 grid place-items-center">
-              <User className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-[15px] font-semibold text-slate-900">
-                Link to a student{" "}
-                <span className="text-[11px] font-normal text-slate-400">
-                  (optional)
-                </span>
-              </h2>
-              <p className="text-[12px] text-slate-400">
-                If this payment is for a specific student, link it here so it
-                appears on their record.
-              </p>
-            </div>
-          </div>
-
-          {p.otherStudent ? (
-            <div className="flex items-center justify-between p-4 rounded-xl border border-amber-200 bg-amber-50/40">
-              <div className="flex items-center gap-3 min-w-0">
-                <Avatar
-                  name={p.otherStudent.fullName}
-                  src={p.otherStudent.profilePictureUrl}
-                  size="lg"
-                />
-                <div className="min-w-0">
-                  <p className="text-[14px] font-semibold text-slate-900 truncate">
-                    {p.otherStudent.fullName}
-                  </p>
-                  <p className="text-[12px] text-slate-500">
-                    {p.otherStudent.admissionNumber} ·{" "}
-                    {p.otherStudent.className}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                icon={X}
-                onClick={() => p.setOtherStudent(null)}
-              >
-                Remove
-              </Button>
-            </div>
-          ) : (
-            <>
-              <Input
-                icon={Search}
-                placeholder="Search student by name or admission number…"
-                value={p.otherSearch}
-                onChange={(e) => p.setOtherSearch(e.target.value)}
-              />
-
-              {p.otherSearching && (
-                <p className="text-[12px] text-slate-400 mt-3">Searching…</p>
-              )}
-
-              {!p.otherSearching && p.otherResults.length > 0 && (
-                <div className="mt-3 border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-100">
-                  {p.otherResults.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => {
-                        p.setOtherStudent(s);
-                        p.setOtherResults([]);
-                        p.setOtherSearch("");
-                      }}
-                      className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 text-left transition-colors"
-                    >
-                      <Avatar
-                        name={s.fullName}
-                        src={s.profilePictureUrl}
-                        size="sm"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium text-slate-800 truncate">
-                          {s.fullName}
-                        </p>
-                        <p className="text-[11px] text-slate-400">
-                          {s.admissionNumber} · {s.className}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {!p.otherSearching &&
-                p.otherDebounced &&
-                p.otherResults.length === 0 && (
-                  <div className="mt-3 py-8 text-center text-[13px] text-slate-400">
-                    No students found for &quot;{p.otherDebounced}&quot;
-                  </div>
-                )}
-            </>
-          )}
-        </Card>
-
         <Card>
           <div className="flex items-center gap-3 mb-5">
             <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 grid place-items-center text-[13px] font-semibold">
@@ -959,11 +920,6 @@ function OtherIncomeForm(p: OtherIncomeFormProps) {
             <SummaryRow label="Category" value={p.category || "—"} />
             <SummaryRow label="Description" value={p.description || "—"} />
             <SummaryRow label="Payer" value={p.payerName || "—"} />
-            {/* 👇 NEW */}
-            <SummaryRow
-              label="Student"
-              value={p.otherStudent?.fullName ?? "Not linked"}
-            />
             <div className="pt-3 border-t border-slate-100" />
             <SummaryRow
               label="Amount"
@@ -973,9 +929,7 @@ function OtherIncomeForm(p: OtherIncomeFormProps) {
           </div>
 
           <p className="mt-4 text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg p-2.5">
-            {p.otherStudent
-              ? `Linked to ${p.otherStudent.fullName} — will appear on their record. Does not affect fee balance.`
-              : "This will NOT affect any student's fee balance."}
+            This will NOT affect any student&apos;s fee balance.
           </p>
 
           <Button
