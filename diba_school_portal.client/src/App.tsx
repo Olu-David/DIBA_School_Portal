@@ -94,6 +94,7 @@ const MyResultsPage = lazy(() => import("./pages/student/MyResultsPage"));
 const PaymentCallbackPage = lazy(
   () => import("./pages/student/PaymentCallbackPage")
 );
+const MySubjectsPage = lazy(() => import("./pages/student/MySubjects"));
 
 // ==========================================================
 // Parent — lazy
