@@ -108,7 +108,21 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // MY BILL — Student-only
+        // MY BILL — Student-only  👈 RESTORED
+        // ==========================================================
+        [HttpGet("me/bill")]
+        [Authorize(Roles = "Student")]
+        public async Task<IActionResult> GetMyBill(
+            [FromQuery] Guid? termId = null,
+            [FromQuery] Guid? academicSessionId = null)
+        {
+            var result = await _studentService.GetMyBillAsync(
+                CurrentUserId, termId, academicSessionId);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        // ==========================================================
+        // MY SUBJECTS — Student-only
         // ==========================================================
         [HttpGet("me/subjects")]
         [Authorize(Roles = "Student")]
@@ -153,6 +167,9 @@ namespace DIBA_School_Portal.Server.Controllers
             });
         }
 
+        // ==========================================================
+        // MY SUBJECTS COUNT — Student-only
+        // ==========================================================
         [HttpGet("me/subjects/count")]
         [Authorize(Roles = "Student")]
         public async Task<IActionResult> GetMySubjectsCount()
@@ -172,7 +189,8 @@ namespace DIBA_School_Portal.Server.Controllers
 
             // 🔎 DIAGNOSTIC — remove once the count is correct
             var totalRows = await _context.StudentSubjects.CountAsync();
-            var rowsForMe = await _context.StudentSubjects.CountAsync(ss => ss.StudentId == student.Id);
+            var rowsForMe = await _context.StudentSubjects
+                .CountAsync(ss => ss.StudentId == student.Id);
             var anyOtherIds = await _context.StudentSubjects
                 .Select(ss => ss.StudentId)
                 .Distinct()
