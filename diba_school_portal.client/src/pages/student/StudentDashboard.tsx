@@ -65,6 +65,9 @@ export default function StudentDashboard() {
   const [billLoading, setBillLoading] = useState(true);
   const [billError, setBillError] = useState<string | null>(null);
 
+  // ---------- Subject count ----------
+  const [subjectCount, setSubjectCount] = useState<number | null>(null);
+
   // ---------- Payment modal ----------
   const [payOpen, setPayOpen] = useState(false);
   const [amount, setAmount] = useState("");
@@ -94,8 +97,20 @@ export default function StudentDashboard() {
     }
   };
 
+  const loadSubjectCount = async () => {
+    try {
+      const { data } = await api.get<ApiResponse<number>>(
+        "/student/me/subjects/count"
+      );
+      if (data.success) setSubjectCount(data.data ?? 0);
+    } catch {
+      /* silent — stat shows "-" */
+    }
+  };
+
   useEffect(() => {
     loadBill();
+    loadSubjectCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -202,9 +217,7 @@ export default function StudentDashboard() {
         }
       />
 
-      {/* ===============================================
-          BILL SUMMARY
-          =============================================== */}
+      {/* BILL SUMMARY */}
       {billLoading ? (
         <Card>
           <Skeleton className="h-40" />
@@ -227,7 +240,6 @@ export default function StudentDashboard() {
       ) : bill ? (
         <Card>
           <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-            {/* Left — the number they care about */}
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <Wallet className="w-4 h-4 text-surface-500" />
@@ -247,7 +259,6 @@ export default function StudentDashboard() {
               </p>
             </div>
 
-            {/* Middle — minimum requirement */}
             {balance > 0 && minimum > 0 && (
               <>
                 <div className="hidden lg:block w-px h-16 bg-surface-100" />
@@ -265,7 +276,6 @@ export default function StudentDashboard() {
               </>
             )}
 
-            {/* Right — pay button */}
             {balance > 0 ? (
               <div className="lg:ml-auto">
                 <Button
@@ -287,9 +297,7 @@ export default function StudentDashboard() {
         </Card>
       ) : null}
 
-      {/* ===============================================
-          Stat strip
-          =============================================== */}
+      {/* STAT STRIP */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           label="Outstanding fees"
@@ -314,16 +322,14 @@ export default function StudentDashboard() {
         />
         <StatCard
           label="Subjects"
-          value="-"
-          hint="This term"
+          value={subjectCount !== null ? String(subjectCount) : "-"}
+          hint="Enrolled this term"
           icon={BookOpen}
           tone="violet"
         />
       </div>
 
-      {/* ===============================================
-          Quick access + profile
-          =============================================== */}
+      {/* QUICK ACCESS + PROFILE */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <h3 className="text-[15px] font-semibold text-surface-900 mb-4">
@@ -364,6 +370,19 @@ export default function StudentDashboard() {
               </div>
               <p className="text-[13px] font-medium text-surface-800">My bill</p>
             </button>
+            {/* 👇 NEW */}
+            <button
+              type="button"
+              onClick={() => navigate("/student/subjects")}
+              className="p-4 rounded-xl border border-surface-100 hover:border-emerald-200 hover:bg-emerald-50/30 transition-all text-left"
+            >
+              <div className="w-9 h-9 rounded-lg grid place-items-center mb-3 bg-surface-50 text-surface-600">
+                <BookOpen className="w-4 h-4" />
+              </div>
+              <p className="text-[13px] font-medium text-surface-800">
+                My subjects
+              </p>
+            </button>
           </div>
         </Card>
 
@@ -387,9 +406,7 @@ export default function StudentDashboard() {
         </Card>
       </div>
 
-      {/* ===============================================
-          PAYMENT MODAL
-          =============================================== */}
+      {/* PAYMENT MODAL */}
       {payOpen && bill && (
         <>
           <div
@@ -510,4 +527,3 @@ export default function StudentDashboard() {
     </div>
   );
 }
-// run this

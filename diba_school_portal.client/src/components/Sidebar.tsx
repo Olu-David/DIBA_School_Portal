@@ -1,4 +1,5 @@
-﻿import { NavLink } from "react-router-dom";
+﻿import { useEffect, useState } from "react";
+import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard, Users, Wallet, GraduationCap, LogOut, ScrollText,
   BookOpen, CalendarDays, ClipboardCheck, FileText, UserCog, Inbox,
@@ -9,6 +10,8 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import { useRole } from "../hooks/useRole";
 import { roleLabel, type UserRole } from "../lib/roles";
+import api from "../lib/api";
+import type { ApiResponse } from "../types/common";
 
 interface NavItem {
   to: string;
@@ -16,6 +19,7 @@ interface NavItem {
   icon: LucideIcon;
   end?: boolean;
   roles?: UserRole[];
+  badgeKey?: "studentSubjects"; // 👈 new
 }
 
 interface NavGroup {
@@ -44,12 +48,10 @@ const R = {
     "VicePrincipal", "SchoolAdmin",
   ] as UserRole[],
 
-  // Full finance policy access — Accountant + management
   finance: [
     "SuperAdmin", "Principal", "VicePrincipal", "Accountant",
   ] as UserRole[],
 
-  // Cash collection access — Cashier + everyone above
   cashier: [
     "SuperAdmin", "Principal", "VicePrincipal", "Accountant", "Cashier",
   ] as UserRole[],
@@ -74,9 +76,10 @@ const R = {
     "VicePrincipal", "SchoolAdmin", "Teacher", "FormTeacher",
   ] as UserRole[],
 
-  // 👇 NEW — end-of-session promotion
-  // Matches App.tsx route guard and PromotionController's [Authorize]
   promotion: ["SuperAdmin", "Principal", "SchoolAdmin"] as UserRole[],
+
+  // 👇 new — students only
+  student: ["Student"] as UserRole[],
 };
 
 const NAV_GROUPS: NavGroup[] = [
@@ -85,6 +88,20 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true, roles: R.all },
       { to: "/admin/notifications", label: "Notifications", icon: Bell, roles: R.all },
+    ],
+  },
+
+  // 👇 NEW — student-only group
+  {
+    label: "My Learning",
+    items: [
+      {
+        to: "/admin/my-subjects",
+        label: "My Subjects",
+        icon: BookOpen,
+        roles: R.student,
+        badgeKey: "studentSubjects",
+      },
     ],
   },
 
@@ -114,8 +131,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/subjects", label: "Subjects", icon: BookOpen, roles: R.admin },
       { to: "/admin/sessions", label: "Sessions & Terms", icon: CalendarDays, roles: R.admin },
       { to: "/admin/classes", label: "Classes", icon: GraduationCap, roles: R.admin },
-
-      // 👇 NEW — end-of-session promotion
       { to: "/admin/promotions", label: "Promotions", icon: GraduationCap, roles: R.promotion },
     ],
   },
@@ -163,6 +178,28 @@ interface SidebarProps {
 export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
   const { user, logout } = useAuth();
   const { role } = useRole();
+
+  // 🔹 Student subject-count badge
+  const isStudent = role === "Student";
+  const [subjectCount, setSubjectCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isStudent) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get<ApiResponse<number>>(
+          "/student/me/subjects/count"
+        );
+        if (!cancelled && data.success) setSubjectCount(data.data ?? 0);
+      } catch {
+        /* silent */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isStudent]);
 
   const visibleGroups = NAV_GROUPS
     .map((group) => ({
@@ -223,6 +260,14 @@ export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
                 >
                   <it.icon className="w-4 h-4 shrink-0" />
                   <span className="truncate">{it.label}</span>
+
+                  {it.badgeKey === "studentSubjects" &&
+                    subjectCount !== null &&
+                    subjectCount > 0 && (
+                      <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-600/20 text-brand-300 tabular-nums">
+                        {subjectCount}
+                      </span>
+                    )}
                 </NavLink>
               ))}
             </div>
