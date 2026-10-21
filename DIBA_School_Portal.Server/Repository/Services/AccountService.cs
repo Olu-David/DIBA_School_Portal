@@ -513,6 +513,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
         // ==========================================================
         // CASH PAYMENT — auto-creates / updates enrollment
         // ==========================================================
+        // ==========================================================
+        // CASH PAYMENT — auto-creates / updates enrollment
+        // ==========================================================
         #region RecordCashPaymentAsync
         public async Task<ServiceResponse<CashPaymentResponseDto>> RecordCashPaymentAsync(
             RecordCashPaymentDto request, string currentUserId, string ipAddress)
@@ -645,23 +648,10 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     }
                 }
 
-                // ---------- 4. Recompute enrollment totals ----------
-                var pastPaid = await _context.StudentPayments
-                    .Where(p => p.StudentProfileId == request.StudentProfileId &&
-                                p.TermId == request.TermId &&
-                                p.Status == PaymentStatus.Successful)
-                    .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
-
-                var newTotalPaid = pastPaid + request.AmountPaid;
-
-                var totalRequiredFee = await _context.ClassFeePrices
-                    .Include(cfp => cfp.Fee)
-                    .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId &&
-                                  cfp.Fee.TermId == request.TermId)
-                    .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
-
-                enrollment.TotalAmountPaid = newTotalPaid;
-                enrollment.OutstandingBalance = Math.Max(0, totalRequiredFee - newTotalPaid);
+                // ---------- 4. Update enrollment totals (SUBTRACT, don't recalculate) ----------
+                enrollment.TotalAmountPaid += request.AmountPaid;
+                enrollment.OutstandingBalance = Math.Max(0, enrollment.OutstandingBalance - request.AmountPaid);
+                enrollment.IsFullyPaid = enrollment.OutstandingBalance <= 0;
 
                 // ---------- 5. Status flags ----------
                 var totalMinimum = await _context.ClassFeePrices
@@ -671,7 +661,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 if (totalMinimum > 0)
                 {
-                    if (newTotalPaid < totalMinimum)
+                    if (enrollment.TotalAmountPaid < totalMinimum)
                     {
                         enrollment.Status = StudentEnrollmentStatus.Pending;
                         enrollment.IsActive = false;
@@ -682,8 +672,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         enrollment.IsActive = true;
                     }
                 }
-
-                enrollment.IsFullyPaid = totalRequiredFee > 0 && newTotalPaid >= totalRequiredFee;
 
                 _context.StudentEnrollments.Update(enrollment);
 
@@ -757,6 +745,114 @@ namespace DIBA_School_Portal.Server.Repository.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error recording cash payment.");
+                response.Success = false;
+                response.Message = $"An error occurred: {ex.Message}";
+                response.StatusCode = 500;
+                return response;
+            }
+        }
+        #endregion
+
+        // ==========================================================
+        // SET OUTSTANDING — bursar sets the student's starting balance
+        // ==========================================================
+        #region SetOutstandingAsync
+        public async Task<ServiceResponse<decimal>> SetOutstandingAsync(
+            Guid studentProfileId,
+            Guid academicSessionId,
+            Guid termId,
+            decimal amount,
+            string currentUserId,
+            string ipAddress)
+        {
+            var response = new ServiceResponse<decimal>();
+
+            try
+            {
+                if (amount < 0)
+                {
+                    response.Success = false;
+                    response.Message = "Outstanding amount cannot be negative.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                var student = await _context.Students
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.Id == studentProfileId);
+
+                if (student == null)
+                {
+                    response.Success = false;
+                    response.Message = "Student not found.";
+                    response.StatusCode = 404;
+                    return response;
+                }
+
+                var enrollment = await _context.StudentEnrollments
+                    .FirstOrDefaultAsync(e =>
+                        e.StudentProfileId == studentProfileId &&
+                        e.TermId == termId &&
+                        e.AcademicSessionId == academicSessionId);
+
+                if (enrollment == null)
+                {
+                    // No enrollment yet — create one with this starting balance
+                    enrollment = new StudentEnrollment
+                    {
+                        Id = Guid.NewGuid(),
+                        StudentProfileId = studentProfileId,
+                        AcademicSessionId = academicSessionId,
+                        TermId = termId,
+                        SchoolClassId = student.SchoolClassId,
+                        TotalAmountPaid = 0m,
+                        OutstandingBalance = amount,
+                        IsFullyPaid = amount == 0m,
+                        Status = amount == 0m
+                            ? StudentEnrollmentStatus.Active
+                            : StudentEnrollmentStatus.Pending,
+                        IsActive = amount == 0m,
+                        EnrolledAt = DateTime.UtcNow,
+                    };
+                    _context.StudentEnrollments.Add(enrollment);
+                }
+                else
+                {
+                    // Existing — just set the balance directly
+                    enrollment.OutstandingBalance = amount;
+                    enrollment.IsFullyPaid = amount == 0m;
+
+                    if (amount == 0m)
+                    {
+                        enrollment.Status = StudentEnrollmentStatus.Active;
+                        enrollment.IsActive = true;
+                    }
+                    else
+                    {
+                        enrollment.Status = StudentEnrollmentStatus.Pending;
+                        enrollment.IsActive = false;
+                    }
+
+                    _context.StudentEnrollments.Update(enrollment);
+                }
+
+                await _context.SaveChangesAsync();
+
+                await _auditLog.LogActivityAsync(
+                    currentUserId,
+                    "Outstanding set",
+                    $"Student {studentProfileId}: outstanding set to ₦{amount:N2}.",
+                    ipAddress);
+
+                response.Success = true;
+                response.StatusCode = 200;
+                response.Message = $"Outstanding set to ₦{amount:N2}.";
+                response.Data = enrollment.OutstandingBalance;
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error setting outstanding.");
                 response.Success = false;
                 response.Message = $"An error occurred: {ex.Message}";
                 response.StatusCode = 500;

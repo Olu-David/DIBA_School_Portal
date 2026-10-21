@@ -36,6 +36,8 @@ namespace DIBA_School_Portal.Server.Repository.IServices
         Task<ServiceResponse<PaginatedViewModel<MiscIncomeRowDto>>> GetMiscIncomeAsync(
             MiscIncomeFilterDto filter);
 
-
+        Task<ServiceResponse<decimal>> SetOutstandingAsync(
+    Guid studentProfileId, Guid academicSessionId, Guid termId,
+    decimal amount, string currentUserId, string ipAddress);
     }
 }

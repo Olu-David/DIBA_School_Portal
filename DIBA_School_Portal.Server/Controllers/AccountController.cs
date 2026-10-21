@@ -1,6 +1,7 @@
 ﻿using DIBA_School_Portal.Server.Contracts;
 using DIBA_School_Portal.Server.Contracts.FinanceDto;
 using DIBA_School_Portal.Server.Repository.IServices;
+using DIBA_School_Portal.Server.Repository.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -24,7 +25,17 @@ namespace DIBA_School_Portal.Server.Controllers
 
         private string Ip =>
             HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-
+        [HttpPost("student/{studentProfileId:guid}/outstanding")]
+        [Authorize(Roles = "SuperAdmin,Principal,Accountant,Cashier")]
+        public async Task<IActionResult> SetOutstanding(
+    Guid studentProfileId,
+    [FromBody] SetOutstandingDto dto)
+        {
+            var result = await _accountService.SetOutstandingAsync(
+                studentProfileId, dto.AcademicSessionId, dto.TermId,
+                dto.Amount, CurrentUserId, Ip);
+            return StatusCode(result.StatusCode, result);
+        }
         // ==========================================================
         // DASHBOARD
         // ==========================================================

@@ -1155,10 +1155,11 @@ namespace DIBA_School_Portal.Server.Repository.Services
         /// is counted), and adds an optional extra amount on top of the DB sum.
         /// </summary>
         private async Task RecomputeEnrollmentTotalsAsync(
-            StudentEnrollment enrollment,
-            Guid excludePaymentId,
-            decimal addPaymentAmount)
+         StudentEnrollment enrollment,
+         Guid excludePaymentId,
+         decimal addPaymentAmount)
         {
+            // Sum every other successful payment for this student + term
             var pastPaid = await _context.StudentPayments
                 .Where(p => p.StudentProfileId == enrollment.StudentProfileId &&
                             p.TermId == enrollment.TermId &&
@@ -1168,15 +1169,16 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             var newTotalPaid = pastPaid + addPaymentAmount;
 
-            var totalRequiredFee = await _context.ClassFeePrices
-                .Include(cfp => cfp.Fee)
-                .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId &&
-                              cfp.Fee.TermId == enrollment.TermId)
-                .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
-
             enrollment.TotalAmountPaid = newTotalPaid;
-            enrollment.OutstandingBalance = Math.Max(0, totalRequiredFee - newTotalPaid);
 
+            // Subtract the payment from the current balance.
+            // Do NOT recalculate from ClassFeePrices — that would erase manual adjustments.
+            enrollment.OutstandingBalance =
+                Math.Max(0, enrollment.OutstandingBalance - addPaymentAmount);
+
+            enrollment.IsFullyPaid = enrollment.OutstandingBalance <= 0;
+
+            // Status flags based on the minimum required for this term's fees
             var totalMinimum = await _context.ClassFeePrices
                 .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId &&
                               cfp.Fee.TermId == enrollment.TermId)
@@ -1196,11 +1198,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
             }
 
-            enrollment.IsFullyPaid =
-                totalRequiredFee > 0 && newTotalPaid >= totalRequiredFee;
-
             _context.StudentEnrollments.Update(enrollment);
         }
+        
         #endregion
 
         #region ResolveCustomerEmailAsync

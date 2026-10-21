@@ -15,5 +15,6 @@ namespace DIBA_School_Portal.Server.Contracts.FinanceDto
         public PaymentGateway Gateway { get; set; }
         public PaymentStatus Status { get; set; }
         public DateTime RecordedAt { get; set; }
+
     }
 }
