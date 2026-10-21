@@ -1,10 +1,10 @@
 ﻿namespace DIBA_School_Portal.Server.Controllers
 {
-    internal class StudentSubjectDto
+    public class StudentSubjectDto
     {
-        public Guid subjectId { get; set; }
-        public string subjectName { get; set; }
-        public string subjectCode { get; set; }
-        public string teacherName { get; set; }
+        public Guid? subjectId { get; set; }
+        public string? subjectName { get; set; }
+        public string? subjectCode { get; set; }
+        public string? teacherName { get; set; }
     }
 }
