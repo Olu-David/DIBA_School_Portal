@@ -513,9 +513,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         // ==========================================================
         // CASH PAYMENT — auto-creates / updates enrollment
         // ==========================================================
-        // ==========================================================
-        // CASH PAYMENT — auto-creates / updates enrollment
-        // ==========================================================
+       
         #region RecordCashPaymentAsync
         public async Task<ServiceResponse<CashPaymentResponseDto>> RecordCashPaymentAsync(
             RecordCashPaymentDto request, string currentUserId, string ipAddress)
@@ -544,6 +542,28 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
+                // ---------- 1a. GUARD: only school fees touch enrollment ----------
+                // If the student's class has no fee schedule for this term,
+                // this isn't a school-fee payment — it's PTA/uniform/fine/etc.
+                // Those must go through the Other Income tab, not here.
+                var totalBilledForTerm = await _context.ClassFeePrices
+                    .Include(cfp => cfp.Fee)
+                    .Where(cfp => cfp.SchoolClassId == student.SchoolClassId &&
+                                  cfp.Fee.TermId == request.TermId &&
+                                  cfp.Fee.AcademicSessionId == request.AcademicSessionId)
+                    .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
+
+                if (totalBilledForTerm <= 0)
+                {
+                    response.Success = false;
+                    response.Message =
+                        "This student has no school fees configured for this term. " +
+                        "If this payment is for PTA, uniform, exam fee, or other non-tuition items, " +
+                        "use the Other Income tab instead.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
                 // ---------- 1. Enrollment: lookup or create ----------
                 var enrollment = await _context.StudentEnrollments
                     .FirstOrDefaultAsync(e =>
@@ -553,13 +573,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 if (enrollment == null)
                 {
-                    var billedAmount = await _context.ClassFeePrices
-                        .Include(cfp => cfp.Fee)
-                        .Where(cfp => cfp.SchoolClassId == student.SchoolClassId &&
-                                      cfp.Fee.TermId == request.TermId &&
-                                      cfp.Fee.AcademicSessionId == request.AcademicSessionId)
-                        .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
-
                     enrollment = new StudentEnrollment
                     {
                         Id = Guid.NewGuid(),
@@ -569,7 +582,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         SchoolClassId = student.SchoolClassId,
 
                         TotalAmountPaid = 0m,
-                        OutstandingBalance = billedAmount,
+                        OutstandingBalance = totalBilledForTerm,
                         IsFullyPaid = false,
 
                         Status = StudentEnrollmentStatus.Pending,
@@ -581,7 +594,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                     _logger.LogInformation(
                         "Auto-created enrollment for student {StudentId} term {TermId} — billed ₦{Billed:N2}.",
-                        student.Id, request.TermId, billedAmount);
+                        student.Id, request.TermId, totalBilledForTerm);
                 }
 
                 // ---------- 2. Create the payment record ----------
@@ -751,6 +764,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return response;
             }
         }
+        
         #endregion
 
         // ==========================================================

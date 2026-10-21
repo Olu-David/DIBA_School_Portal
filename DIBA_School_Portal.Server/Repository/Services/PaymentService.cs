@@ -17,15 +17,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
 {
     public class PaymentService : IPaymentService
     {
-        // ==========================================================
-        // Constants
-        // ==========================================================
         private const string DefaultFlutterwaveBaseUrl = "https://api.flutterwave.com/v3";
         private const string DefaultFlutterwaveCurrency = "NGN";
 
-        // ==========================================================
-        // Fields + Constructor
-        // ==========================================================
         private readonly AppDbContext _context;
         private readonly ILogger<PaymentService> _logger;
         private readonly HttpClient _httpClient;
@@ -60,9 +54,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
             ?? "System";
 
-        // ==========================================================
-        // Flutterwave configuration (single source of truth)
-        // ==========================================================
         private string? FlutterwaveSecretKey =>
             _configuration["Flutterwave:SecretKey"];
 
@@ -77,7 +68,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             ?? "https://localhost:12050/student/payment/callback";
 
         // ==========================================================
-        // BILL BREAKDOWN — works with or without enrollment
+        // BILL BREAKDOWN — unchanged
         // ==========================================================
         #region GetStudentBillBreakdownAsync
         public async Task<ServiceResponse<StudentBillResponseDto>> GetStudentBillBreakdownAsync(
@@ -199,7 +190,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // INITIALIZE PAYMENT (generic — Cash, Manual, BankTransfer)
+        // INITIALIZE PAYMENT — reject if no fees for the term
         // ==========================================================
         #region RecordPaymentAsync
         public async Task<ServiceResponse<string>> RecordPaymentAsync(CreatePaymentDto paymentDto)
@@ -235,6 +226,26 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 {
                     response.Success = false;
                     response.Message = "The selected term does not belong to the specified academic session.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                // 👇 StudentPayments = school fees ONLY.
+                // If there are no fees for this class/term, this isn't a fee payment.
+                var totalBilledForTerm = await _context.ClassFeePrices
+                    .Include(cfp => cfp.Fee)
+                    .Where(cfp => cfp.SchoolClassId == studentProfile.SchoolClassId &&
+                                  cfp.Fee.TermId == paymentDto.TermId &&
+                                  cfp.Fee.AcademicSessionId == paymentDto.AcademicSessionId)
+                    .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
+
+                if (totalBilledForTerm <= 0)
+                {
+                    response.Success = false;
+                    response.Message =
+                        "This student has no school fees configured for this term. " +
+                        "If this is for PTA, uniform, exam fee, or other non-tuition items, " +
+                        "use the Other Income endpoint.";
                     response.StatusCode = 400;
                     return response;
                 }
@@ -313,7 +324,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // GET BY STUDENT
+        // GET BY STUDENT — unchanged
         // ==========================================================
         #region GetPaymentsByStudentAsync
         public async Task<ServiceResponse<IEnumerable<StudentPaymentDto>>> GetPaymentsByStudentAsync(
@@ -365,7 +376,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // GET BY ID
+        // GET BY ID — unchanged
         // ==========================================================
         #region GetPaymentByIdAsync
         public async Task<ServiceResponse<StudentPaymentDto>> GetPaymentByIdAsync(Guid paymentId)
@@ -419,7 +430,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // GET BY REFERENCE
+        // GET BY REFERENCE — unchanged
         // ==========================================================
         #region GetPaymentByReferenceAsync
         public async Task<ServiceResponse<StudentPaymentDto>> GetPaymentByReferenceAsync(
@@ -474,7 +485,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // UPDATE STATUS (manual — cash / bank transfer)
+        // UPDATE STATUS — FIX 2: only allocate to fees if fees exist
         // ==========================================================
         #region UpdatePaymentStatusAsync
         public async Task<ServiceResponse<bool>> UpdatePaymentStatusAsync(
@@ -501,19 +512,41 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 // ---------- Transition INTO Successful ----------
                 if (oldStatus != PaymentStatus.Successful && status == PaymentStatus.Successful)
                 {
-                    await AllocatePaymentToFeesAsync(payment);
+                    // 👇 FIX 2 — only touch enrollment when the term actually has fees.
+                    // Prevents accidental enrollment changes for non-fee payments.
+                    var studentClassId = await _context.Students
+                        .Where(s => s.Id == payment.StudentProfileId)
+                        .Select(s => s.SchoolClassId)
+                        .FirstOrDefaultAsync();
 
-                    var enrollment = await EnsureEnrollmentExistsAsync(
-                        payment.StudentProfileId,
-                        payment.AcademicSessionId,
-                        payment.TermId);
+                    var hasFees = await _context.ClassFeePrices
+                        .Include(cfp => cfp.Fee)
+                        .AnyAsync(cfp => cfp.SchoolClassId == studentClassId &&
+                                         cfp.Fee.TermId == payment.TermId);
 
-                    if (enrollment != null)
+                    if (hasFees)
                     {
-                        await RecomputeEnrollmentTotalsAsync(
-                            enrollment,
-                            excludePaymentId: payment.Id,
-                            addPaymentAmount: payment.AmountPaid);
+                        await AllocatePaymentToFeesAsync(payment);
+
+                        var enrollment = await EnsureEnrollmentExistsAsync(
+                            payment.StudentProfileId,
+                            payment.AcademicSessionId,
+                            payment.TermId);
+
+                        if (enrollment != null)
+                        {
+                            await RecomputeEnrollmentTotalsAsync(
+                                enrollment,
+                                excludePaymentId: payment.Id,
+                                addPaymentAmount: payment.AmountPaid);
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "Payment {Ref} marked Successful but no ClassFeePrices exist for " +
+                            "term {TermId}. Skipping enrollment allocation.",
+                            payment.ReferenceNumber, payment.TermId);
                     }
                 }
 
@@ -584,7 +617,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // FLUTTERWAVE — INITIATE
+        // FLUTTERWAVE — INITIATE — unchanged
+        // (fee-only by design — the student portal only uses this for fees)
         // ==========================================================
         #region InitiateFlutterwaveAsync
         public async Task<ServiceResponse<InitiateFlutterwaveResponseDto>> InitiateFlutterwaveAsync(
@@ -594,7 +628,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             try
             {
-                // ---------- 1. Config sanity ----------
                 var secretKey = FlutterwaveSecretKey;
                 if (string.IsNullOrWhiteSpace(secretKey) || secretKey.Contains("PASTE"))
                 {
@@ -606,7 +639,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 2. Validate amount ----------
                 if (request.Amount <= 0)
                 {
                     response.Success = false;
@@ -615,7 +647,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 3. Load student ----------
                 var student = await _context.Students
                     .AsNoTracking()
                     .FirstOrDefaultAsync(s => s.Id == request.StudentProfileId);
@@ -628,7 +659,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 4. Validate session + term ----------
                 var term = await _context.SchoolTerms
                     .AsNoTracking()
                     .FirstOrDefaultAsync(t =>
@@ -643,7 +673,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 5. Resolve customer email ----------
                 var email = await ResolveCustomerEmailAsync(
                     student.Id, student.UserId, request.CustomerEmail);
 
@@ -657,7 +686,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 6. Create pending payment ----------
                 var reference =
                     $"DIBA-FLW-{DateTime.UtcNow:yyyyMMddHHmmss}-" +
                     $"{Guid.NewGuid().ToString()[..6].ToUpper()}";
@@ -678,7 +706,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 _context.StudentPayments.Add(payment);
                 await _context.SaveChangesAsync();
 
-                // ---------- 7. Call Flutterwave ----------
                 var payload = new
                 {
                     tx_ref = reference,
@@ -729,7 +756,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 8. Parse checkout URL ----------
                 string? checkoutUrl;
                 using (var doc = JsonDocument.Parse(bodyText))
                 {
@@ -750,7 +776,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 9. Audit ----------
                 await _auditLog.LogActivityAsync(
                     currentUserId,
                     "Flutterwave Payment Initiated",
@@ -758,7 +783,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     $"{student.FirstName} {student.LastName} ({student.AdmissionNumber}).",
                     ipAddress);
 
-                // ---------- 10. Return ----------
                 response.Success = true;
                 response.StatusCode = 200;
                 response.Message = "Redirect to checkout.";
@@ -788,7 +812,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // FLUTTERWAVE — VERIFY
+        // FLUTTERWAVE — VERIFY — FIX 3: only allocate if fees exist
         // ==========================================================
         #region VerifyAndCompleteFlutterwavePaymentAsync
         public async Task<ServiceResponse<bool>> VerifyAndCompleteFlutterwavePaymentAsync(
@@ -797,7 +821,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             var response = new ServiceResponse<bool>();
             try
             {
-                // ---------- 1. Load pending payment ----------
                 var paymentRecord = await _context.StudentPayments
                     .FirstOrDefaultAsync(p => p.ReferenceNumber == referenceNumber);
 
@@ -810,7 +833,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 2. Idempotency ----------
                 if (paymentRecord.Status == PaymentStatus.Successful)
                 {
                     response.Success = true;
@@ -820,7 +842,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 3. Verify with Flutterwave ----------
                 var secretKey = FlutterwaveSecretKey;
                 if (string.IsNullOrWhiteSpace(secretKey))
                 {
@@ -848,7 +869,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 var jsonResult =
                     await fwResponse.Content.ReadFromJsonAsync<FlutterwaveApiResponseWrapper>();
 
-                // ---------- 4. Validate FLW response ----------
                 if (jsonResult?.Data == null ||
                     jsonResult.Data.Status.ToLower() != "successful")
                 {
@@ -878,14 +898,42 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 5. Mark successful ----------
+                // 👇 FIX 3 — verify the term actually has fees before enrolling.
+                // A Flutterwave payment without a fee schedule is a data problem;
+                // don't mark it successful because there's nothing to allocate it to.
+                var studentClassId = await _context.Students
+                    .Where(s => s.Id == paymentRecord.StudentProfileId)
+                    .Select(s => s.SchoolClassId)
+                    .FirstOrDefaultAsync();
+
+                var hasFees = await _context.ClassFeePrices
+                    .Include(cfp => cfp.Fee)
+                    .AnyAsync(cfp => cfp.SchoolClassId == studentClassId &&
+                                     cfp.Fee.TermId == paymentRecord.TermId);
+
+                if (!hasFees)
+                {
+                    _logger.LogError(
+                        "Flutterwave payment {Ref} verified but no ClassFeePrices exist for " +
+                        "student {StudentId} term {TermId}.",
+                        referenceNumber, paymentRecord.StudentProfileId, paymentRecord.TermId);
+
+                    paymentRecord.Status = PaymentStatus.Failed;
+                    await _context.SaveChangesAsync();
+
+                    response.Success = false;
+                    response.Message =
+                        "Payment received but the student has no fees configured for this term. " +
+                        "Please contact the school to resolve.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
                 paymentRecord.Status = PaymentStatus.Successful;
                 _context.StudentPayments.Update(paymentRecord);
 
-                // ---------- 6. Allocate to fees ----------
                 await AllocatePaymentToFeesAsync(paymentRecord);
 
-                // ---------- 7. Ensure enrollment exists ----------
                 var enrollment = await EnsureEnrollmentExistsAsync(
                     paymentRecord.StudentProfileId,
                     paymentRecord.AcademicSessionId,
@@ -899,7 +947,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 8. Recompute totals ----------
                 await RecomputeEnrollmentTotalsAsync(
                     enrollment,
                     excludePaymentId: paymentRecord.Id,
@@ -907,7 +954,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 await _context.SaveChangesAsync();
 
-                // ---------- 9. Audit + notify ----------
                 await _auditLog.LogActivityAsync(
                     "System/Flutterwave",
                     "Payment Verified",
@@ -953,7 +999,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ==========================================================
-        // PRIVATE HELPERS
+        // PRIVATE HELPERS — all unchanged
         // ==========================================================
 
         #region CalculatePreviousOutstandingDebtAsync
@@ -993,12 +1039,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         #region AllocatePaymentToFeesAsync
-        /// <summary>
-        /// Three-pass allocation:
-        ///   1. Meet each fee's minimum (in name order)
-        ///   2. Fill each fee up to full amount
-        ///   3. Overflow goes to the first fee
-        /// </summary>
         private async Task AllocatePaymentToFeesAsync(StudentPayment payment)
         {
             var existing = await _context.StudentPaymentItems
@@ -1036,7 +1076,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             var remaining = payment.AmountPaid;
             var allocations = new Dictionary<Guid, decimal>();
 
-            // Pass 1 — meet minimums
             foreach (var cfp in fees)
             {
                 if (remaining <= 0) break;
@@ -1050,7 +1089,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
             }
 
-            // Pass 2 — fill to full amount
             foreach (var cfp in fees)
             {
                 if (remaining <= 0) break;
@@ -1066,7 +1104,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
             }
 
-            // Pass 3 — overflow
             if (remaining > 0)
             {
                 var firstId = fees.First().FeeId;
@@ -1088,10 +1125,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         #region EnsureEnrollmentExistsAsync
-        /// <summary>
-        /// Finds the enrollment for the given student/session/term,
-        /// or creates one with the full billed amount as outstanding.
-        /// </summary>
         private async Task<StudentEnrollment?> EnsureEnrollmentExistsAsync(
             Guid studentProfileId, Guid academicSessionId, Guid termId)
         {
@@ -1149,17 +1182,11 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         #region RecomputeEnrollmentTotalsAsync
-        /// <summary>
-        /// Recomputes an enrollment's TotalAmountPaid / OutstandingBalance / IsFullyPaid / Status.
-        /// Excludes the given payment ID (so callers control whether the current payment
-        /// is counted), and adds an optional extra amount on top of the DB sum.
-        /// </summary>
         private async Task RecomputeEnrollmentTotalsAsync(
-         StudentEnrollment enrollment,
-         Guid excludePaymentId,
-         decimal addPaymentAmount)
+            StudentEnrollment enrollment,
+            Guid excludePaymentId,
+            decimal addPaymentAmount)
         {
-            // Sum every other successful payment for this student + term
             var pastPaid = await _context.StudentPayments
                 .Where(p => p.StudentProfileId == enrollment.StudentProfileId &&
                             p.TermId == enrollment.TermId &&
@@ -1171,14 +1198,11 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             enrollment.TotalAmountPaid = newTotalPaid;
 
-            // Subtract the payment from the current balance.
-            // Do NOT recalculate from ClassFeePrices — that would erase manual adjustments.
             enrollment.OutstandingBalance =
                 Math.Max(0, enrollment.OutstandingBalance - addPaymentAmount);
 
             enrollment.IsFullyPaid = enrollment.OutstandingBalance <= 0;
 
-            // Status flags based on the minimum required for this term's fees
             var totalMinimum = await _context.ClassFeePrices
                 .Where(cfp => cfp.SchoolClassId == enrollment.SchoolClassId &&
                               cfp.Fee.TermId == enrollment.TermId)
@@ -1200,14 +1224,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             _context.StudentEnrollments.Update(enrollment);
         }
-        
         #endregion
 
         #region ResolveCustomerEmailAsync
-        /// <summary>
-        /// Prefers the caller-provided email, falls back to the student's own email,
-        /// then to their primary guardian's email. Flutterwave requires one.
-        /// </summary>
         private async Task<string?> ResolveCustomerEmailAsync(
             Guid studentProfileId, string studentUserId, string? providedEmail)
         {
@@ -1234,12 +1253,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         #region SendFlutterwaveRequestAsync
-        /// <summary>
-        /// Sends a Flutterwave API request with per-request auth.
-        /// Using HttpRequestMessage (instead of mutating DefaultRequestHeaders)
-        /// avoids the classic pooled-HttpClient header-leak bug.
-        /// The caller is responsible for disposing the response.
-        /// </summary>
         private async Task<HttpResponseMessage> SendFlutterwaveRequestAsync(
             HttpMethod method,
             string path,

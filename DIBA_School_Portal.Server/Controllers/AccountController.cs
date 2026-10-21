@@ -31,7 +31,7 @@ namespace DIBA_School_Portal.Server.Controllers
     Guid studentProfileId,
     [FromBody] SetOutstandingDto dto)
         {
-            var result = await _accountService.SetOutstandingAsync(
+            var result = await _account.SetOutstandingAsync(
                 studentProfileId, dto.AcademicSessionId, dto.TermId,
                 dto.Amount, CurrentUserId, Ip);
             return StatusCode(result.StatusCode, result);
