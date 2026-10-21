@@ -57,9 +57,7 @@ export default function ScoreEntryPage() {
     setLoading(true);
     (async () => {
       try {
-        const { data } = await api.get<
-          ApiResponse<Paginated<ScoreRow>>
-        >(
+        const { data } = await api.get<ApiResponse<Paginated<ScoreRow>>>(
           `/termsubjectresult/score-sheet?classId=${classId}&subjectId=${subjectId}&termId=${termId}&academicSessionId=${sessionId}&pageSize=100`
         );
         if (data.success) {
@@ -111,6 +109,12 @@ export default function ScoreEntryPage() {
 
   const session = sessions.find((s) => s.id === sessionId);
   const canSubmit = classId && subjectId && termId && sessionId && rows.length > 0;
+
+  // Helper: is a row's score out of range?
+  const isInvalid = (r: ScoreRow) =>
+    r.test1Score < 0 || r.test1Score > 20 ||
+    r.test2Score < 0 || r.test2Score > 20 ||
+    r.examScore < 0 || r.examScore > 60;
 
   return (
     <div className="space-y-6">
@@ -186,85 +190,159 @@ export default function ScoreEntryPage() {
           />
         </Card>
       ) : (
-        <Card padding="none">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-surface-100 bg-surface-50/50">
-                  <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">
-                    Student
-                  </th>
-                  <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3">
-                    Test 1 <span className="text-surface-400">/20</span>
-                  </th>
-                  <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3">
-                    Test 2 <span className="text-surface-400">/20</span>
-                  </th>
-                  <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3">
-                    Exam <span className="text-surface-400">/60</span>
-                  </th>
-                  <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">
-                    Total
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-100">
-                {rows.map((r) => {
-                  const total = r.test1Score + r.test2Score + r.examScore;
-                  const invalid =
-                    r.test1Score < 0 || r.test1Score > 20 ||
-                    r.test2Score < 0 || r.test2Score > 20 ||
-                    r.examScore < 0 || r.examScore > 60;
+        <>
+          {/* DESKTOP / TABLET — table */}
+          <Card padding="none" className="hidden lg:block">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-surface-100 bg-surface-50/50">
+                    <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3">
+                      Student
+                    </th>
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3 w-28">
+                      Test 1 <span className="text-surface-400">/20</span>
+                    </th>
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3 w-28">
+                      Test 2 <span className="text-surface-400">/20</span>
+                    </th>
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-4 py-3 w-28">
+                      Exam <span className="text-surface-400">/60</span>
+                    </th>
+                    <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-surface-500 px-6 py-3 w-24">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-100">
+                  {rows.map((r) => {
+                    const total = r.test1Score + r.test2Score + r.examScore;
+                    const invalid = isInvalid(r);
 
-                  return (
-                    <tr key={r.studentId} className={invalid ? "bg-flame-50/30" : ""}>
-                      <td className="px-6 py-3">
-                        <div className="flex items-center gap-3">
-                          <Avatar name={r.studentName} size="sm" />
-                          <p className="text-[13px] font-medium text-surface-800">{r.studentName}</p>
-                          {invalid && (
-                            <span title="Score out of range" className="text-flame-500">
-                              <AlertCircle className="w-4 h-4" />
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Input
-                          type="number"
-                          value={String(r.test1Score)}
-                          onChange={(e) => update(r.studentId, "test1Score", Number(e.target.value))}
-                          className="max-w-20 ml-auto text-right"
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Input
-                          type="number"
-                          value={String(r.test2Score)}
-                          onChange={(e) => update(r.studentId, "test2Score", Number(e.target.value))}
-                          className="max-w-20 ml-auto text-right"
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Input
-                          type="number"
-                          value={String(r.examScore)}
-                          onChange={(e) => update(r.studentId, "examScore", Number(e.target.value))}
-                          className="max-w-20 ml-auto text-right"
-                        />
-                      </td>
-                      <td className="px-6 py-3 text-right">
-                        <span className={`text-[13px] font-semibold tabular-nums ${invalid ? "text-flame-600" : "text-surface-900"}`}>
+                    return (
+                      <tr key={r.studentId} className={invalid ? "bg-flame-50/30" : ""}>
+                        <td className="px-6 py-3">
+                          <div className="flex items-center gap-3">
+                            <Avatar name={r.studentName} size="sm" />
+                            <p className="text-[13px] font-medium text-surface-800">{r.studentName}</p>
+                            {invalid && (
+                              <span title="Score out of range" className="text-flame-500">
+                                <AlertCircle className="w-4 h-4" />
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Input
+                            type="number"
+                            value={String(r.test1Score)}
+                            onChange={(e) => update(r.studentId, "test1Score", Number(e.target.value))}
+                            className="w-full text-right"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <Input
+                            type="number"
+                            value={String(r.test2Score)}
+                            onChange={(e) => update(r.studentId, "test2Score", Number(e.target.value))}
+                            className="w-full text-right"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <Input
+                            type="number"
+                            value={String(r.examScore)}
+                            onChange={(e) => update(r.studentId, "examScore", Number(e.target.value))}
+                            className="w-full text-right"
+                          />
+                        </td>
+                        <td className="px-6 py-3 text-right">
+                          <span className={`text-[13px] font-semibold tabular-nums ${invalid ? "text-flame-600" : "text-surface-900"}`}>
+                            {total}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {/* MOBILE — cards */}
+          <div className="lg:hidden space-y-3">
+            {rows.map((r) => {
+              const total = r.test1Score + r.test2Score + r.examScore;
+              const invalid = isInvalid(r);
+
+              return (
+                <Card key={r.studentId} className={invalid ? "ring-1 ring-flame-200" : ""}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <Avatar name={r.studentName} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[14px] font-semibold text-surface-900 truncate">
+                        {r.studentName}
+                      </p>
+                    </div>
+                    {invalid && (
+                      <AlertCircle className="w-4 h-4 text-flame-500 shrink-0" />
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-medium text-surface-500 mb-1">
+                        Test 1 <span className="text-surface-400">/20</span>
+                      </label>
+                      <Input
+                        type="number"
+                        value={String(r.test1Score)}
+                        onChange={(e) => update(r.studentId, "test1Score", Number(e.target.value))}
+                        className="w-full text-right"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-surface-500 mb-1">
+                        Test 2 <span className="text-surface-400">/20</span>
+                      </label>
+                      <Input
+                        type="number"
+                        value={String(r.test2Score)}
+                        onChange={(e) => update(r.studentId, "test2Score", Number(e.target.value))}
+                        className="w-full text-right"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-surface-500 mb-1">
+                        Exam <span className="text-surface-400">/60</span>
+                      </label>
+                      <Input
+                        type="number"
+                        value={String(r.examScore)}
+                        onChange={(e) => update(r.studentId, "examScore", Number(e.target.value))}
+                        className="w-full text-right"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-surface-500 mb-1">
+                        Total
+                      </label>
+                      <div className={`h-10 flex items-center justify-end px-3 rounded-lg border ${
+                        invalid ? "border-flame-200 bg-flame-50" : "border-surface-100 bg-surface-50"
+                      }`}>
+                        <span className={`text-[14px] font-semibold tabular-nums ${
+                          invalid ? "text-flame-600" : "text-surface-900"
+                        }`}>
                           {total}
                         </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
-        </Card>
+        </>
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 ﻿using DIBA_School_Portal.Server.Contracts;
 using DIBA_School_Portal.Server.Contracts.StudentDTO;
+using DIBA_School_Portal.Server.Controllers;
 
 namespace DIBA_School_Portal.Server.Repository.IServices
 {
@@ -8,7 +9,10 @@ namespace DIBA_School_Portal.Server.Repository.IServices
         // ---------- READ ----------
         Task<ServiceResponse<PaginatedViewModel<StudentListRowDto>>> GetStudentsAsync(
             StudentFilterDto filter);
-
+        Task<ServiceResponse<int>> EditStudentSubjectsAsync(
+           Guid studentId, List<Guid> subjectIds, string currentUserId, string ipAddress);
+        Task<ServiceResponse<List<StudentSubjectDto>>> GetStudentSubjectsAsync(Guid studentId);
+        Task<ServiceResponse<List<SubjectOptionDto>>> GetAllSubjectsAsync();
         Task<ServiceResponse<StudentDto>> GetStudentByIdAsync(Guid id);
 
         Task<ServiceResponse<StudentDto>> GetStudentByAdmissionNumberAsync(string admissionNumber);
@@ -19,6 +23,7 @@ namespace DIBA_School_Portal.Server.Repository.IServices
         // ---------- UPDATE ----------
         Task<ServiceResponse<StudentDto>> UpdateStudentAsync(
             Guid id, UpdateStudentDto request, string currentUserId, string ipAddress);
+
 
         // ---------- DELETE / RESTORE ----------
         Task<ServiceResponse<bool>> SoftDeleteStudentAsync(

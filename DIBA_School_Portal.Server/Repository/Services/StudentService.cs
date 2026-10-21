@@ -2,7 +2,9 @@
 using DIBA_School_Portal.Server.Contracts;
 using DIBA_School_Portal.Server.Contracts.FinanceDto;
 using DIBA_School_Portal.Server.Contracts.StudentDTO;
+using DIBA_School_Portal.Server.Controllers;
 using DIBA_School_Portal.Server.Database_Entities;
+using DIBA_School_Portal.Server.Entities;
 using DIBA_School_Portal.Server.Enums;
 using DIBA_School_Portal.Server.Repository.IServices;
 using Microsoft.AspNetCore.Identity;
@@ -83,6 +85,157 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 .Select(tc => tc.SchoolClassId)
                 .ToListAsync();
         }
+        // ============================================================
+        // EDIT STUDENT SUBJECTS — replace the enrolment set
+        // ============================================================
+        public async Task<ServiceResponse<int>> EditStudentSubjectsAsync(
+            Guid studentId, List<Guid> subjectIds, string currentUserId, string ipAddress)
+        {
+            var response = new ServiceResponse<int>();
+
+            var student = await _context.Students
+                .FirstOrDefaultAsync(s => s.Id == studentId);
+
+            if (student == null)
+            {
+                response.Success = false;
+                response.Message = "Student not found.";
+                response.StatusCode = 404;
+                return response;
+            }
+
+            var currentSession = await _context.AcademicSessions
+                .OrderByDescending(a => a.StartDate)   // ← adjust to your property
+                .FirstOrDefaultAsync();
+
+            if (currentSession == null)
+            {
+                response.Success = false;
+                response.Message = "No academic session exists. Create one before editing subjects.";
+                response.StatusCode = 400;
+                return response;
+            }
+
+            var distinctSubjectIds = (subjectIds ?? new List<Guid>())
+                .Distinct()
+                .ToList();
+
+            // Validate every subject id exists
+            if (distinctSubjectIds.Count > 0)
+            {
+                var validCount = await _context.Subjects
+                    .Where(s => distinctSubjectIds.Contains(s.Id))
+                    .CountAsync();
+
+                if (validCount != distinctSubjectIds.Count)
+                {
+                    response.Success = false;
+                    response.Message = "One or more subject ids are invalid.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+            }
+
+            // Remove existing enrolments for this student
+            var existing = await _context.StudentSubjects
+                .Where(ss => ss.StudentId == studentId)
+                .ToListAsync();
+
+            if (existing.Count > 0)
+                _context.StudentSubjects.RemoveRange(existing);
+
+            // Add the new set
+            foreach (var subjectId in distinctSubjectIds)
+            {
+                _context.StudentSubjects.Add(new StudentSubject
+                {
+                    Id = Guid.NewGuid(),
+                    StudentId = studentId,
+                    SubjectId = subjectId,
+                    AcademicSessionId = currentSession.Id,
+                });
+            }
+
+            await _context.SaveChangesAsync();
+
+            await _auditLog.LogActivityAsync(
+                currentUserId, "Student Subjects Updated",
+                $"Student {student.FirstName} {student.LastName}: " +
+                $"{distinctSubjectIds.Count} subjects set.",
+                ipAddress);
+
+            response.Success = true;
+            response.Message = $"Student now enrolled in {distinctSubjectIds.Count} subject(s).";
+            response.StatusCode = 200;
+            response.Data = distinctSubjectIds.Count;
+            return response;
+        }
+
+        // ============================================================
+        // GET a single student's subjects (admin view)
+        // ============================================================
+        public async Task<ServiceResponse<List<StudentSubjectDto>>> GetStudentSubjectsAsync(Guid studentId)
+        {
+            var response = new ServiceResponse<List<StudentSubjectDto>>();
+
+            var studentExists = await _context.Students
+                .AnyAsync(s => s.Id == studentId);
+
+            if (!studentExists)
+            {
+                response.Success = false;
+                response.Message = "Student not found.";
+                response.StatusCode = 404;
+                return response;
+            }
+
+            var subjects = await _context.StudentSubjects
+                .Where(ss => ss.StudentId == studentId)
+                .Include(ss => ss.Subject)
+                    .ThenInclude(s => s!.TeacherSubjects)
+                        .ThenInclude(ts => ts.Teacher)
+                .Select(ss => new StudentSubjectDto
+                {
+                    subjectId = ss.Subject!.Id,
+                    subjectName = ss.Subject.Name,
+                    subjectCode = ss.Subject.Code,
+                    teacherName = ss.Subject.TeacherSubjects
+                        .Where(ts => ts.Teacher != null)
+                        .Select(ts => ts.Teacher.FirstName + " " + ts.Teacher.LastName)
+                        .FirstOrDefault() ?? "—",
+                })
+                .Distinct()
+                .ToListAsync();
+
+            response.Success = true;
+            response.StatusCode = 200;
+            response.Data = subjects;
+            return response;
+        }
+
+        // ============================================================
+        // GET all subjects (for the picker modal)
+        // ============================================================
+        public async Task<ServiceResponse<List<SubjectOptionDto>>> GetAllSubjectsAsync()
+        {
+            var response = new ServiceResponse<List<SubjectOptionDto>>();
+
+            var subjects = await _context.Subjects
+                .OrderBy(s => s.Name)
+                .Select(s => new SubjectOptionDto
+                {
+                    Id = s.Id,
+                    Name = s.Name,
+                    Code = s.Code,
+                })
+                .ToListAsync();
+
+            response.Success = true;
+            response.StatusCode = 200;
+            response.Data = subjects;
+            return response;
+        }
+
         // ==========================================================
         // LIST (paginated + filterable + role-scoped)
         // ==========================================================

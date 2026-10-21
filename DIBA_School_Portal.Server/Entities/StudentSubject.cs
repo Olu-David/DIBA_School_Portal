@@ -17,5 +17,7 @@ namespace DIBA_School_Portal.Server.Entities
         public virtual Subject? Subject { get; set; }
 
         public Guid AcademicSessionId { get; set; }
+        [ForeignKey(nameof(AcademicSessionId))]
+        public virtual AcademicSession? AcademicSession { get; set; }
     }
 }

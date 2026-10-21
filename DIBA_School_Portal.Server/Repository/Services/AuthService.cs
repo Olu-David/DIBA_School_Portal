@@ -418,6 +418,10 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+
+        // ============================================================
+        // CREATE ACCOUNT — with Teachers row for every staff role
+        // ============================================================
         // ============================================================
         // CREATE ACCOUNT — with Teachers row for every staff role
         // ============================================================
@@ -642,6 +646,42 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 });
             }
 
+            // ==========================================================
+            // AUTO-ENROL — every subject offered by the student's class
+            // ==========================================================
+            if (isStudent && studentProfileId.HasValue)
+            {
+                var currentSession = await _context.AcademicSessions
+                    .OrderByDescending(a => a.StartDate)   // ← adjust
+                    .FirstOrDefaultAsync();
+
+                if (currentSession == null)
+                {
+                    response.Success = false;
+                    response.Message = "No academic session exists. Create one before adding students.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
+                var subjectIds = await _context.ClassSubjects
+                    .Where(cs => cs.SchoolClassId == request.SchoolClassId!.Value)
+                    .Select(cs => cs.SubjectId)
+                    .Distinct()
+                    .ToListAsync();
+
+                foreach (var sid in subjectIds)
+                {
+                    _context.StudentSubjects.Add(new StudentSubject
+                    {
+                        Id = Guid.NewGuid(),
+                        StudentId = studentProfileId.Value,
+                        SubjectId = sid,
+                        AcademicSessionId = currentSession.Id,
+                    });
+                }
+            }
+            // ==========================================================
+
             await _context.SaveChangesAsync();
 
             string? pictureWarning = null;
@@ -699,6 +739,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
             return response;
         }
         #endregion
+
+
+
 
         // ============================================================
         // UPDATE PROFILE — unchanged (already syncs Teacher + Student)

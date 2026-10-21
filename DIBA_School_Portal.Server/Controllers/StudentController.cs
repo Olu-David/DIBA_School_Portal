@@ -216,5 +216,39 @@ namespace DIBA_School_Portal.Server.Controllers
                 Data = count
             });
         }
+        // ==========================================================
+        // GET student's subjects (admin view)
+        // ==========================================================
+        [HttpGet("{id:guid}/subjects")]
+        [Authorize(Roles = "SuperAdmin,Principal,SchoolAdmin,Registrar")]
+        public async Task<IActionResult> GetStudentSubjects(Guid id)
+        {
+            var result = await _studentService.GetStudentSubjectsAsync(id);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        // ==========================================================
+        // GET all subjects (for the picker)
+        // ==========================================================
+        [HttpGet("subjects/all")]
+        [Authorize(Roles = "SuperAdmin,Principal,SchoolAdmin,Registrar")]
+        public async Task<IActionResult> GetAllSubjects()
+        {
+            var result = await _studentService.GetAllSubjectsAsync();
+            return StatusCode(result.StatusCode, result);
+        }
+
+        // ==========================================================
+        // EDIT STUDENT SUBJECTS
+        // ==========================================================
+        [HttpPut("{id:guid}/subjects")]
+        [Authorize(Roles = "SuperAdmin,Principal,SchoolAdmin,Registrar")]
+        public async Task<IActionResult> EditStudentSubjects(
+            Guid id, [FromBody] List<Guid> subjectIds)
+        {
+            var result = await _studentService.EditStudentSubjectsAsync(
+                id, subjectIds, CurrentUserId, Ip);
+            return StatusCode(result.StatusCode, result);
+        }
     }
 }
