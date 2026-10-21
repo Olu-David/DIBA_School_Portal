@@ -217,7 +217,9 @@ export default function StudentDashboard() {
         }
       />
 
-      {/* BILL SUMMARY */}
+      {/* ===============================================
+          BILL SUMMARY
+          =============================================== */}
       {billLoading ? (
         <Card>
           <Skeleton className="h-40" />
@@ -297,7 +299,9 @@ export default function StudentDashboard() {
         </Card>
       ) : null}
 
-      {/* STAT STRIP */}
+      {/* ===============================================
+          Stat strip
+          =============================================== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           label="Outstanding fees"
@@ -320,7 +324,6 @@ export default function StudentDashboard() {
           icon={Trophy}
           tone="amber"
         />
-        {/* 👇 SUBJECT COUNT */}
         <StatCard
           label="Subjects"
           value={subjectCount !== null ? String(subjectCount) : "-"}
@@ -330,7 +333,9 @@ export default function StudentDashboard() {
         />
       </div>
 
-      {/* QUICK ACCESS + PROFILE */}
+      {/* ===============================================
+          Quick access + profile
+          =============================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <h3 className="text-[15px] font-semibold text-surface-900 mb-4">
@@ -371,7 +376,6 @@ export default function StudentDashboard() {
               </div>
               <p className="text-[13px] font-medium text-surface-800">My bill</p>
             </button>
-            {/* 👇 MY SUBJECTS SHORTCUT */}
             <button
               type="button"
               onClick={() => navigate("/student/subjects")}
@@ -407,7 +411,9 @@ export default function StudentDashboard() {
         </Card>
       </div>
 
-      {/* PAYMENT MODAL */}
+      {/* ===============================================
+          PAYMENT MODAL
+          =============================================== */}
       {payOpen && bill && (
         <>
           <div

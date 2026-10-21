@@ -386,6 +386,8 @@ export default function App() {
                 <Route path="/student" element={<StudentLayout />}>
                   <Route index element={<StudentDashboard />} />
                   <Route path="bill" element={<MyBillPage />} />
+                  {/* 👇 NEW: My Subjects */}
+                  <Route path="subjects" element={<MySubjectsPage />} />
                   <Route path="results" element={<MyResultsPage />} />
                   <Route
                     path="results/:studentId/:sessionId/:termId"
