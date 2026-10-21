@@ -60,7 +60,7 @@ export default function StudentDashboard() {
     return "Good evening";
   })();
 
-  // ---------- Bill ----------
+  // ---------- Bill state ----------
   const [bill, setBill] = useState<Bill | null>(null);
   const [billLoading, setBillLoading] = useState(true);
   const [billError, setBillError] = useState<string | null>(null);
@@ -104,7 +104,7 @@ export default function StudentDashboard() {
       );
       if (data.success) setSubjectCount(data.data ?? 0);
     } catch {
-      /* leave null → shows "-" */
+      /* silent — stat shows "-" */
     }
   };
 
@@ -114,11 +114,13 @@ export default function StudentDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ---------- Safe accessors ----------
   const balance = bill?.totalBalanceRemaining ?? 0;
   const paid = bill?.totalPaidSoFar ?? 0;
   const billed = bill?.totalBilledAmount ?? 0;
   const minimum = bill?.minimumAmountRequired ?? 0;
 
+  // ---------- Open payment modal ----------
   const openPay = () => {
     if (!bill) return;
     if (balance <= 0) {
@@ -131,6 +133,7 @@ export default function StudentDashboard() {
     setPayOpen(true);
   };
 
+  // ---------- Submit payment ----------
   const submitPayment = async () => {
     if (!bill) return;
 
@@ -140,11 +143,17 @@ export default function StudentDashboard() {
       return;
     }
     if (amt > balance + 0.01) {
-      toast({ variant: "error", title: `Amount exceeds balance of ${formatNaira(balance)}.` });
+      toast({
+        variant: "error",
+        title: `Amount exceeds balance of ${formatNaira(balance)}.`,
+      });
       return;
     }
     if (minimum > 0 && amt < minimum) {
-      toast({ variant: "error", title: `Minimum payment is ${formatNaira(minimum)}.` });
+      toast({
+        variant: "error",
+        title: `Minimum payment is ${formatNaira(minimum)}.`,
+      });
       return;
     }
 
@@ -188,6 +197,9 @@ export default function StudentDashboard() {
     }
   };
 
+  // ==========================================================
+  // Render
+  // ==========================================================
   return (
     <div className="space-y-6 lg:space-y-8">
       <PageHeader
@@ -207,15 +219,21 @@ export default function StudentDashboard() {
 
       {/* BILL SUMMARY */}
       {billLoading ? (
-        <Card><Skeleton className="h-40" /></Card>
+        <Card>
+          <Skeleton className="h-40" />
+        </Card>
       ) : billError ? (
         <Card>
           <div className="flex items-start gap-3 py-4">
             <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
             <div className="flex-1">
-              <p className="text-[14px] font-semibold text-red-900">Couldn't load your bill</p>
+              <p className="text-[14px] font-semibold text-red-900">
+                Couldn't load your bill
+              </p>
               <p className="text-[13px] text-red-800/80 mt-1">{billError}</p>
-              <Button variant="secondary" className="mt-3" onClick={loadBill}>Retry</Button>
+              <Button variant="secondary" className="mt-3" onClick={loadBill}>
+                Retry
+              </Button>
             </div>
           </div>
         </Card>
@@ -229,7 +247,11 @@ export default function StudentDashboard() {
                   Outstanding — {bill.termName}
                 </p>
               </div>
-              <p className={`text-3xl font-semibold tabular-nums ${balance > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+              <p
+                className={`text-3xl font-semibold tabular-nums ${
+                  balance > 0 ? "text-rose-600" : "text-emerald-600"
+                }`}
+              >
                 {formatNaira(balance)}
               </p>
               <p className="text-[12px] text-surface-500 mt-2">
@@ -256,7 +278,12 @@ export default function StudentDashboard() {
 
             {balance > 0 ? (
               <div className="lg:ml-auto">
-                <Button size="lg" icon={CreditCard} onClick={openPay} className="w-full lg:w-auto">
+                <Button
+                  size="lg"
+                  icon={CreditCard}
+                  onClick={openPay}
+                  className="w-full lg:w-auto"
+                >
                   Pay now
                 </Button>
               </div>
@@ -279,8 +306,21 @@ export default function StudentDashboard() {
           icon={Wallet}
           tone={bill && balance > 0 ? "rose" : "emerald"}
         />
-        <StatCard label="Latest average" value="-" hint="No results yet" icon={TrendingUp} tone="sky" />
-        <StatCard label="Class position" value="-" hint="Most recent term" icon={Trophy} tone="amber" />
+        <StatCard
+          label="Latest average"
+          value="-"
+          hint="No results yet"
+          icon={TrendingUp}
+          tone="sky"
+        />
+        <StatCard
+          label="Class position"
+          value="-"
+          hint="Most recent term"
+          icon={Trophy}
+          tone="amber"
+        />
+        {/* 👇 SUBJECT COUNT */}
         <StatCard
           label="Subjects"
           value={subjectCount !== null ? String(subjectCount) : "-"}
@@ -293,7 +333,9 @@ export default function StudentDashboard() {
       {/* QUICK ACCESS + PROFILE */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
-          <h3 className="text-[15px] font-semibold text-surface-900 mb-4">Quick access</h3>
+          <h3 className="text-[15px] font-semibold text-surface-900 mb-4">
+            Quick access
+          </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <button
               type="button"
@@ -303,7 +345,9 @@ export default function StudentDashboard() {
               <div className="w-9 h-9 rounded-lg grid place-items-center mb-3 bg-surface-50 text-surface-600">
                 <FileText className="w-4 h-4" />
               </div>
-              <p className="text-[13px] font-medium text-surface-800">My results</p>
+              <p className="text-[13px] font-medium text-surface-800">
+                My results
+              </p>
             </button>
             <button
               type="button"
@@ -313,7 +357,9 @@ export default function StudentDashboard() {
               <div className="w-9 h-9 rounded-lg grid place-items-center mb-3 bg-surface-50 text-surface-600">
                 <Receipt className="w-4 h-4" />
               </div>
-              <p className="text-[13px] font-medium text-surface-800">My payments</p>
+              <p className="text-[13px] font-medium text-surface-800">
+                My payments
+              </p>
             </button>
             <button
               type="button"
@@ -325,6 +371,7 @@ export default function StudentDashboard() {
               </div>
               <p className="text-[13px] font-medium text-surface-800">My bill</p>
             </button>
+            {/* 👇 MY SUBJECTS SHORTCUT */}
             <button
               type="button"
               onClick={() => navigate("/student/subjects")}
@@ -333,7 +380,9 @@ export default function StudentDashboard() {
               <div className="w-9 h-9 rounded-lg grid place-items-center mb-3 bg-surface-50 text-surface-600">
                 <BookOpen className="w-4 h-4" />
               </div>
-              <p className="text-[13px] font-medium text-surface-800">My subjects</p>
+              <p className="text-[13px] font-medium text-surface-800">
+                My subjects
+              </p>
             </button>
           </div>
         </Card>
@@ -374,8 +423,12 @@ export default function StudentDashboard() {
                     <CreditCard className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
-                    <h2 className="text-[16px] font-semibold text-surface-900">Pay fees online</h2>
-                    <p className="text-[12px] text-surface-500">Secure checkout via Flutterwave</p>
+                    <h2 className="text-[16px] font-semibold text-surface-900">
+                      Pay fees online
+                    </h2>
+                    <p className="text-[12px] text-surface-500">
+                      Secure checkout via Flutterwave
+                    </p>
                   </div>
                 </div>
                 <button
@@ -401,7 +454,9 @@ export default function StudentDashboard() {
                     type="number"
                     inputMode="decimal"
                     value={amount}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setAmount(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                      setAmount(e.target.value)
+                    }
                   />
                 </FormField>
 
@@ -424,23 +479,35 @@ export default function StudentDashboard() {
                   </button>
                 </div>
 
-                <FormField label="Email for receipt" hint="Optional — we'll use your profile email if empty">
+                <FormField
+                  label="Email for receipt"
+                  hint="Optional — we'll use your profile email if empty"
+                >
                   <Input
                     type="email"
                     value={email}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                      setEmail(e.target.value)
+                    }
                     placeholder="you@example.com"
                   />
                 </FormField>
 
                 <div className="flex items-start gap-2 text-[11px] text-surface-500 bg-surface-50 border border-surface-100 rounded-lg p-3">
                   <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <p>You'll be redirected to Flutterwave to complete payment. Your card details never touch our servers.</p>
+                  <p>
+                    You'll be redirected to Flutterwave to complete payment.
+                    Your card details never touch our servers.
+                  </p>
                 </div>
               </div>
 
               <div className="mt-6 flex justify-end gap-3">
-                <Button variant="secondary" onClick={() => setPayOpen(false)} disabled={paying}>
+                <Button
+                  variant="secondary"
+                  onClick={() => setPayOpen(false)}
+                  disabled={paying}
+                >
                   Cancel
                 </Button>
                 <Button onClick={submitPayment} disabled={paying}>

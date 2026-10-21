@@ -34,57 +34,32 @@ const R = {
     "Teacher", "FormTeacher",
   ] as UserRole[],
 
-  leadership: [
-    "SuperAdmin", "Principal", "Headmaster", "Headmistress", "VicePrincipal",
-  ] as UserRole[],
-
-  people: [
-    "SuperAdmin", "Principal", "Headmaster", "Headmistress",
-    "VicePrincipal", "SchoolAdmin", "Registrar",
-  ] as UserRole[],
-
-  admin: [
-    "SuperAdmin", "Principal", "Headmaster", "Headmistress",
-    "VicePrincipal", "SchoolAdmin",
-  ] as UserRole[],
-
+  leadership: ["SuperAdmin", "Principal", "Headmaster", "Headmistress", "VicePrincipal"] as UserRole[],
+  people: ["SuperAdmin", "Principal", "Headmaster", "Headmistress", "VicePrincipal", "SchoolAdmin", "Registrar"] as UserRole[],
+  admin: ["SuperAdmin", "Principal", "Headmaster", "Headmistress", "VicePrincipal", "SchoolAdmin"] as UserRole[],
   finance: ["SuperAdmin", "Principal", "VicePrincipal", "Accountant"] as UserRole[],
   cashier: ["SuperAdmin", "Principal", "VicePrincipal", "Accountant", "Cashier"] as UserRole[],
   registrar: ["SuperAdmin", "Principal", "Registrar"] as UserRole[],
   audit: ["SuperAdmin", "Principal"] as UserRole[],
-
-  score: [
-    "SuperAdmin", "Principal", "VicePrincipal", "Headmaster",
-    "Headmistress", "Teacher", "FormTeacher",
-  ] as UserRole[],
-
-  teaching: [
-    "Teacher", "FormTeacher",
-    "Principal", "VicePrincipal", "Headmaster", "Headmistress",
-    "SchoolAdmin",
-  ] as UserRole[],
-
-  results: [
-    "SuperAdmin", "Principal", "Headmaster", "Headmistress",
-    "VicePrincipal", "SchoolAdmin", "Teacher", "FormTeacher",
-  ] as UserRole[],
-
+  score: ["SuperAdmin", "Principal", "VicePrincipal", "Headmaster", "Headmistress", "Teacher", "FormTeacher"] as UserRole[],
+  teaching: ["Teacher", "FormTeacher", "Principal", "VicePrincipal", "Headmaster", "Headmistress", "SchoolAdmin"] as UserRole[],
+  results: ["SuperAdmin", "Principal", "Headmaster", "Headmistress", "VicePrincipal", "SchoolAdmin", "Teacher", "FormTeacher"] as UserRole[],
   promotion: ["SuperAdmin", "Principal", "SchoolAdmin"] as UserRole[],
 
-  // 👇 Students
+  // 👇 students
   student: ["Student"] as UserRole[],
 };
 
-const NAV_GROUPS: NavGroup[] = [
+// 👇 Students get their OWN nav list — no role filter needed,
+//    so the "My Subjects" item can never be filtered out.
+const STUDENT_NAV_GROUPS: NavGroup[] = [
   {
     label: "Overview",
     items: [
-      { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true, roles: R.all },
-      { to: "/admin/notifications", label: "Notifications", icon: Bell, roles: R.all },
+      { to: "/student", label: "Dashboard", icon: LayoutDashboard, end: true },
+      { to: "/student/notifications", label: "Notifications", icon: Bell },
     ],
   },
-
-  // 👇 Students-only group
   {
     label: "My Learning",
     items: [
@@ -92,18 +67,27 @@ const NAV_GROUPS: NavGroup[] = [
         to: "/student/subjects",
         label: "My Subjects",
         icon: BookOpen,
-        roles: R.student,
         badgeKey: "studentSubjects",
       },
-      {
-        to: "/student/results",
-        label: "My Results",
-        icon: FileText,
-        roles: R.student,
-      },
+      { to: "/student/results", label: "My Results", icon: FileText },
     ],
   },
+  {
+    label: "Finance",
+    items: [
+      { to: "/student/bill", label: "My Bill", icon: Wallet, end: true },
+    ],
+  },
+];
 
+const STAFF_NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Overview",
+    items: [
+      { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true, roles: R.all },
+      { to: "/admin/notifications", label: "Notifications", icon: Bell, roles: R.all },
+    ],
+  },
   {
     label: "My Classroom",
     items: [
@@ -114,7 +98,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/my-results", label: "My Submitted Results", icon: CheckCircle2, roles: R.teaching },
     ],
   },
-
   {
     label: "People",
     items: [
@@ -123,7 +106,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/parents", label: "Parents", icon: Users, roles: R.people },
     ],
   },
-
   {
     label: "Academics",
     items: [
@@ -133,7 +115,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/promotions", label: "Promotions", icon: GraduationCap, roles: R.promotion },
     ],
   },
-
   {
     label: "Results",
     items: [
@@ -141,7 +122,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/report-cards", label: "Report Cards", icon: FileText, roles: R.results },
     ],
   },
-
   {
     label: "Finance",
     items: [
@@ -153,19 +133,13 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/finance/fees",        label: "Fee Structures", icon: Wallet,                  roles: R.finance },
     ],
   },
-
   {
     label: "Admissions",
-    items: [
-      { to: "/admin/enquiries", label: "Enquiries Inbox", icon: Inbox, roles: R.registrar },
-    ],
+    items: [{ to: "/admin/enquiries", label: "Enquiries Inbox", icon: Inbox, roles: R.registrar }],
   },
-
   {
     label: "System",
-    items: [
-      { to: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText, roles: R.audit },
-    ],
+    items: [{ to: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText, roles: R.audit }],
   },
 ];
 
@@ -179,6 +153,8 @@ export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
   const { role } = useRole();
 
   const isStudent = role === "Student";
+
+  // ---- Student subject count (drives the badge) ----
   const [subjectCount, setSubjectCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -191,7 +167,7 @@ export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
         );
         if (!cancelled && data.success) setSubjectCount(data.data ?? 0);
       } catch {
-        /* silent */
+        /* silent — badge just won't show */
       }
     })();
     return () => {
@@ -199,7 +175,10 @@ export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
     };
   }, [isStudent]);
 
-  const visibleGroups = NAV_GROUPS
+  // ---- Pick nav list + filter (students need no filtering) ----
+  const source = isStudent ? STUDENT_NAV_GROUPS : STAFF_NAV_GROUPS;
+
+  const visibleGroups = source
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {
@@ -275,7 +254,7 @@ export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
 
       <div className="p-3 border-t border-white/10 shrink-0">
         <NavLink
-          to="/admin/profile"
+          to={isStudent ? "/student/profile" : "/admin/profile"}
           onClick={onNavigate}
           className="flex items-center gap-3 px-3 py-2 mb-2 rounded-xl hover:bg-white/5 transition-colors"
         >
