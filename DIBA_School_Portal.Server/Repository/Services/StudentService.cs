@@ -178,10 +178,14 @@ namespace DIBA_School_Portal.Server.Repository.Services
         {
             var response = new ServiceResponse<List<StudentSubjectDto>>();
 
-            var studentExists = await _context.Students
-                .AnyAsync(s => s.Id == studentId);
+            // Load the student so we have SchoolClassId for the teacher filter
+            var student = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.Id == studentId)
+                .Select(s => new { s.Id, s.SchoolClassId })
+                .FirstOrDefaultAsync();
 
-            if (!studentExists)
+            if (student == null)
             {
                 response.Success = false;
                 response.Message = "Student not found.";
@@ -200,8 +204,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     subjectName = ss.Subject.Name,
                     subjectCode = ss.Subject.Code,
                     teacherName = ss.Subject.TeacherSubjects
-                        .Where(ts => ts.Teacher != null)
-                        .Select(ts => ts.Teacher.FirstName + " " + ts.Teacher.LastName)
+                        .Where(ts => ts.Teacher != null
+                                  && _context.TeacherClasses.Any(tc =>
+                                         tc.TeacherId == ts.TeacherId
+                                      && tc.SchoolClassId == student.SchoolClassId))
+                        .OrderBy(ts => ts.Teacher!.FirstName)
+                        .Select(ts => ts.Teacher!.FirstName + " " + ts.Teacher.LastName)
                         .FirstOrDefault() ?? "—",
                 })
                 .Distinct()

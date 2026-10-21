@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { BadgeDollarSign, Search, Coins, User, Receipt, Wallet } from "lucide-react";
+import { BadgeDollarSign, Search, Coins, User, Receipt, Wallet, X } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
   Button,
@@ -62,7 +62,6 @@ export default function RecordCash() {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // 👇 NEW — set outstanding state
   const [outstandingAmount, setOutstandingAmount] = useState("");
   const [savingOutstanding, setSavingOutstanding] = useState(false);
 
@@ -75,6 +74,13 @@ export default function RecordCash() {
   const [otherReference, setOtherReference] = useState("");
   const [otherNote, setOtherNote] = useState("");
   const [submittingOther, setSubmittingOther] = useState(false);
+
+  // 👇 NEW — optional student link for other income
+  const [otherStudent, setOtherStudent] = useState<StudentRow | null>(null);
+  const [otherSearch, setOtherSearch] = useState("");
+  const otherDebounced = useDebounce(otherSearch, 400);
+  const [otherResults, setOtherResults] = useState<StudentRow[]>([]);
+  const [otherSearching, setOtherSearching] = useState(false);
 
   // ---------- Load sessions ----------
   useEffect(() => {
@@ -100,7 +106,7 @@ export default function RecordCash() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---------- Search students ----------
+  // ---------- Search students (fee payment) ----------
   useEffect(() => {
     if (kind !== "student") return;
     if (!debounced.trim()) {
@@ -121,6 +127,28 @@ export default function RecordCash() {
       }
     })();
   }, [debounced, kind]);
+
+  // 👇 NEW — Search students (optional link on other income)
+  useEffect(() => {
+    if (kind !== "other") return;
+    if (!otherDebounced.trim()) {
+      setOtherResults([]);
+      return;
+    }
+    setOtherSearching(true);
+    (async () => {
+      try {
+        const { data } = await api.get<ApiResponse<Paginated<StudentRow>>>(
+          `/student?searchTerm=${encodeURIComponent(
+            otherDebounced
+          )}&pageNumber=1&pageSize=8`
+        );
+        if (data.success) setOtherResults(data.data.items);
+      } finally {
+        setOtherSearching(false);
+      }
+    })();
+  }, [otherDebounced, kind]);
 
   const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) =>
     setSearch(e.target.value);
@@ -182,7 +210,7 @@ export default function RecordCash() {
     }
   };
 
-  // 👇 NEW — save outstanding
+  // ---------- Save outstanding ----------
   const onSaveOutstanding = async () => {
     if (!selectedStudent) return;
 
@@ -214,7 +242,6 @@ export default function RecordCash() {
         description: `New balance: ${formatNaira(data.data ?? amt)}`,
       });
 
-      // Refresh the selected student's balance
       const { data: sd } = await api.get<ApiResponse<Paginated<StudentRow>>>(
         `/student?searchTerm=${encodeURIComponent(
           selectedStudent.admissionNumber
@@ -263,6 +290,8 @@ export default function RecordCash() {
           gateway: "Cash",
           externalReference: otherReference || undefined,
           note: otherNote || undefined,
+          // 👇 NEW — optional student link
+          studentProfileId: otherStudent?.id ?? undefined,
         }
       );
 
@@ -301,7 +330,7 @@ export default function RecordCash() {
         description="Log money received at the bursary — either a fee payment for a student, or other income."
       />
 
-      {/* ---------- KIND TOGGLE ---------- */}
+      {/* KIND TOGGLE */}
       <div className="mb-6">
         <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
           <button
@@ -363,7 +392,6 @@ export default function RecordCash() {
           amountNumber={amountNumber}
           newBalance={newBalance}
           isOverpaying={isOverpaying}
-          // 👇 NEW
           outstandingAmount={outstandingAmount}
           setOutstandingAmount={setOutstandingAmount}
           savingOutstanding={savingOutstanding}
@@ -393,6 +421,15 @@ export default function RecordCash() {
           setOtherNote={setOtherNote}
           submitting={submittingOther}
           onSubmit={submitOther}
+          // 👇 NEW
+          otherStudent={otherStudent}
+          setOtherStudent={setOtherStudent}
+          otherSearch={otherSearch}
+          setOtherSearch={setOtherSearch}
+          otherDebounced={otherDebounced}
+          otherResults={otherResults}
+          setOtherResults={setOtherResults}
+          otherSearching={otherSearching}
         />
       )}
     </div>
@@ -400,7 +437,7 @@ export default function RecordCash() {
 }
 
 // ==========================================================
-// STUDENT PAYMENT FORM
+// STUDENT PAYMENT FORM (unchanged)
 // ==========================================================
 interface StudentPaymentFormProps {
   sessions: AcademicSession[];
@@ -428,7 +465,6 @@ interface StudentPaymentFormProps {
   amountNumber: number;
   newBalance: number;
   isOverpaying: boolean;
-  // 👇 NEW
   outstandingAmount: string;
   setOutstandingAmount: (v: string) => void;
   savingOutstanding: boolean;
@@ -438,9 +474,7 @@ interface StudentPaymentFormProps {
 function StudentPaymentForm(p: StudentPaymentFormProps) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* LEFT — form */}
       <div className="lg:col-span-2 space-y-6">
-        {/* Step 1 — student picker */}
         <Card>
           <div className="flex items-center gap-3 mb-5">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 grid place-items-center text-[13px] font-semibold">
@@ -541,7 +575,6 @@ function StudentPaymentForm(p: StudentPaymentFormProps) {
           )}
         </Card>
 
-        {/* Step 2 — payment details */}
         <Card>
           <div className="flex items-center gap-3 mb-5">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 grid place-items-center text-[13px] font-semibold">
@@ -619,7 +652,6 @@ function StudentPaymentForm(p: StudentPaymentFormProps) {
           </div>
         </Card>
 
-        {/* 👇 NEW Step 3 — set outstanding */}
         {p.selectedStudent && (
           <Card>
             <div className="flex items-center gap-3 mb-5">
@@ -675,7 +707,6 @@ function StudentPaymentForm(p: StudentPaymentFormProps) {
         )}
       </div>
 
-      {/* RIGHT — summary */}
       <div className="space-y-6">
         <Card className="sticky top-24">
           <h3 className="text-[15px] font-semibold text-slate-900 mb-4">
@@ -743,7 +774,7 @@ function StudentPaymentForm(p: StudentPaymentFormProps) {
 }
 
 // ==========================================================
-// OTHER INCOME FORM  (unchanged)
+// OTHER INCOME FORM (with optional student link)
 // ==========================================================
 interface OtherIncomeFormProps {
   sessions: AcademicSession[];
@@ -768,6 +799,15 @@ interface OtherIncomeFormProps {
   setOtherNote: (v: string) => void;
   submitting: boolean;
   onSubmit: () => void;
+  // 👇 NEW
+  otherStudent: StudentRow | null;
+  setOtherStudent: (s: StudentRow | null) => void;
+  otherSearch: string;
+  setOtherSearch: (v: string) => void;
+  otherDebounced: string;
+  otherResults: StudentRow[];
+  setOtherResults: (r: StudentRow[]) => void;
+  otherSearching: boolean;
 }
 
 function OtherIncomeForm(p: OtherIncomeFormProps) {
@@ -845,6 +885,107 @@ function OtherIncomeForm(p: OtherIncomeFormProps) {
           </div>
         </Card>
 
+        {/* 👇 NEW — Optional student link */}
+        <Card>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 grid place-items-center">
+              <User className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-[15px] font-semibold text-slate-900">
+                Link to a student{" "}
+                <span className="text-[11px] font-normal text-slate-400">
+                  (optional)
+                </span>
+              </h2>
+              <p className="text-[12px] text-slate-400">
+                If this income is for a specific student, link it here. It
+                won't change their fee balance — only records the association.
+              </p>
+            </div>
+          </div>
+
+          {p.otherStudent ? (
+            <div className="flex items-center justify-between p-4 rounded-xl border border-amber-200 bg-amber-50/40">
+              <div className="flex items-center gap-3 min-w-0">
+                <Avatar
+                  name={p.otherStudent.fullName}
+                  src={p.otherStudent.profilePictureUrl}
+                  size="lg"
+                />
+                <div className="min-w-0">
+                  <p className="text-[14px] font-semibold text-slate-900 truncate">
+                    {p.otherStudent.fullName}
+                  </p>
+                  <p className="text-[12px] text-slate-500">
+                    {p.otherStudent.admissionNumber} ·{" "}
+                    {p.otherStudent.className}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                icon={X}
+                onClick={() => p.setOtherStudent(null)}
+              >
+                Remove
+              </Button>
+            </div>
+          ) : (
+            <>
+              <Input
+                icon={Search}
+                placeholder="Search student by name or admission number…"
+                value={p.otherSearch}
+                onChange={(e) => p.setOtherSearch(e.target.value)}
+              />
+
+              {p.otherSearching && (
+                <p className="text-[12px] text-slate-400 mt-3">Searching…</p>
+              )}
+
+              {!p.otherSearching && p.otherResults.length > 0 && (
+                <div className="mt-3 border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-100">
+                  {p.otherResults.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        p.setOtherStudent(s);
+                        p.setOtherResults([]);
+                        p.setOtherSearch("");
+                      }}
+                      className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 text-left transition-colors"
+                    >
+                      <Avatar
+                        name={s.fullName}
+                        src={s.profilePictureUrl}
+                        size="sm"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-medium text-slate-800 truncate">
+                          {s.fullName}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          {s.admissionNumber} · {s.className}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {!p.otherSearching &&
+                p.otherDebounced &&
+                p.otherResults.length === 0 && (
+                  <div className="mt-3 py-8 text-center text-[13px] text-slate-400">
+                    No students found for &quot;{p.otherDebounced}&quot;
+                  </div>
+                )}
+            </>
+          )}
+        </Card>
+
         <Card>
           <div className="flex items-center gap-3 mb-5">
             <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 grid place-items-center text-[13px] font-semibold">
@@ -920,6 +1061,11 @@ function OtherIncomeForm(p: OtherIncomeFormProps) {
             <SummaryRow label="Category" value={p.category || "—"} />
             <SummaryRow label="Description" value={p.description || "—"} />
             <SummaryRow label="Payer" value={p.payerName || "—"} />
+            {/* 👇 NEW */}
+            <SummaryRow
+              label="Linked student"
+              value={p.otherStudent?.fullName ?? "Not linked"}
+            />
             <div className="pt-3 border-t border-slate-100" />
             <SummaryRow
               label="Amount"
