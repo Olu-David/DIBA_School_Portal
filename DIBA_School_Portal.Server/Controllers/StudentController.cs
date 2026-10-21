@@ -110,17 +110,6 @@ namespace DIBA_School_Portal.Server.Controllers
         // ==========================================================
         // MY BILL — Student-only
         // ==========================================================
-        [HttpGet("me/bill")]
-        [Authorize(Roles = "Student")]
-        public async Task<IActionResult> GetMyBill(
-            [FromQuery] Guid? termId = null,
-            [FromQuery] Guid? academicSessionId = null)
-        {
-            var result = await _studentService.GetMyBillAsync(
-                CurrentUserId, termId, academicSessionId);
-            return StatusCode(result.StatusCode, result);
-        }
-        // StudentController.cs
         [HttpGet("me/subjects")]
         [Authorize(Roles = "Student")]
         public async Task<IActionResult> GetMySubjects()
@@ -134,11 +123,12 @@ namespace DIBA_School_Portal.Server.Controllers
                 return NotFound(new ServiceResponse<StudentSubjectDto>
                 {
                     Success = false,
+                    StatusCode = 404,
                     Message = "Student profile not found."
                 });
 
             var subjects = await _context.StudentSubjects
-                .Where(ss => ss.StudentId == student.Id )
+                .Where(ss => ss.StudentId == student.Id)
                 .Include(ss => ss.Subject)
                     .ThenInclude(s => s!.TeacherSubjects)
                         .ThenInclude(ts => ts.Teacher)
@@ -151,18 +141,18 @@ namespace DIBA_School_Portal.Server.Controllers
                         .Where(ts => ts.Teacher != null)
                         .Select(ts => ts.Teacher.FirstName + " " + ts.Teacher.LastName)
                         .FirstOrDefault() ?? "—",
-                  
                 })
+                .Distinct()
                 .ToListAsync();
+
             return Ok(new ServiceResponse<List<StudentSubjectDto>>
             {
                 Success = true,
                 StatusCode = 200,
                 Data = subjects
             });
-
-
         }
+
         [HttpGet("me/subjects/count")]
         [Authorize(Roles = "Student")]
         public async Task<IActionResult> GetMySubjectsCount()
@@ -180,8 +170,25 @@ namespace DIBA_School_Portal.Server.Controllers
                     Message = "Student profile not found."
                 });
 
+            // 🔎 DIAGNOSTIC — remove once the count is correct
+            var totalRows = await _context.StudentSubjects.CountAsync();
+            var rowsForMe = await _context.StudentSubjects.CountAsync(ss => ss.StudentId == student.Id);
+            var anyOtherIds = await _context.StudentSubjects
+                .Select(ss => ss.StudentId)
+                .Distinct()
+                .Take(5)
+                .ToListAsync();
+
+            Console.WriteLine($"[SUBJ] userId                     = {userId}");
+            Console.WriteLine($"[SUBJ] student.Id                 = {student.Id}");
+            Console.WriteLine($"[SUBJ] StudentSubjects total rows = {totalRows}");
+            Console.WriteLine($"[SUBJ] rows where StudentId = me  = {rowsForMe}");
+            Console.WriteLine($"[SUBJ] sample StudentIds in table = {string.Join(", ", anyOtherIds)}");
+
             var count = await _context.StudentSubjects
                 .Where(ss => ss.StudentId == student.Id)
+                .Select(ss => ss.SubjectId)
+                .Distinct()
                 .CountAsync();
 
             return Ok(new ServiceResponse<int>
