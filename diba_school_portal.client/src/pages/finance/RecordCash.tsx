@@ -1,18 +1,15 @@
 ﻿import { useEffect, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { BadgeDollarSign, Search, Coins, User, Receipt, Wallet, X } from "lucide-react";
+import {
+  BadgeDollarSign, Search, Coins, User, Receipt, Wallet, AlertCircle,
+} from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
-  Button,
-  Card,
-  FormField,
-  Input,
-  Select,
-  Textarea,
-  Avatar,
+  Button, Card, EmptyState, FormField, Input, Select, Textarea, Avatar,
 } from "../../components/ui";
 import { useToast } from "../../hooks/useToast";
 import { useDebounce } from "../../hooks/useDebounce";
+import { useRole } from "../../hooks/useRole";
 import { formatNaira } from "../../lib/format";
 import api from "../../lib/api";
 import type { ApiResponse, Paginated } from "../../types/common";
@@ -27,7 +24,7 @@ interface MiscIncomeResponse {
   referenceNumber: string;
 }
 
-type PaymentKind = "student" | "other";
+type TabKind = "outstanding" | "student" | "other";
 
 const OTHER_CATEGORIES = [
   "Uniform",
@@ -41,31 +38,39 @@ const OTHER_CATEGORIES = [
   "Other",
 ];
 
+const RECORD_CASH_ROLES = ["SuperAdmin", "Accountant", "Cashier"];
+const SET_OUTSTANDING_ROLES = ["SuperAdmin", "Accountant"];
+
 export default function RecordCash() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { role } = useRole();
 
-  const [kind, setKind] = useState<PaymentKind>("student");
+  const canRecordCash = role != null && RECORD_CASH_ROLES.includes(role);
+  const canSetOutstanding = role != null && SET_OUTSTANDING_ROLES.includes(role);
+
+  const [kind, setKind] = useState<TabKind>(
+    canSetOutstanding ? "outstanding" : "student"
+  );
 
   const [sessions, setSessions] = useState<AcademicSession[]>([]);
   const [sessionId, setSessionId] = useState("");
   const [termId, setTermId] = useState("");
 
-  // ---------- Student payment ----------
   const [selectedStudent, setSelectedStudent] = useState<StudentRow | null>(null);
   const [search, setSearch] = useState("");
   const debounced = useDebounce(search, 400);
   const [results, setResults] = useState<StudentRow[]>([]);
   const [searching, setSearching] = useState(false);
+
+  const [outstandingAmount, setOutstandingAmount] = useState("");
+  const [savingOutstanding, setSavingOutstanding] = useState(false);
+
   const [amount, setAmount] = useState("");
   const [reference, setReference] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const [outstandingAmount, setOutstandingAmount] = useState("");
-  const [savingOutstanding, setSavingOutstanding] = useState(false);
-
-  // ---------- Other income ----------
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [otherAmount, setOtherAmount] = useState("");
@@ -75,14 +80,12 @@ export default function RecordCash() {
   const [otherNote, setOtherNote] = useState("");
   const [submittingOther, setSubmittingOther] = useState(false);
 
-  // 👇 NEW — optional student link for other income
-  const [otherStudent, setOtherStudent] = useState<StudentRow | null>(null);
-  const [otherSearch, setOtherSearch] = useState("");
-  const otherDebounced = useDebounce(otherSearch, 400);
-  const [otherResults, setOtherResults] = useState<StudentRow[]>([]);
-  const [otherSearching, setOtherSearching] = useState(false);
+  useEffect(() => {
+    if (kind === "outstanding" && !canSetOutstanding) {
+      setKind("student");
+    }
+  }, [kind, canSetOutstanding]);
 
-  // ---------- Load sessions ----------
   useEffect(() => {
     (async () => {
       try {
@@ -106,9 +109,7 @@ export default function RecordCash() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---------- Search students (fee payment) ----------
   useEffect(() => {
-    if (kind !== "student") return;
     if (!debounced.trim()) {
       setResults([]);
       return;
@@ -126,32 +127,7 @@ export default function RecordCash() {
         setSearching(false);
       }
     })();
-  }, [debounced, kind]);
-
-  // 👇 NEW — Search students (optional link on other income)
-  useEffect(() => {
-    if (kind !== "other") return;
-    if (!otherDebounced.trim()) {
-      setOtherResults([]);
-      return;
-    }
-    setOtherSearching(true);
-    (async () => {
-      try {
-        const { data } = await api.get<ApiResponse<Paginated<StudentRow>>>(
-          `/student?searchTerm=${encodeURIComponent(
-            otherDebounced
-          )}&pageNumber=1&pageSize=8`
-        );
-        if (data.success) setOtherResults(data.data.items);
-      } finally {
-        setOtherSearching(false);
-      }
-    })();
-  }, [otherDebounced, kind]);
-
-  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) =>
-    setSearch(e.target.value);
+  }, [debounced]);
 
   const handleSessionChange = (e: ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value;
@@ -166,7 +142,61 @@ export default function RecordCash() {
   const handleTermChange = (e: ChangeEvent<HTMLSelectElement>) =>
     setTermId(e.target.value);
 
-  // ---------- SUBMIT — Student payment ----------
+  const onSaveOutstanding = async () => {
+    if (!canSetOutstanding) {
+      toast({ variant: "error", title: "You can't set outstanding balance." });
+      return;
+    }
+    if (!selectedStudent) {
+      toast({ variant: "error", title: "Pick a student first." });
+      return;
+    }
+
+    const amt = parseFloat(outstandingAmount);
+    if (isNaN(amt) || amt < 0) {
+      toast({ variant: "error", title: "Enter a valid amount (0 or more)." });
+      return;
+    }
+
+    setSavingOutstanding(true);
+    try {
+      const { data } = await api.post<ApiResponse<number>>(
+        `/account/student/${selectedStudent.id}/outstanding`,
+        { academicSessionId: sessionId, termId, amount: amt }
+      );
+
+      if (!data.success) {
+        toast({ variant: "error", title: data.message ?? "Failed to save." });
+        return;
+      }
+
+      toast({
+        variant: "success",
+        title: "Outstanding set",
+        description: `New balance: ${formatNaira(data.data ?? amt)}`,
+      });
+
+      const { data: sd } = await api.get<ApiResponse<Paginated<StudentRow>>>(
+        `/student?searchTerm=${encodeURIComponent(
+          selectedStudent.admissionNumber
+        )}&pageNumber=1&pageSize=1`
+      );
+      if (sd.success && sd.data.items[0]) {
+        setSelectedStudent(sd.data.items[0]);
+      }
+
+      setOutstandingAmount("");
+    } catch (err: unknown) {
+      const e2 = err as { response?: { data?: { message?: string } } };
+      toast({
+        variant: "error",
+        title: e2?.response?.data?.message ?? "Could not save outstanding.",
+      });
+    } finally {
+      setSavingOutstanding(false);
+    }
+  };
+
   const submitStudent = async () => {
     if (!selectedStudent) {
       toast({ variant: "error", title: "Pick a student first" });
@@ -210,56 +240,6 @@ export default function RecordCash() {
     }
   };
 
-  // ---------- Save outstanding ----------
-  const onSaveOutstanding = async () => {
-    if (!selectedStudent) return;
-
-    const amt = parseFloat(outstandingAmount);
-    if (isNaN(amt) || amt < 0) {
-      toast({ variant: "error", title: "Enter a valid amount (0 or more)." });
-      return;
-    }
-
-    setSavingOutstanding(true);
-    try {
-      const { data } = await api.post<ApiResponse<number>>(
-        `/account/student/${selectedStudent.id}/outstanding`,
-        {
-          academicSessionId: sessionId,
-          termId,
-          amount: amt,
-        }
-      );
-
-      if (!data.success) {
-        toast({ variant: "error", title: data.message ?? "Failed to save." });
-        return;
-      }
-
-      toast({
-        variant: "success",
-        title: "Outstanding set",
-        description: `New balance: ${formatNaira(data.data ?? amt)}`,
-      });
-
-      const { data: sd } = await api.get<ApiResponse<Paginated<StudentRow>>>(
-        `/student?searchTerm=${encodeURIComponent(
-          selectedStudent.admissionNumber
-        )}&pageNumber=1&pageSize=1`
-      );
-      if (sd.success && sd.data.items[0]) {
-        setSelectedStudent(sd.data.items[0]);
-      }
-
-      setOutstandingAmount("");
-    } catch {
-      toast({ variant: "error", title: "Could not save outstanding." });
-    } finally {
-      setSavingOutstanding(false);
-    }
-  };
-
-  // ---------- SUBMIT — Other income ----------
   const submitOther = async () => {
     const amt = parseFloat(otherAmount);
     if (!category.trim()) {
@@ -290,8 +270,7 @@ export default function RecordCash() {
           gateway: "Cash",
           externalReference: otherReference || undefined,
           note: otherNote || undefined,
-          // 👇 NEW — optional student link
-          studentProfileId: otherStudent?.id ?? undefined,
+          studentProfileId: selectedStudent?.id ?? undefined,
         }
       );
 
@@ -318,21 +297,48 @@ export default function RecordCash() {
   const newBalance = selectedStudent
     ? Math.max(0, selectedStudent.outstandingBalance - amountNumber)
     : 0;
-
   const isOverpaying =
     !!selectedStudent && amountNumber > selectedStudent.outstandingBalance;
+
+  if (!canRecordCash) {
+    return (
+      <div className="space-y-6">
+        <PageHeader eyebrow="Finance" title="Record cash" />
+        <Card>
+          <EmptyState
+            icon={AlertCircle}
+            title="You don't have access to record cash"
+            description="Only the bursar (Accountant), Cashier, or Super Admin can record payments."
+          />
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div>
       <PageHeader
         eyebrow="Finance"
         title="Record cash"
-        description="Log money received at the bursary — either a fee payment for a student, or other income."
+        description="Set a student's outstanding balance, record a fee payment, or log other income."
       />
 
-      {/* KIND TOGGLE */}
       <div className="mb-6">
-        <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+        <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 flex-wrap">
+          {canSetOutstanding && (
+            <button
+              type="button"
+              onClick={() => setKind("outstanding")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                kind === "outstanding"
+                  ? "bg-rose-600 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Wallet className="w-4 h-4" />
+              Set outstanding
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setKind("student")}
@@ -359,13 +365,38 @@ export default function RecordCash() {
           </button>
         </div>
         <p className="mt-2 text-[12px] text-slate-500">
-          {kind === "student"
+          {kind === "outstanding"
+            ? "Overwrites the student's current balance — use it for students who owed from before the system, or to correct a balance."
+            : kind === "student"
             ? "Records a fee payment for a specific student — updates their enrollment balance."
             : "Records non-fee income like uniforms, fines, donations — does not affect any student's balance."}
         </p>
       </div>
 
-      {kind === "student" ? (
+      {kind === "outstanding" && canSetOutstanding && (
+        <OutstandingForm
+          sessions={sessions}
+          sessionId={sessionId}
+          termId={termId}
+          onSessionChange={handleSessionChange}
+          onTermChange={handleTermChange}
+          selectedSession={selectedSession}
+          selectedStudent={selectedStudent}
+          setSelectedStudent={setSelectedStudent}
+          search={search}
+          setSearch={setSearch}
+          debounced={debounced}
+          results={results}
+          setResults={setResults}
+          searching={searching}
+          outstandingAmount={outstandingAmount}
+          setOutstandingAmount={setOutstandingAmount}
+          savingOutstanding={savingOutstanding}
+          onSaveOutstanding={onSaveOutstanding}
+        />
+      )}
+
+      {kind === "student" && (
         <StudentPaymentForm
           sessions={sessions}
           sessionId={sessionId}
@@ -375,7 +406,7 @@ export default function RecordCash() {
           selectedStudent={selectedStudent}
           setSelectedStudent={setSelectedStudent}
           search={search}
-          onSearchChange={handleSearchChange}
+          setSearch={setSearch}
           debounced={debounced}
           results={results}
           setResults={setResults}
@@ -392,12 +423,10 @@ export default function RecordCash() {
           amountNumber={amountNumber}
           newBalance={newBalance}
           isOverpaying={isOverpaying}
-          outstandingAmount={outstandingAmount}
-          setOutstandingAmount={setOutstandingAmount}
-          savingOutstanding={savingOutstanding}
-          onSaveOutstanding={onSaveOutstanding}
         />
-      ) : (
+      )}
+
+      {kind === "other" && (
         <OtherIncomeForm
           sessions={sessions}
           sessionId={sessionId}
@@ -405,6 +434,14 @@ export default function RecordCash() {
           onSessionChange={handleSessionChange}
           onTermChange={handleTermChange}
           selectedSession={selectedSession}
+          selectedStudent={selectedStudent}
+          setSelectedStudent={setSelectedStudent}
+          search={search}
+          setSearch={setSearch}
+          debounced={debounced}
+          results={results}
+          setResults={setResults}
+          searching={searching}
           category={category}
           setCategory={setCategory}
           description={description}
@@ -421,63 +458,136 @@ export default function RecordCash() {
           setOtherNote={setOtherNote}
           submitting={submittingOther}
           onSubmit={submitOther}
-          // 👇 NEW
-          otherStudent={otherStudent}
-          setOtherStudent={setOtherStudent}
-          otherSearch={otherSearch}
-          setOtherSearch={setOtherSearch}
-          otherDebounced={otherDebounced}
-          otherResults={otherResults}
-          setOtherResults={setOtherResults}
-          otherSearching={otherSearching}
         />
       )}
     </div>
   );
 }
 
-// ==========================================================
-// STUDENT PAYMENT FORM (unchanged)
-// ==========================================================
-interface StudentPaymentFormProps {
+/* ==========================================================
+   STUDENT PICKER (shared)
+   ========================================================== */
+interface StudentPickerProps {
+  selectedStudent: StudentRow | null;
+  setSelectedStudent: (s: StudentRow | null) => void;
+  search: string;
+  setSearch: (v: string) => void;
+  debounced: string;
+  results: StudentRow[];
+  setResults: (r: StudentRow[]) => void;
+  searching: boolean;
+}
+
+function StudentPicker(p: StudentPickerProps) {
+  if (p.selectedStudent) {
+    return (
+      <div className="flex items-center justify-between p-4 rounded-xl border border-emerald-200 bg-emerald-50/40">
+        <div className="flex items-center gap-3 min-w-0">
+          <Avatar
+            name={p.selectedStudent.fullName}
+            src={p.selectedStudent.profilePictureUrl}
+            size="lg"
+          />
+          <div className="min-w-0">
+            <p className="text-[14px] font-semibold text-slate-900 truncate">
+              {p.selectedStudent.fullName}
+            </p>
+            <p className="text-[12px] text-slate-500">
+              {p.selectedStudent.admissionNumber} · {p.selectedStudent.className}
+            </p>
+            {p.selectedStudent.outstandingBalance > 0 && (
+              <p className="text-[12px] mt-1 text-rose-600 font-medium">
+                Outstanding: {formatNaira(p.selectedStudent.outstandingBalance)}
+              </p>
+            )}
+          </div>
+        </div>
+        <Button variant="ghost" onClick={() => p.setSelectedStudent(null)}>
+          Change
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <Input
+        icon={Search}
+        placeholder="Type a name or admission number…"
+        value={p.search}
+        onChange={(e) => p.setSearch(e.target.value)}
+      />
+
+      {p.searching && (
+        <p className="text-[12px] text-slate-400 mt-3">Searching…</p>
+      )}
+
+      {!p.searching && p.results.length > 0 && (
+        <div className="mt-3 border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-100">
+          {p.results.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => {
+                p.setSelectedStudent(s);
+                p.setResults([]);
+              }}
+              className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 text-left transition-colors"
+            >
+              <Avatar name={s.fullName} src={s.profilePictureUrl} size="sm" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-medium text-slate-800 truncate">
+                  {s.fullName}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  {s.admissionNumber} · {s.className}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!p.searching && p.debounced && p.results.length === 0 && (
+        <div className="mt-3 py-8 text-center text-[13px] text-slate-400">
+          No students found for &quot;{p.debounced}&quot;
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ==========================================================
+   OUTSTANDING FORM
+   ========================================================== */
+interface OutstandingFormProps {
   sessions: AcademicSession[];
   sessionId: string;
   termId: string;
   onSessionChange: (e: ChangeEvent<HTMLSelectElement>) => void;
   onTermChange: (e: ChangeEvent<HTMLSelectElement>) => void;
+  selectedSession: AcademicSession | undefined;
   selectedStudent: StudentRow | null;
   setSelectedStudent: (s: StudentRow | null) => void;
   search: string;
-  onSearchChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  setSearch: (v: string) => void;
   debounced: string;
   results: StudentRow[];
   setResults: (r: StudentRow[]) => void;
   searching: boolean;
-  amount: string;
-  setAmount: (v: string) => void;
-  reference: string;
-  setReference: (v: string) => void;
-  note: string;
-  setNote: (v: string) => void;
-  submitting: boolean;
-  onSubmit: () => void;
-  selectedSession: AcademicSession | undefined;
-  amountNumber: number;
-  newBalance: number;
-  isOverpaying: boolean;
   outstandingAmount: string;
   setOutstandingAmount: (v: string) => void;
   savingOutstanding: boolean;
   onSaveOutstanding: () => void;
 }
 
-function StudentPaymentForm(p: StudentPaymentFormProps) {
+function OutstandingForm(p: OutstandingFormProps) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 space-y-6">
         <Card>
           <div className="flex items-center gap-3 mb-5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 grid place-items-center text-[13px] font-semibold">
+            <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 grid place-items-center text-[13px] font-semibold">
               1
             </div>
             <div>
@@ -489,103 +599,29 @@ function StudentPaymentForm(p: StudentPaymentFormProps) {
               </p>
             </div>
           </div>
-
-          {p.selectedStudent ? (
-            <div className="flex items-center justify-between p-4 rounded-xl border border-emerald-200 bg-emerald-50/40">
-              <div className="flex items-center gap-3 min-w-0">
-                <Avatar
-                  name={p.selectedStudent.fullName}
-                  src={p.selectedStudent.profilePictureUrl}
-                  size="lg"
-                />
-                <div className="min-w-0">
-                  <p className="text-[14px] font-semibold text-slate-900 truncate">
-                    {p.selectedStudent.fullName}
-                  </p>
-                  <p className="text-[12px] text-slate-500">
-                    {p.selectedStudent.admissionNumber} ·{" "}
-                    {p.selectedStudent.className}
-                  </p>
-                  {p.selectedStudent.outstandingBalance > 0 && (
-                    <p className="text-[12px] mt-1 text-rose-600 font-medium">
-                      Outstanding:{" "}
-                      {formatNaira(p.selectedStudent.outstandingBalance)}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  p.setSelectedStudent(null);
-                }}
-              >
-                Change
-              </Button>
-            </div>
-          ) : (
-            <>
-              <Input
-                icon={Search}
-                placeholder="Type a name or admission number…"
-                value={p.search}
-                onChange={p.onSearchChange}
-              />
-
-              {p.searching && (
-                <p className="text-[12px] text-slate-400 mt-3">Searching…</p>
-              )}
-
-              {!p.searching && p.results.length > 0 && (
-                <div className="mt-3 border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-100">
-                  {p.results.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => {
-                        p.setSelectedStudent(s);
-                        p.setResults([]);
-                      }}
-                      className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 text-left transition-colors"
-                    >
-                      <Avatar
-                        name={s.fullName}
-                        src={s.profilePictureUrl}
-                        size="sm"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium text-slate-800 truncate">
-                          {s.fullName}
-                        </p>
-                        <p className="text-[11px] text-slate-400">
-                          {s.admissionNumber} · {s.className}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {!p.searching && p.debounced && p.results.length === 0 && (
-                <div className="mt-3 py-8 text-center text-[13px] text-slate-400">
-                  No students found for &quot;{p.debounced}&quot;
-                </div>
-              )}
-            </>
-          )}
+          <StudentPicker
+            selectedStudent={p.selectedStudent}
+            setSelectedStudent={p.setSelectedStudent}
+            search={p.search}
+            setSearch={p.setSearch}
+            debounced={p.debounced}
+            results={p.results}
+            setResults={p.setResults}
+            searching={p.searching}
+          />
         </Card>
 
         <Card>
           <div className="flex items-center gap-3 mb-5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 grid place-items-center text-[13px] font-semibold">
+            <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 grid place-items-center text-[13px] font-semibold">
               2
             </div>
             <div>
               <h2 className="text-[15px] font-semibold text-slate-900">
-                Payment details
+                Set outstanding balance
               </h2>
               <p className="text-[12px] text-slate-400">
-                Amount and reference information
+                The true amount the student owes for this term
               </p>
             </div>
           </div>
@@ -617,10 +653,164 @@ function StudentPaymentForm(p: StudentPaymentFormProps) {
             </div>
 
             <FormField
-              label="Amount (₦)"
+              label="Outstanding amount (₦)"
               required
-              hint="Enter the amount received in cash"
+              hint="This overwrites the current balance. Payments after this reduce it."
             >
+              <Input
+                type="number"
+                inputMode="decimal"
+                placeholder="0"
+                value={p.outstandingAmount}
+                onChange={(e) => p.setOutstandingAmount(e.target.value)}
+              />
+            </FormField>
+          </div>
+        </Card>
+      </div>
+
+      <div className="space-y-6">
+        <Card className="sticky top-24">
+          <h3 className="text-[15px] font-semibold text-slate-900 mb-4">
+            Summary
+          </h3>
+          <div className="space-y-3">
+            <SummaryRow label="Student" value={p.selectedStudent?.fullName ?? "—"} />
+            <SummaryRow label="Admission number" value={p.selectedStudent?.admissionNumber ?? "—"} />
+            <SummaryRow label="Class" value={p.selectedStudent?.className ?? "—"} />
+            <div className="pt-3 border-t border-slate-100" />
+            <SummaryRow
+              label="Current balance"
+              value={p.selectedStudent ? formatNaira(p.selectedStudent.outstandingBalance) : "—"}
+            />
+            <SummaryRow
+              label="New balance"
+              value={p.outstandingAmount ? formatNaira(parseFloat(p.outstandingAmount) || 0) : "—"}
+              highlight
+            />
+          </div>
+
+          <Button
+            fullWidth
+            size="lg"
+            icon={Wallet}
+            className="mt-6"
+            loading={p.savingOutstanding}
+            onClick={p.onSaveOutstanding}
+            disabled={!p.selectedStudent || !p.outstandingAmount.trim()}
+          >
+            Save outstanding
+          </Button>
+
+          <p className="mt-3 text-[11px] text-slate-400 text-center">
+            This action is logged and cannot be undone.
+          </p>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/* ==========================================================
+   STUDENT PAYMENT FORM
+   ========================================================== */
+interface StudentPaymentFormProps {
+  sessions: AcademicSession[];
+  sessionId: string;
+  termId: string;
+  onSessionChange: (e: ChangeEvent<HTMLSelectElement>) => void;
+  onTermChange: (e: ChangeEvent<HTMLSelectElement>) => void;
+  selectedStudent: StudentRow | null;
+  setSelectedStudent: (s: StudentRow | null) => void;
+  search: string;
+  setSearch: (v: string) => void;
+  debounced: string;
+  results: StudentRow[];
+  setResults: (r: StudentRow[]) => void;
+  searching: boolean;
+  amount: string;
+  setAmount: (v: string) => void;
+  reference: string;
+  setReference: (v: string) => void;
+  note: string;
+  setNote: (v: string) => void;
+  submitting: boolean;
+  onSubmit: () => void;
+  selectedSession: AcademicSession | undefined;
+  amountNumber: number;
+  newBalance: number;
+  isOverpaying: boolean;
+}
+
+function StudentPaymentForm(p: StudentPaymentFormProps) {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="lg:col-span-2 space-y-6">
+        <Card>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 grid place-items-center text-[13px] font-semibold">
+              1
+            </div>
+            <div>
+              <h2 className="text-[15px] font-semibold text-slate-900">
+                Select student
+              </h2>
+              <p className="text-[12px] text-slate-400">
+                Search by name or admission number
+              </p>
+            </div>
+          </div>
+          <StudentPicker
+            selectedStudent={p.selectedStudent}
+            setSelectedStudent={p.setSelectedStudent}
+            search={p.search}
+            setSearch={p.setSearch}
+            debounced={p.debounced}
+            results={p.results}
+            setResults={p.setResults}
+            searching={p.searching}
+          />
+        </Card>
+
+        <Card>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 grid place-items-center text-[13px] font-semibold">
+              2
+            </div>
+            <div>
+              <h2 className="text-[15px] font-semibold text-slate-900">
+                Payment details
+              </h2>
+              <p className="text-[12px] text-slate-400">
+                Amount and reference information
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Session" required>
+                <Select
+                  value={p.sessionId}
+                  onChange={p.onSessionChange}
+                  options={p.sessions.map((s) => ({ value: s.id, label: s.name }))}
+                />
+              </FormField>
+              <FormField label="Term" required>
+                <Select
+                  value={p.termId}
+                  onChange={p.onTermChange}
+                  options={
+                    p.selectedSession?.terms.map((t) => ({
+                      value: t.id,
+                      label: t.name,
+                    })) ?? []
+                  }
+                />
+              </FormField>
+            </div>
+
+            <FormField label="Amount (₦)" required hint="Enter the amount received in cash">
               <Input
                 type="number"
                 inputMode="decimal"
@@ -651,89 +841,19 @@ function StudentPaymentForm(p: StudentPaymentFormProps) {
             </FormField>
           </div>
         </Card>
-
-        {p.selectedStudent && (
-          <Card>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 grid place-items-center text-[13px] font-semibold">
-                <Wallet className="w-4 h-4" />
-              </div>
-              <div>
-                <h2 className="text-[15px] font-semibold text-slate-900">
-                  Set outstanding{" "}
-                  <span className="text-[11px] font-normal text-slate-400">
-                    (optional)
-                  </span>
-                </h2>
-                <p className="text-[12px] text-slate-400">
-                  Use this to set the student's true balance — including any
-                  amount owed from before the system.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-end gap-3">
-              <div className="flex-1">
-                <FormField
-                  label="Outstanding amount (₦)"
-                  hint="This overwrites the current balance. Payments after this reduce it."
-                >
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    placeholder="0"
-                    value={p.outstandingAmount}
-                    onChange={(e) => p.setOutstandingAmount(e.target.value)}
-                  />
-                </FormField>
-              </div>
-              <Button
-                variant="secondary"
-                onClick={p.onSaveOutstanding}
-                loading={p.savingOutstanding}
-                disabled={p.outstandingAmount.trim() === ""}
-              >
-                Save
-              </Button>
-            </div>
-
-            <p className="mt-3 text-[11px] text-slate-400">
-              Current outstanding:{" "}
-              <span className="font-semibold text-slate-700">
-                {formatNaira(p.selectedStudent.outstandingBalance)}
-              </span>
-            </p>
-          </Card>
-        )}
       </div>
 
       <div className="space-y-6">
         <Card className="sticky top-24">
-          <h3 className="text-[15px] font-semibold text-slate-900 mb-4">
-            Summary
-          </h3>
-
+          <h3 className="text-[15px] font-semibold text-slate-900 mb-4">Summary</h3>
           <div className="space-y-3">
-            <SummaryRow
-              label="Student"
-              value={p.selectedStudent?.fullName ?? "—"}
-            />
-            <SummaryRow
-              label="Admission number"
-              value={p.selectedStudent?.admissionNumber ?? "—"}
-            />
-            <SummaryRow
-              label="Class"
-              value={p.selectedStudent?.className ?? "—"}
-            />
+            <SummaryRow label="Student" value={p.selectedStudent?.fullName ?? "—"} />
+            <SummaryRow label="Admission number" value={p.selectedStudent?.admissionNumber ?? "—"} />
+            <SummaryRow label="Class" value={p.selectedStudent?.className ?? "—"} />
             <div className="pt-3 border-t border-slate-100" />
             <SummaryRow
               label="Current balance"
-              value={
-                p.selectedStudent
-                  ? formatNaira(p.selectedStudent.outstandingBalance)
-                  : "—"
-              }
+              value={p.selectedStudent ? formatNaira(p.selectedStudent.outstandingBalance) : "—"}
             />
             <SummaryRow
               label="Paying now"
@@ -773,9 +893,9 @@ function StudentPaymentForm(p: StudentPaymentFormProps) {
   );
 }
 
-// ==========================================================
-// OTHER INCOME FORM (with optional student link)
-// ==========================================================
+/* ==========================================================
+   OTHER INCOME FORM
+   ========================================================== */
 interface OtherIncomeFormProps {
   sessions: AcademicSession[];
   sessionId: string;
@@ -783,6 +903,14 @@ interface OtherIncomeFormProps {
   onSessionChange: (e: ChangeEvent<HTMLSelectElement>) => void;
   onTermChange: (e: ChangeEvent<HTMLSelectElement>) => void;
   selectedSession: AcademicSession | undefined;
+  selectedStudent: StudentRow | null;
+  setSelectedStudent: (s: StudentRow | null) => void;
+  search: string;
+  setSearch: (v: string) => void;
+  debounced: string;
+  results: StudentRow[];
+  setResults: (r: StudentRow[]) => void;
+  searching: boolean;
   category: string;
   setCategory: (v: string) => void;
   description: string;
@@ -799,15 +927,6 @@ interface OtherIncomeFormProps {
   setOtherNote: (v: string) => void;
   submitting: boolean;
   onSubmit: () => void;
-  // 👇 NEW
-  otherStudent: StudentRow | null;
-  setOtherStudent: (s: StudentRow | null) => void;
-  otherSearch: string;
-  setOtherSearch: (v: string) => void;
-  otherDebounced: string;
-  otherResults: StudentRow[];
-  setOtherResults: (r: StudentRow[]) => void;
-  otherSearching: boolean;
 }
 
 function OtherIncomeForm(p: OtherIncomeFormProps) {
@@ -837,10 +956,7 @@ function OtherIncomeForm(p: OtherIncomeFormProps) {
                 <Select
                   value={p.category}
                   onChange={(e) => p.setCategory(e.target.value)}
-                  options={OTHER_CATEGORIES.map((c) => ({
-                    value: c,
-                    label: c,
-                  }))}
+                  options={OTHER_CATEGORIES.map((c) => ({ value: c, label: c }))}
                 />
               </FormField>
               <FormField label="Amount (₦)" required hint="Amount received">
@@ -854,11 +970,7 @@ function OtherIncomeForm(p: OtherIncomeFormProps) {
               </FormField>
             </div>
 
-            <FormField
-              label="Description"
-              required
-              hint="Briefly say what this money was for"
-            >
+            <FormField label="Description" required hint="Briefly say what this money was for">
               <Input
                 placeholder="e.g. 2 sports jerseys (medium)"
                 value={p.description}
@@ -885,7 +997,6 @@ function OtherIncomeForm(p: OtherIncomeFormProps) {
           </div>
         </Card>
 
-        {/* 👇 NEW — Optional student link */}
         <Card>
           <div className="flex items-center gap-3 mb-5">
             <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 grid place-items-center">
@@ -894,96 +1005,23 @@ function OtherIncomeForm(p: OtherIncomeFormProps) {
             <div>
               <h2 className="text-[15px] font-semibold text-slate-900">
                 Link to a student{" "}
-                <span className="text-[11px] font-normal text-slate-400">
-                  (optional)
-                </span>
+                <span className="text-[11px] font-normal text-slate-400">(optional)</span>
               </h2>
               <p className="text-[12px] text-slate-400">
-                If this income is for a specific student, link it here. It
-                won't change their fee balance — only records the association.
+                If this income is for a specific student, link it here. It won't change their fee balance — only records the association.
               </p>
             </div>
           </div>
-
-          {p.otherStudent ? (
-            <div className="flex items-center justify-between p-4 rounded-xl border border-amber-200 bg-amber-50/40">
-              <div className="flex items-center gap-3 min-w-0">
-                <Avatar
-                  name={p.otherStudent.fullName}
-                  src={p.otherStudent.profilePictureUrl}
-                  size="lg"
-                />
-                <div className="min-w-0">
-                  <p className="text-[14px] font-semibold text-slate-900 truncate">
-                    {p.otherStudent.fullName}
-                  </p>
-                  <p className="text-[12px] text-slate-500">
-                    {p.otherStudent.admissionNumber} ·{" "}
-                    {p.otherStudent.className}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                icon={X}
-                onClick={() => p.setOtherStudent(null)}
-              >
-                Remove
-              </Button>
-            </div>
-          ) : (
-            <>
-              <Input
-                icon={Search}
-                placeholder="Search student by name or admission number…"
-                value={p.otherSearch}
-                onChange={(e) => p.setOtherSearch(e.target.value)}
-              />
-
-              {p.otherSearching && (
-                <p className="text-[12px] text-slate-400 mt-3">Searching…</p>
-              )}
-
-              {!p.otherSearching && p.otherResults.length > 0 && (
-                <div className="mt-3 border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-100">
-                  {p.otherResults.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => {
-                        p.setOtherStudent(s);
-                        p.setOtherResults([]);
-                        p.setOtherSearch("");
-                      }}
-                      className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 text-left transition-colors"
-                    >
-                      <Avatar
-                        name={s.fullName}
-                        src={s.profilePictureUrl}
-                        size="sm"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium text-slate-800 truncate">
-                          {s.fullName}
-                        </p>
-                        <p className="text-[11px] text-slate-400">
-                          {s.admissionNumber} · {s.className}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {!p.otherSearching &&
-                p.otherDebounced &&
-                p.otherResults.length === 0 && (
-                  <div className="mt-3 py-8 text-center text-[13px] text-slate-400">
-                    No students found for &quot;{p.otherDebounced}&quot;
-                  </div>
-                )}
-            </>
-          )}
+          <StudentPicker
+            selectedStudent={p.selectedStudent}
+            setSelectedStudent={p.setSelectedStudent}
+            search={p.search}
+            setSearch={p.setSearch}
+            debounced={p.debounced}
+            results={p.results}
+            setResults={p.setResults}
+            searching={p.searching}
+          />
         </Card>
 
         <Card>
@@ -1007,10 +1045,7 @@ function OtherIncomeForm(p: OtherIncomeFormProps) {
                 <Select
                   value={p.sessionId}
                   onChange={p.onSessionChange}
-                  options={p.sessions.map((s) => ({
-                    value: s.id,
-                    label: s.name,
-                  }))}
+                  options={p.sessions.map((s) => ({ value: s.id, label: s.name }))}
                 />
               </FormField>
               <FormField label="Term" required>
@@ -1027,10 +1062,7 @@ function OtherIncomeForm(p: OtherIncomeFormProps) {
               </FormField>
             </div>
 
-            <FormField
-              label="External reference"
-              hint="Optional receipt book number. Auto-generated if empty."
-            >
+            <FormField label="External reference" hint="Optional receipt book number. Auto-generated if empty.">
               <Input
                 placeholder="e.g. RECEIPT-0050"
                 value={p.otherReference}
@@ -1052,20 +1084,13 @@ function OtherIncomeForm(p: OtherIncomeFormProps) {
 
       <div className="space-y-6">
         <Card className="sticky top-24">
-          <h3 className="text-[15px] font-semibold text-slate-900 mb-4">
-            Summary
-          </h3>
-
+          <h3 className="text-[15px] font-semibold text-slate-900 mb-4">Summary</h3>
           <div className="space-y-3">
             <SummaryRow label="Type" value="Other income" />
             <SummaryRow label="Category" value={p.category || "—"} />
             <SummaryRow label="Description" value={p.description || "—"} />
             <SummaryRow label="Payer" value={p.payerName || "—"} />
-            {/* 👇 NEW */}
-            <SummaryRow
-              label="Linked student"
-              value={p.otherStudent?.fullName ?? "Not linked"}
-            />
+            <SummaryRow label="Linked student" value={p.selectedStudent?.fullName ?? "Not linked"} />
             <div className="pt-3 border-t border-slate-100" />
             <SummaryRow
               label="Amount"
@@ -1099,9 +1124,9 @@ function OtherIncomeForm(p: OtherIncomeFormProps) {
   );
 }
 
-// ==========================================================
-// Shared
-// ==========================================================
+/* ==========================================================
+   Shared
+   ========================================================== */
 interface SummaryRowProps {
   label: string;
   value: string;

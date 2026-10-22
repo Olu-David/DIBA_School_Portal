@@ -37,8 +37,16 @@ const R = {
   leadership: ["SuperAdmin", "Principal", "Headmaster", "Headmistress", "VicePrincipal"] as UserRole[],
   people: ["SuperAdmin", "Principal", "Headmaster", "Headmistress", "VicePrincipal", "SchoolAdmin", "Registrar"] as UserRole[],
   admin: ["SuperAdmin", "Principal", "Headmaster", "Headmistress", "VicePrincipal", "SchoolAdmin"] as UserRole[],
+
+  // Finance FULL policy access — Accountant + leadership (no cashier)
   finance: ["SuperAdmin", "Principal", "VicePrincipal", "Accountant"] as UserRole[],
+
+  // Read-only finance + cash collection
   cashier: ["SuperAdmin", "Principal", "VicePrincipal", "Accountant", "Cashier"] as UserRole[],
+
+  // 👇 NEW — Record Cash is restricted to who can actually handle money
+  recordCash: ["SuperAdmin", "Accountant", "Cashier"] as UserRole[],
+
   registrar: ["SuperAdmin", "Principal", "Registrar"] as UserRole[],
   audit: ["SuperAdmin", "Principal"] as UserRole[],
   score: ["SuperAdmin", "Principal", "VicePrincipal", "Headmaster", "Headmistress", "Teacher", "FormTeacher"] as UserRole[],
@@ -46,12 +54,9 @@ const R = {
   results: ["SuperAdmin", "Principal", "Headmaster", "Headmistress", "VicePrincipal", "SchoolAdmin", "Teacher", "FormTeacher"] as UserRole[],
   promotion: ["SuperAdmin", "Principal", "SchoolAdmin"] as UserRole[],
 
-  // 👇 students
   student: ["Student"] as UserRole[],
 };
 
-// 👇 Students get their OWN nav list — no role filter needed,
-//    so the "My Subjects" item can never be filtered out.
 const STUDENT_NAV_GROUPS: NavGroup[] = [
   {
     label: "Overview",
@@ -125,12 +130,13 @@ const STAFF_NAV_GROUPS: NavGroup[] = [
   {
     label: "Finance",
     items: [
-      { to: "/admin/finance",             label: "Overview",       icon: Wallet,        end: true, roles: R.cashier },
-      { to: "/admin/finance/record-cash", label: "Record Cash",    icon: Receipt,                 roles: R.cashier },
-      { to: "/admin/finance/payments",    label: "Payments",       icon: Receipt,                 roles: R.cashier },
-      { to: "/admin/finance/arrears",     label: "Arrears",        icon: AlertTriangle,           roles: R.cashier },
-      { to: "/admin/finance/expenses",    label: "Expenses",       icon: TrendingDown,            roles: R.finance },
-      { to: "/admin/finance/fees",        label: "Fee Structures", icon: Wallet,                  roles: R.finance },
+      { to: "/admin/finance",              label: "Overview",       icon: Wallet,        end: true, roles: R.cashier },
+      // 👇 NEW: separate role list — Principal excluded
+      { to: "/admin/finance/record-cash",  label: "Record Cash",    icon: Receipt,                 roles: R.recordCash },
+      { to: "/admin/finance/payments",     label: "Payments",       icon: Receipt,                 roles: R.cashier },
+      { to: "/admin/finance/arrears",      label: "Arrears",        icon: AlertTriangle,           roles: R.cashier },
+      { to: "/admin/finance/expenses",     label: "Expenses",       icon: TrendingDown,            roles: R.finance },
+      { to: "/admin/finance/fees",         label: "Fee Structures", icon: Wallet,                  roles: R.finance },
     ],
   },
   {
@@ -154,7 +160,6 @@ export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
 
   const isStudent = role === "Student";
 
-  // ---- Student subject count (drives the badge) ----
   const [subjectCount, setSubjectCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -167,7 +172,7 @@ export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
         );
         if (!cancelled && data.success) setSubjectCount(data.data ?? 0);
       } catch {
-        /* silent — badge just won't show */
+        /* silent */
       }
     })();
     return () => {
@@ -175,7 +180,6 @@ export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
     };
   }, [isStudent]);
 
-  // ---- Pick nav list + filter (students need no filtering) ----
   const source = isStudent ? STUDENT_NAV_GROUPS : STAFF_NAV_GROUPS;
 
   const visibleGroups = source
