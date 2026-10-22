@@ -116,7 +116,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         // ==========================================================
         // DASHBOARD
         // ==========================================================
-  
+
         #region GetDashboardAsync
         public async Task<ServiceResponse<FinanceDashboardDto>> GetDashboardAsync(
             Guid academicSessionId, Guid termId)
@@ -158,6 +158,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
 
                 // ---------- 2. Aggregate enrollments ----------
+                // 👇 Every count derived from its own condition — no subtraction,
+                //    no reliance on the (stale-prone) IsFullyPaid flag.
                 var enrollmentStats = await _context.StudentEnrollments
                     .AsNoTracking()
                     .Where(e => e.TermId == termId && e.AcademicSessionId == academicSessionId)
@@ -165,17 +167,22 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     .Select(g => new
                     {
                         TotalStudents = g.Count(),
-                        FullyPaid = g.Count(e => e.IsFullyPaid),
-                        Unpaid = g.Count(e => e.TotalAmountPaid == 0),
+                        FullyPaid = g.Count(e => e.OutstandingBalance <= 0),
+                        Unpaid = g.Count(e => e.OutstandingBalance > 0 && e.TotalAmountPaid == 0),
+                        PartiallyPaid = g.Count(e => e.OutstandingBalance > 0 && e.TotalAmountPaid > 0),
                         TotalExpected = g.Sum(e => e.TotalAmountPaid + e.OutstandingBalance),
+                        TotalOutstanding = g.Sum(e => e.OutstandingBalance),
                     })
                     .FirstOrDefaultAsync();
 
                 int totalStudents = enrollmentStats?.TotalStudents ?? 0;
                 int fullyPaid = enrollmentStats?.FullyPaid ?? 0;
                 int unpaid = enrollmentStats?.Unpaid ?? 0;
-                int partiallyPaid = totalStudents - fullyPaid - unpaid;
+                int partiallyPaid = enrollmentStats?.PartiallyPaid ?? 0;
                 decimal totalExpected = enrollmentStats?.TotalExpected ?? 0m;
+                // 👇 Total outstanding comes from the enrollments — the true source of debt.
+                //    Never compute it as (expected − collected); they're different things.
+                decimal totalOutstanding = enrollmentStats?.TotalOutstanding ?? 0m;
 
                 // ---------- 3. Fee payments ----------
                 var paymentStats = await _context.StudentPayments
@@ -200,7 +207,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     .FirstOrDefaultAsync();
 
                 decimal totalCollected = paymentStats?.TotalCollected ?? 0m;
-                decimal totalOutstanding = Math.Max(0, totalExpected - totalCollected);
+                // 👇 Collection rate can exceed 100% (overpayment) — cap display at 100
+                //    but keep the raw value in the DTO if you want exact reporting.
                 decimal collectionRate = totalExpected > 0
                     ? Math.Round(totalCollected / totalExpected * 100, 2)
                     : 0m;
@@ -283,8 +291,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         Expected = g.Sum(e => e.TotalAmountPaid + e.OutstandingBalance),
                         Collected = g.Sum(e => e.TotalAmountPaid),
                         Outstanding = g.Sum(e => e.OutstandingBalance),
-                        FullyPaidCount = g.Count(e => e.IsFullyPaid),
-                        UnpaidCount = g.Count(e => e.TotalAmountPaid == 0),
+                        // 👇 Same fixes as the top-level aggregation
+                        FullyPaidCount = g.Count(e => e.OutstandingBalance <= 0),
+                        UnpaidCount = g.Count(e => e.OutstandingBalance > 0 && e.TotalAmountPaid == 0),
                     })
                     .OrderBy(c => c.ClassName)
                     .ToListAsync();
@@ -347,7 +356,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     // Fee collection
                     TotalExpected = totalExpected,
                     TotalCollected = totalCollected,
-                    TotalOutstanding = totalOutstanding,
+                    TotalOutstanding = totalOutstanding,   // 👈 from enrollments, not subtraction
                     CollectionRate = collectionRate,
 
                     // Fee payment methods
@@ -359,7 +368,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     // Student fee status
                     TotalStudents = totalStudents,
                     FullyPaidCount = fullyPaid,
-                    PartiallyPaidCount = partiallyPaid,
+                    PartiallyPaidCount = partiallyPaid,   // 👈 computed directly, never negative
                     UnpaidCount = unpaid,
 
                     // Fee transaction counts
@@ -405,7 +414,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
         }
         #endregion
-
         // ==========================================================
         // PAYMENTS LIST
         // ==========================================================

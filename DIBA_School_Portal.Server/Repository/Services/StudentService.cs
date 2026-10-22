@@ -899,15 +899,14 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         public async Task<ServiceResponse<StudentBillDto>> GetMyBillAsync(
-      string userId,
-      Guid? termId = null,
-      Guid? academicSessionId = null)
+        string userId,
+        Guid? termId = null,
+        Guid? academicSessionId = null)
         {
             var response = new ServiceResponse<StudentBillDto>();
 
             try
             {
-                // ---------- 1. Resolve "me" → Student profile ----------
                 var student = await _context.Students
                     .AsNoTracking()
                     .Include(s => s.SchoolClass)
@@ -921,7 +920,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 2. Resolve session ----------
                 Guid resolvedSessionId;
                 if (academicSessionId.HasValue && academicSessionId.Value != Guid.Empty)
                 {
@@ -943,7 +941,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     resolvedSessionId = currentSession.Id;
                 }
 
-                // ---------- 3. Resolve term ----------
                 Guid resolvedTermId;
                 if (termId.HasValue && termId.Value != Guid.Empty)
                 {
@@ -978,7 +975,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                // ---------- 4. Fee items for this student's class ----------
                 var classFees = await _context.ClassFeePrices
                     .AsNoTracking()
                     .Include(cfp => cfp.Fee)
@@ -988,7 +984,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         cfp.Fee.AcademicSessionId == resolvedSessionId)
                     .ToListAsync();
 
-                // ---------- 5. Successful payments ----------
                 var payments = await _context.StudentPayments
                     .AsNoTracking()
                     .Where(p =>
@@ -999,20 +994,20 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     .OrderByDescending(p => p.PaymentDate)
                     .ToListAsync();
 
-                // ---------- 6. Allocations ----------
                 var paymentIds = payments.Select(p => p.Id).ToList();
 
-                var allocations = await _context.StudentPaymentItems
-                    .AsNoTracking()
-                    .Where(item => paymentIds.Contains(item.StudentPaymentId))
-                    .ToListAsync();
+                var allocations = paymentIds.Count == 0
+                    ? new List<StudentPaymentItem>()
+                    : await _context.StudentPaymentItems
+                        .AsNoTracking()
+                        .Where(item => paymentIds.Contains(item.StudentPaymentId))
+                        .ToListAsync();
 
                 var paidByFee = allocations
                     .Where(a => a.FeeId.HasValue)
                     .GroupBy(a => a.FeeId!.Value)
                     .ToDictionary(g => g.Key, g => g.Sum(a => a.AmountAllocated));
 
-                // ---------- 7. Build fee items ----------
                 var feeItems = classFees
                     .Where(cfp => cfp.Fee != null)
                     .Select(cfp =>
@@ -1024,7 +1019,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                             FeeName = cfp.Fee!.FeeName,
                             Description = cfp.Fee.Description,
                             Amount = cfp.Amount,
-                            MinimumAmountToPay = cfp.MinimumAmountToPay,   // ← ADD THIS
+                            MinimumAmountToPay = cfp.MinimumAmountToPay,
                             AmountPaidTowardThis = paidTowardThis,
                             IsFullyPaid = cfp.Amount > 0 && paidTowardThis >= cfp.Amount,
                         };
@@ -1032,24 +1027,31 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     .OrderBy(f => f.FeeName)
                     .ToList();
 
-                // ---------- 8. Totals ----------
+                var enrollment = await _context.StudentEnrollments
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(e =>
+                        e.StudentProfileId == student.Id &&
+                        e.TermId == resolvedTermId &&
+                        e.AcademicSessionId == resolvedSessionId);
+
                 var totalBilled = feeItems.Sum(f => f.Amount);
                 var totalPaid = payments.Sum(p => p.AmountPaid);
-                var balance = Math.Max(0, totalBilled - totalPaid);
 
-                // Minimum required = sum of unmet minimums across unpaid fees
+                var balance = enrollment != null
+                    ? Math.Max(0, enrollment.OutstandingBalance)
+                    : Math.Max(0, totalBilled - totalPaid);
+
                 var minimumRequired = feeItems
                     .Where(f => !f.IsFullyPaid)
                     .Sum(f => Math.Max(0, f.MinimumAmountToPay - f.AmountPaidTowardThis));
 
-                // ---------- 9. Response ----------
                 response.Success = true;
                 response.StatusCode = 200;
                 response.Data = new StudentBillDto
                 {
-                    StudentProfileId = student.Id,                  // ← ADD THIS
-                    AcademicSessionId = resolvedSessionId,          // ← ADD THIS
-                    TermId = resolvedTermId,                        // ← ADD THIS
+                    StudentProfileId = student.Id,
+                    AcademicSessionId = resolvedSessionId,
+                    TermId = resolvedTermId,
                     TermName = term.Name,
                     TotalBilledAmount = totalBilled,
                     TotalPaidSoFar = totalPaid,

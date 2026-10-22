@@ -630,6 +630,43 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
                 _context.Students.Add(studentProfile);
                 studentProfileId = studentProfile.Id;
+
+                // ==========================================================
+                // CREATE ENROLLMENT for the current term
+                // Every registered student gets one — even with no fees.
+                // ==========================================================
+                var currentTerm = await _context.SchoolTerms
+                    .Include(t => t.AcademicSession)
+                    .Where(t => t.IsCurrentTerm && t.AcademicSession.IsCurrentSession)
+                    .Select(t => new { t.Id, t.AcademicSessionId })
+                    .FirstOrDefaultAsync();
+
+                if (currentTerm != null)
+                {
+                    var billedAmount = await _context.ClassFeePrices
+                        .Include(cfp => cfp.Fee)
+                        .Where(cfp => cfp.SchoolClassId == request.SchoolClassId!.Value &&
+                                      cfp.Fee.TermId == currentTerm.Id)
+                        .SumAsync(cfp => (decimal?)cfp.Amount) ?? 0m;
+
+                    _context.StudentEnrollments.Add(new StudentEnrollment
+                    {
+                        Id = Guid.NewGuid(),
+                        StudentProfileId = studentProfile.Id,
+                        AcademicSessionId = currentTerm.AcademicSessionId,
+                        TermId = currentTerm.Id,
+                        SchoolClassId = request.SchoolClassId!.Value,
+                        TotalAmountPaid = 0m,
+                        OutstandingBalance = billedAmount,
+                        IsFullyPaid = billedAmount == 0,
+                        Status = billedAmount == 0
+                            ? StudentEnrollmentStatus.Active
+                            : StudentEnrollmentStatus.Pending,
+                        IsActive = billedAmount == 0,
+                        EnrolledAt = DateTime.UtcNow,
+                    });
+                }
+                // ==========================================================
             }
             // 👈 FIX — every staff role gets a Teachers (staff profile) row
             else if (StaffRoles.Contains(request.Role))
@@ -652,7 +689,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
             if (isStudent && studentProfileId.HasValue)
             {
                 var currentSession = await _context.AcademicSessions
-                    .OrderByDescending(a => a.StartDate)   // ← adjust
+                    .OrderByDescending(a => a.StartDate)
                     .FirstOrDefaultAsync();
 
                 if (currentSession == null)
@@ -683,7 +720,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             // ==========================================================
 
             await _context.SaveChangesAsync();
-
             string? pictureWarning = null;
 
             if (request.ProfilePicture != null && request.ProfilePicture.Length > 0)
