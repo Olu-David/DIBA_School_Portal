@@ -105,141 +105,226 @@ export default function FinanceDashboard() {
   }, []);
 
   /* ==========================================================
-     EXPORT — CSV financial statement
+     EXPORT — Professional CSV financial statement
      ========================================================== */
   const handleExport = () => {
     if (!data) return;
     setExporting(true);
     try {
-      const lines: string[] = [];
       const now = new Date();
       const dateStamp = now.toISOString().slice(0, 10);
+      const timeStamp = now.toISOString().slice(11, 19);
+      const reportRef = `DIBA/FIN/${dateStamp.replace(/-/g, "")}/${timeStamp.replace(/:/g, "")}`;
 
-      lines.push("DIBA School Portal — Financial Report");
-      lines.push(`Session,${data.academicSessionName}`);
-      lines.push(`Term,${data.termName}`);
-      lines.push(`Generated,${now.toISOString()}`);
-      lines.push("");
+      const esc = (v: string | number | null | undefined): string => {
+        if (v === null || v === undefined) return "";
+        const s = String(v);
+        if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+          return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+      };
 
-      // ---------- Fee collection ----------
-      lines.push("FEE COLLECTION SUMMARY");
-      lines.push("Metric,Value");
-      lines.push(`Total Expected,${data.totalExpected}`);
-      lines.push(`Total Collected,${data.totalCollected}`);
-      lines.push(`Total Outstanding,${data.totalOutstanding}`);
-      lines.push(`Collection Rate,${data.collectionRate}%`);
-      lines.push(`Total Students,${data.totalStudents}`);
-      lines.push(`Fully Paid,${data.fullyPaidCount}`);
-      lines.push(`Partially Paid,${data.partiallyPaidCount}`);
-      lines.push(`Unpaid,${data.unpaidCount}`);
-      lines.push("");
+      const money = (n: number): string => (Number(n) || 0).toFixed(2);
+      const pct = (n: number): string => `${(Number(n) || 0).toFixed(2)}%`;
+      const row = (...cols: (string | number | null | undefined)[]): string =>
+        cols.map(esc).join(",");
 
-      // ---------- Payment methods ----------
-      lines.push("PAYMENT METHODS (FEES ONLY)");
-      lines.push("Method,Amount");
-      lines.push(`Cash,${data.totalCash}`);
-      lines.push(`Online,${data.totalOnline}`);
-      lines.push(`Bank Transfer,${data.totalBankTransfer}`);
-      lines.push(`Manual,${data.totalManual}`);
-      lines.push("");
+      const lines: string[] = [];
 
-      // ---------- Other income ----------
-      lines.push("OTHER INCOME (NON-FEE)");
-      lines.push("Category,Transactions,Amount");
+      // ---------- 1. REPORT HEADER ----------
+      lines.push(row("DIBA SCHOOL PORTAL"));
+      lines.push(row("FINANCIAL STATEMENT — TERM SUMMARY"));
+      lines.push(row(""));
+      lines.push(row("Report Reference", reportRef));
+      lines.push(row("Academic Session", data.academicSessionName));
+      lines.push(row("Term", data.termName));
+      lines.push(row("Generated", `${dateStamp} ${timeStamp} UTC`));
+      lines.push(row("Currency", "NGN (Nigerian Naira)"));
+      lines.push(row(""));
+
+      // ---------- 2. EXECUTIVE SUMMARY ----------
+      lines.push(row("EXECUTIVE SUMMARY"));
+      lines.push(row(""));
+      lines.push(row("Item", "Amount (NGN)", "Notes"));
+      lines.push(row("Fees Collected", money(data.totalCollected), "Tuition & related fees only"));
+      lines.push(row("Other Income", money(data.totalMiscIncome), "Uniforms, fines, donations, PTA, etc."));
+      lines.push(row("TOTAL INCOME", money(data.totalIncome), "Fees + other income"));
+      lines.push(row("TOTAL EXPENSES", money(data.totalExpenses), "Operational costs"));
+      lines.push(row("NET INFLOW", money(data.netInflow), data.netInflow >= 0 ? "Surplus" : "Deficit"));
+      lines.push(row(""));
+
+      // ---------- 3. FEE COLLECTION ----------
+      lines.push(row("FEE COLLECTION SUMMARY"));
+      lines.push(row(""));
+      lines.push(row("Metric", "Value"));
+      lines.push(row("Total Expected", money(data.totalExpected)));
+      lines.push(row("Total Collected", money(data.totalCollected)));
+      lines.push(row("Total Outstanding", money(data.totalOutstanding)));
+      lines.push(row("Collection Rate", pct(data.collectionRate)));
+      lines.push(row(""));
+      lines.push(row("Student Status", "Count", "Percentage"));
+      const total = Math.max(1, data.totalStudents);
+      lines.push(row("Total Students", data.totalStudents, "100.00%"));
+      lines.push(row("Fully Paid", data.fullyPaidCount, pct((data.fullyPaidCount / total) * 100)));
+      lines.push(row("Partially Paid", data.partiallyPaidCount, pct((data.partiallyPaidCount / total) * 100)));
+      lines.push(row("Unpaid", data.unpaidCount, pct((data.unpaidCount / total) * 100)));
+      lines.push(row(""));
+
+      // ---------- 4. FEE PAYMENT METHODS ----------
+      lines.push(row("FEE PAYMENT METHODS"));
+      lines.push(row(""));
+      lines.push(row("Method", "Amount (NGN)", "% of Collected"));
+      const collPct = (v: number) =>
+        data.totalCollected > 0 ? pct((v / data.totalCollected) * 100) : "0.00%";
+      lines.push(row("Cash", money(data.totalCash), collPct(data.totalCash)));
+      lines.push(row("Online (Flutterwave / Paystack)", money(data.totalOnline), collPct(data.totalOnline)));
+      lines.push(row("Bank Transfer", money(data.totalBankTransfer), collPct(data.totalBankTransfer)));
+      lines.push(row("Manual", money(data.totalManual), collPct(data.totalManual)));
+      lines.push(row("TOTAL", money(data.totalCollected), "100.00%"));
+      lines.push(row(""));
+
+      // ---------- 5. FEE COLLECTION BY CLASS ----------
+      lines.push(row("FEE COLLECTION BY CLASS"));
+      lines.push(row(""));
+      lines.push(row("Class", "Students", "Expected (NGN)", "Collected (NGN)", "Outstanding (NGN)", "Rate"));
+      if (data.classBreakdown.length === 0) {
+        lines.push(row("(no classes with enrolments)", "", "", "", "", ""));
+      } else {
+        data.classBreakdown.forEach((c) => {
+          lines.push(
+            row(
+              c.className,
+              c.studentCount,
+              money(c.expected),
+              money(c.collected),
+              money(c.outstanding),
+              pct(c.collectionRate)
+            )
+          );
+        });
+        const totalStudents = data.classBreakdown.reduce((s, c) => s + c.studentCount, 0);
+        const totalExpected = data.classBreakdown.reduce((s, c) => s + c.expected, 0);
+        const totalCollectedCls = data.classBreakdown.reduce((s, c) => s + c.collected, 0);
+        const totalOutstandingCls = data.classBreakdown.reduce((s, c) => s + c.outstanding, 0);
+        lines.push(
+          row(
+            "TOTAL",
+            totalStudents,
+            money(totalExpected),
+            money(totalCollectedCls),
+            money(totalOutstandingCls),
+            pct(data.collectionRate)
+          )
+        );
+      }
+      lines.push(row(""));
+
+      // ---------- 6. OTHER INCOME ----------
+      lines.push(row("OTHER INCOME (NON-FEE)"));
+      lines.push(row(""));
+      lines.push(row("Category", "Transactions", "Amount (NGN)", "% of Other Income"));
       if (!data.miscIncomeByCategory || data.miscIncomeByCategory.length === 0) {
-        lines.push("(none recorded this term),0,0");
+        lines.push(row("(none recorded this term)", 0, "0.00", "0.00%"));
       } else {
         data.miscIncomeByCategory.forEach((c) => {
-          lines.push(`"${c.category}",${c.count},${c.totalAmount}`);
+          const share = data.totalMiscIncome > 0 ? (c.totalAmount / data.totalMiscIncome) * 100 : 0;
+          lines.push(row(c.category, c.count, money(c.totalAmount), pct(share)));
         });
       }
-      lines.push(`Total Other Income,,${data.totalMiscIncome}`);
-      lines.push(`Total Other Income Transactions,${data.miscIncomeTransactionCount},`);
-      lines.push("");
+      lines.push(row("TOTAL", data.miscIncomeTransactionCount, money(data.totalMiscIncome), "100.00%"));
+      lines.push(row(""));
 
-      // 👇 NEW — Expenses summary
-      lines.push("EXPENSES");
-      lines.push("Metric,Value");
-      lines.push(`Total Expenses,${data.totalExpenses}`);
-      lines.push(`Expense Transactions,${data.expenseTransactionCount}`);
-      lines.push("");
-
-      // 👇 NEW — Expenses by category
-      lines.push("EXPENSES BY CATEGORY");
-      lines.push("Category,Transactions,Amount");
+      // ---------- 7. EXPENSES BY CATEGORY ----------
+      lines.push(row("EXPENSES BY CATEGORY"));
+      lines.push(row(""));
+      lines.push(row("Category", "Transactions", "Amount (NGN)", "% of Expenses"));
       if (!data.expensesByCategory || data.expensesByCategory.length === 0) {
-        lines.push("(none recorded this term),0,0");
+        lines.push(row("(none recorded this term)", 0, "0.00", "0.00%"));
       } else {
         data.expensesByCategory.forEach((c) => {
-          lines.push(`"${c.category}",${c.count},${c.totalAmount}`);
+          const share = data.totalExpenses > 0 ? (c.totalAmount / data.totalExpenses) * 100 : 0;
+          lines.push(row(c.category, c.count, money(c.totalAmount), pct(share)));
         });
       }
-      lines.push(`Total Expenses,,${data.totalExpenses}`);
-      lines.push("");
+      lines.push(row("TOTAL", data.expenseTransactionCount, money(data.totalExpenses), "100.00%"));
+      lines.push(row(""));
 
-      // 👇 NEW — Expenses by payment method
-      lines.push("EXPENSES BY PAYMENT METHOD");
-      lines.push("Method,Transactions,Amount");
+      // ---------- 8. EXPENSES BY PAYMENT METHOD ----------
+      lines.push(row("EXPENSES BY PAYMENT METHOD"));
+      lines.push(row(""));
+      lines.push(row("Method", "Transactions", "Amount (NGN)", "% of Expenses"));
       if (!data.expensesByGateway || data.expensesByGateway.length === 0) {
-        lines.push("(none recorded this term),0,0");
+        lines.push(row("(none recorded this term)", 0, "0.00", "0.00%"));
       } else {
         data.expensesByGateway.forEach((g) => {
-          lines.push(`"${g.gatewayName}",${g.count},${g.totalAmount}`);
+          const share = data.totalExpenses > 0 ? (g.totalAmount / data.totalExpenses) * 100 : 0;
+          lines.push(row(g.gatewayName, g.count, money(g.totalAmount), pct(share)));
         });
       }
-      lines.push("");
+      lines.push(row("TOTAL", data.expenseTransactionCount, money(data.totalExpenses), "100.00%"));
+      lines.push(row(""));
 
-      // ---------- Income vs Expenses vs Net ----------
-      lines.push("INCOME vs EXPENSES");
-      lines.push("Metric,Value");
-      lines.push(`Fees Collected,${data.totalCollected}`);
-      lines.push(`Other Income,${data.totalMiscIncome}`);
-      lines.push(`Total Income,${data.totalIncome}`);
-      lines.push(`Total Expenses,${data.totalExpenses}`);
-      lines.push(`Net Inflow,${data.netInflow}`);
-      lines.push("");
+      // ---------- 9. RECENT FEE PAYMENTS ----------
+      lines.push(row("RECENT FEE PAYMENTS (LAST 10)"));
+      lines.push(row(""));
+      lines.push(row("Student", "Admission No.", "Reference", "Amount (NGN)", "Method", "Status", "Date"));
+      if (data.recentPayments.length === 0) {
+        lines.push(row("(no payments recorded this term)", "", "", "", "", "", ""));
+      } else {
+        data.recentPayments.forEach((p) => {
+          lines.push(
+            row(
+              p.studentName,
+              p.admissionNumber,
+              p.referenceNumber,
+              money(p.amountPaid),
+              p.gateway,
+              p.status,
+              p.paymentDate
+            )
+          );
+        });
+      }
+      lines.push(row(""));
 
-      // ---------- Class breakdown ----------
-      lines.push("FEE COLLECTION BY CLASS");
-      lines.push("Class,Students,Expected,Collected,Rate");
-      data.classBreakdown.forEach((c) => {
-        lines.push(
-          `"${c.className}",${c.studentCount},${c.expected},${c.collected},${c.collectionRate}%`
-        );
-      });
-      lines.push("");
+      // ---------- 10. SIGN-OFF BLOCK ----------
+      lines.push(row(""));
+      lines.push(row("PREPARED BY"));
+      lines.push(row(""));
+      lines.push(row("Name", "_______________________________"));
+      lines.push(row("Role", "Bursar / Finance Officer"));
+      lines.push(row("Signature", "_______________________________"));
+      lines.push(row("Date", "_______________________________"));
+      lines.push(row(""));
+      lines.push(row("REVIEWED BY"));
+      lines.push(row(""));
+      lines.push(row("Name", "_______________________________"));
+      lines.push(row("Role", "Principal / Head of School"));
+      lines.push(row("Signature", "_______________________________"));
+      lines.push(row("Date", "_______________________________"));
+      lines.push(row(""));
 
-      // ---------- Recent fee payments ----------
-      lines.push("RECENT FEE PAYMENTS");
-      lines.push("Student,Reference,Amount,Date");
-      data.recentPayments.forEach((p) => {
-        lines.push(
-          `"${p.studentName}",${p.referenceNumber},${p.amountPaid},${p.paymentDate}`
-        );
-      });
-      lines.push("");
+      // ---------- 11. FOOTNOTES ----------
+      lines.push(row("NOTES"));
+      lines.push(row(""));
+      lines.push(row("1. All amounts are in Nigerian Naira (NGN) and rounded to 2 decimal places."));
+      lines.push(row("2. Net Inflow = Fees Collected + Other Income - Total Expenses."));
+      lines.push(row("3. Other Income is non-fee revenue (uniforms, fines, donations, PTA, etc.) and does NOT affect student enrollment balances."));
+      lines.push(row("4. Outstanding Fees = Total Expected - Total Collected (as of report generation time)."));
+      lines.push(row("5. This report was generated from the DIBA School Portal and is subject to reconciliation with physical records."));
+      lines.push(row(`6. Report Reference: ${reportRef}`));
+      lines.push(row(""));
 
-      // ---------- Notes ----------
-      lines.push("NOTES");
-      lines.push(
-        "Net Inflow = Fees + Other Income − Expenses. This reflects actual money retained by the school this term."
-      );
-      lines.push(
-        "Total Other Income is non-fee revenue (uniforms, fines, donations, etc.) and does NOT affect student enrollment balances."
-      );
-      lines.push(
-        "Expenses include salaries, utilities, rent, supplies, and other operational costs."
-      );
-
-      const csv = lines.join("\n");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const csv = lines.join("\r\n");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `DIBA_Finance_${data.termName.replace(
-        /\s+/g,
-        "_"
-      )}_${dateStamp}.csv`;
+      a.download = `DIBA_Financial_Statement_${data.academicSessionName.replace(
+        /[\\/]/g,
+        "-"
+      )}_${data.termName.replace(/[\\/ ]/g, "_")}_${dateStamp}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

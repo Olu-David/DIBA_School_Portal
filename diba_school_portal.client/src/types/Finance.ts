@@ -76,3 +76,27 @@ export interface FinanceDashboard {
     totalAmount: number;
   }[];
 }
+
+export interface FinanceClassBreakdown {
+  classId: string;
+  className: string;
+  studentCount: number;
+  expected: number;
+  collected: number;
+  outstanding: number;        // 👈 add this
+  collectionRate: number;
+  fullyPaidCount: number;
+  unpaidCount: number;
+}
+
+export interface FinanceRecentPayment {
+  id: string;
+  referenceNumber: string;
+  studentName: string;
+  admissionNumber: string;    // 👈 add this
+  className: string;          // 👈 add this (also used in the file)
+  amountPaid: number;
+  gateway: string;            // 👈 add this
+  status: string;             // 👈 add this
+  paymentDate: string;
+}
