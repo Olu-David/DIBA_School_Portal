@@ -25,21 +25,27 @@ namespace DIBA_School_Portal.Server.Controllers
 
         private string Ip =>
             HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+        // ==========================================================
+        // SET OUTSTANDING — Accountant + SuperAdmin only
+        // ==========================================================
         [HttpPost("student/{studentProfileId:guid}/outstanding")]
-        [Authorize(Roles = "SuperAdmin,Principal,Accountant,Cashier")]
+        [Authorize(Roles = "SuperAdmin,Accountant")]
         public async Task<IActionResult> SetOutstanding(
-    Guid studentProfileId,
-    [FromBody] SetOutstandingDto dto)
+            Guid studentProfileId,
+            [FromBody] SetOutstandingDto dto)
         {
             var result = await _account.SetOutstandingAsync(
                 studentProfileId, dto.AcademicSessionId, dto.TermId,
                 dto.Amount, CurrentUserId, Ip);
             return StatusCode(result.StatusCode, result);
         }
+
         // ==========================================================
-        // DASHBOARD
+        // DASHBOARD — read-only for oversight roles
         // ==========================================================
         [HttpGet("dashboard")]
+        [Authorize(Roles = "SuperAdmin,Principal,VicePrincipal,Accountant,Cashier,Registrar")]
         public async Task<IActionResult> Dashboard(
             [FromQuery] Guid academicSessionId,
             [FromQuery] Guid termId)
@@ -52,9 +58,10 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // ALL PAYMENTS (paginated, filterable)
+        // ALL PAYMENTS — read-only
         // ==========================================================
         [HttpGet("payments")]
+        [Authorize(Roles = "SuperAdmin,Principal,VicePrincipal,Accountant,Cashier,Registrar")]
         public async Task<IActionResult> Payments([FromQuery] FinancePaymentFilterDto filter)
         {
             var result = await _account.GetPaymentsAsync(filter);
@@ -62,9 +69,10 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // RECORD CASH PAYMENT
+        // RECORD CASH PAYMENT — Accountant, Cashier, SuperAdmin
         // ==========================================================
         [HttpPost("cash-payment")]
+        [Authorize(Roles = "SuperAdmin,Accountant,Cashier")]
         public async Task<IActionResult> RecordCash([FromBody] RecordCashPaymentDto request)
         {
             var result = await _account.RecordCashPaymentAsync(request, CurrentUserId, Ip);
@@ -72,9 +80,10 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // ARREARS
+        // ARREARS — read-only
         // ==========================================================
         [HttpGet("arrears")]
+        [Authorize(Roles = "SuperAdmin,Principal,VicePrincipal,Accountant,Cashier,Registrar")]
         public async Task<IActionResult> Arrears(
             [FromQuery] Guid academicSessionId,
             [FromQuery] Guid termId,
@@ -88,11 +97,10 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // MISC INCOME — record cash outside the fee schedule
-        // (Cashier added — see decision note above)
+        // MISC INCOME — record — Accountant, Cashier, SuperAdmin
         // ==========================================================
         [HttpPost("misc-income")]
-        [Authorize(Roles = "SuperAdmin,Principal,Accountant,Cashier,Registrar")]
+        [Authorize(Roles = "SuperAdmin,Accountant,Cashier")]
         public async Task<IActionResult> RecordMiscIncome([FromBody] RecordMiscIncomeDto request)
         {
             var result = await _account.RecordMiscIncomeAsync(request, CurrentUserId, Ip);
@@ -100,9 +108,10 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // ==========================================================
-        // MISC INCOME — list + filter
+        // MISC INCOME — list + filter — read-only
         // ==========================================================
         [HttpGet("misc-income")]
+        [Authorize(Roles = "SuperAdmin,Principal,VicePrincipal,Accountant,Cashier,Registrar")]
         public async Task<IActionResult> GetMiscIncome([FromQuery] MiscIncomeFilterDto filter)
         {
             var result = await _account.GetMiscIncomeAsync(filter);

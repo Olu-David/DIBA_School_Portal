@@ -283,6 +283,6 @@ export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
           Sign out
         </button>
       </div>
-    </aside>
+    </aside>  
   );
 }

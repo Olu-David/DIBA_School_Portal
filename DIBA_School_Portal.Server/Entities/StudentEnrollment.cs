@@ -40,6 +40,7 @@ namespace DIBA_School_Portal.Server.Entities
 
         [Column(TypeName = "decimal(18,2)")]
         public decimal OutstandingBalance { get; set; } = 0.00m;
+        public decimal? LegacyOutstanding { get; set; }
 
         public bool IsFullyPaid { get; set; } = false;
 

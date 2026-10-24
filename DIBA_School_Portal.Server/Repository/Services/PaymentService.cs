@@ -673,6 +673,23 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
+                var totalMinimumRequired = await _context.ClassFeePrices
+                    .Include(cfp => cfp.Fee)
+                    .Where(cfp => cfp.SchoolClassId == student.SchoolClassId &&
+                                  cfp.Fee.TermId == request.TermId &&
+                                  cfp.Fee.AcademicSessionId == request.AcademicSessionId)
+                    .SumAsync(cfp => (decimal?)cfp.MinimumAmountToPay) ?? 0m;
+
+                if (totalMinimumRequired > 0 && request.Amount < totalMinimumRequired)
+                {
+                    response.Success = false;
+                    response.Message =
+                        $"Payment amount (₦{request.Amount:N2}) is less than the " +
+                        $"minimum required (₦{totalMinimumRequired:N2}) for this term.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+
                 var email = await ResolveCustomerEmailAsync(
                     student.Id, student.UserId, request.CustomerEmail);
 
@@ -810,7 +827,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             }
         }
         #endregion
-
         // ==========================================================
         // FLUTTERWAVE — VERIFY — FIX 3: only allocate if fees exist
         // ==========================================================

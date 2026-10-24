@@ -49,7 +49,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             "Student", "Parent"
         };
 
-        // 👈 FIX — every staff role gets a Teachers (staff profile) row
         private static readonly string[] StaffRoles =
         {
             "Teacher", "FormTeacher",
@@ -422,9 +421,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
         // ============================================================
         // CREATE ACCOUNT — with Teachers row for every staff role
         // ============================================================
-        // ============================================================
-        // CREATE ACCOUNT — with Teachers row for every staff role
-        // ============================================================
         #region Create Account
         public async Task<ServiceResponse<CreateAccountResponseDto>> CreateAccountAsync(
             CreateAccountDto request, string currentUserId, string ipAddress)
@@ -700,11 +696,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                var subjectIds = await _context.ClassSubjects
-                    .Where(cs => cs.SchoolClassId == request.SchoolClassId!.Value)
-                    .Select(cs => cs.SubjectId)
-                    .Distinct()
-                    .ToListAsync();
+                var subjectIds = await _context.ClassSubjects.Where(cs => cs.SchoolClassId == request.SchoolClassId!.Value && (cs.Stream == null || cs.Stream == parsedStream))
+                .Select(cs => cs.SubjectId).Distinct().ToListAsync();
 
                 foreach (var sid in subjectIds)
                 {
@@ -713,7 +706,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         Id = Guid.NewGuid(),
                         StudentId = studentProfileId.Value,
                         SubjectId = sid,
-                        AcademicSessionId = currentSession.Id,
+                        AcademicSessionId = currentSession.Id
+                        
                     });
                 }
             }
