@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, GraduationCap, Users, BookOpen, Plus, X, Save,
-  Check, Pencil, AlertCircle, RefreshCw,
+  ArrowLeft, GraduationCap, Users, BookOpen, X, Save,
+  Check, Pencil,
 } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
 import {
@@ -34,16 +34,20 @@ interface StudentRow {
 }
 
 interface SubjectOption {
-  id: string;
-  name: string;
-  code: string;
+  id?: string;
+  subjectId?: string;
+  name?: string;
+  subjectName?: string;
+  code?: string;
+  subjectCode?: string;
 }
 
 interface AssignedSubject {
-  subjectId: string;
-  subjectName: string;
-  subjectCode: string;
-  stream: ClassStream | null;
+  id?: string;
+  subjectId?: string;
+  subjectName?: string;
+  subjectCode?: string;
+  stream: ClassStream | number | null;
 }
 
 const SECTION_LABEL: Record<Section, string> = {
@@ -61,6 +65,28 @@ const STREAM_LABEL: Record<string, string> = {
 };
 
 const EDIT_ROLES = ["SuperAdmin", "Principal", "SchoolAdmin"];
+
+// Normalise stream: backend may send number (0/1/2) or string ("Science"/...)
+function normaliseStream(v: ClassStream | number | null | undefined): ClassStream | null {
+  if (v === null || v === undefined) return null;
+  if (v === 0 || v === "Science") return "Science";
+  if (v === 1 || v === "Arts") return "Arts";
+  if (v === 2 || v === "Commercial") return "Commercial";
+  return null;
+}
+
+// Normalise subject id: backend may use `id` or `subjectId`
+function subjectIdOf(s: { id?: string; subjectId?: string }): string {
+  return s.subjectId ?? s.id ?? "";
+}
+
+function subjectNameOf(s: { name?: string; subjectName?: string }): string {
+  return s.subjectName ?? s.name ?? "";
+}
+
+function subjectCodeOf(s: { code?: string; subjectCode?: string }): string {
+  return s.subjectCode ?? s.code ?? "";
+}
 
 export default function ClassDetailPage() {
   const { classId } = useParams<{ classId: string }>();
@@ -133,14 +159,15 @@ export default function ClassDetailPage() {
   const openEdit = () => {
     setEditSubjects(
       assigned.map((a) => ({
-        subjectId: a.subjectId,
-        stream: a.stream,
+        subjectId: subjectIdOf(a),
+        stream: normaliseStream(a.stream),
       }))
     );
     setEditOpen(true);
   };
 
   const toggleSubject = (subjectId: string) => {
+    if (!subjectId) return; // guard against missing ids
     setEditSubjects((prev) =>
       prev.some((e) => e.subjectId === subjectId)
         ? prev.filter((e) => e.subjectId !== subjectId)
@@ -161,12 +188,19 @@ export default function ClassDetailPage() {
 
   const saveSubjects = async () => {
     if (!classId) return;
+
+    const cleaned = editSubjects.filter((e) => !!e.subjectId);
+    if (cleaned.length === 0) {
+      toast({ variant: "error", title: "No subjects selected." });
+      return;
+    }
+
     setSaving(true);
     try {
       const { data } = await api.put<ApiResponse<number>>(
         `/schoolclass/${classId}/subjects`,
         {
-          subjects: editSubjects.map((e) => ({
+          subjects: cleaned.map((e) => ({
             subjectId: e.subjectId,
             stream: e.stream,
           })),
@@ -180,7 +214,7 @@ export default function ClassDetailPage() {
 
       toast({
         variant: "success",
-        title: `Saved ${data.data ?? editSubjects.length} subject(s).`,
+        title: `Saved ${data.data ?? cleaned.length} subject(s).`,
       });
       setEditOpen(false);
       await load();
@@ -344,37 +378,41 @@ export default function ClassDetailPage() {
             </div>
           ) : (
             <div className="divide-y divide-surface-100 max-h-[420px] overflow-y-auto">
-              {assigned.map((a) => (
-                <div
-                  key={a.subjectId}
-                  className="px-6 py-3 flex items-center gap-3"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium text-surface-900 truncate">
-                      {a.subjectName}
-                    </p>
-                    <p className="text-[11px] text-surface-400 font-mono">
-                      {a.subjectCode}
-                    </p>
+              {assigned.map((a, i) => {
+                const id = subjectIdOf(a) || `subj-${i}`;
+                const stream = normaliseStream(a.stream);
+                return (
+                  <div
+                    key={id}
+                    className="px-6 py-3 flex items-center gap-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium text-surface-900 truncate">
+                        {subjectNameOf(a)}
+                      </p>
+                      <p className="text-[11px] text-surface-400 font-mono">
+                        {subjectCodeOf(a)}
+                      </p>
+                    </div>
+                    {senior &&
+                      (stream ? (
+                        <Badge
+                          variant={
+                            stream === "Science"
+                              ? "sky"
+                              : stream === "Arts"
+                              ? "violet"
+                              : "amber"
+                          }
+                        >
+                          {STREAM_LABEL[stream]}
+                        </Badge>
+                      ) : (
+                        <Badge variant="neutral">All streams</Badge>
+                      ))}
                   </div>
-                  {senior &&
-                    (a.stream ? (
-                      <Badge
-                        variant={
-                          a.stream === "Science"
-                            ? "sky"
-                            : a.stream === "Arts"
-                            ? "violet"
-                            : "amber"
-                        }
-                      >
-                        {STREAM_LABEL[a.stream]}
-                      </Badge>
-                    ) : (
-                      <Badge variant="neutral">All streams</Badge>
-                    ))}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Card>
@@ -419,14 +457,16 @@ export default function ClassDetailPage() {
                   />
                 ) : (
                   <div className="space-y-2">
-                    {allSubjects.map((s) => {
+                    {allSubjects.map((s, i) => {
+                      const sid = subjectIdOf(s);
+                      if (!sid) return null; // guard
                       const entry = editSubjects.find(
-                        (e) => e.subjectId === s.id
+                        (e) => e.subjectId === sid
                       );
                       const isAssigned = !!entry;
                       return (
                         <div
-                          key={s.id}
+                          key={sid || `subj-${i}`}
                           className={`p-3 rounded-xl border flex items-center gap-3 ${
                             isAssigned
                               ? "border-violet-200 bg-violet-50/30"
@@ -435,7 +475,7 @@ export default function ClassDetailPage() {
                         >
                           <button
                             type="button"
-                            onClick={() => toggleSubject(s.id)}
+                            onClick={() => toggleSubject(sid)}
                             className={`w-5 h-5 rounded grid place-items-center shrink-0 ${
                               isAssigned
                                 ? "bg-violet-600"
@@ -449,10 +489,10 @@ export default function ClassDetailPage() {
 
                           <div className="flex-1 min-w-0">
                             <p className="text-[13px] font-medium text-surface-800 truncate">
-                              {s.name}
+                              {subjectNameOf(s)}
                             </p>
                             <p className="text-[11px] text-surface-400 font-mono">
-                              {s.code}
+                              {subjectCodeOf(s)}
                             </p>
                           </div>
 
@@ -462,7 +502,7 @@ export default function ClassDetailPage() {
                                 value={entry.stream ?? ""}
                                 onChange={(e) =>
                                   setSubjectStream(
-                                    s.id,
+                                    sid,
                                     (e.target.value || null) as ClassStream | null
                                   )
                                 }
