@@ -467,5 +467,79 @@ namespace DIBA_School_Portal.Server.Services
 
             return Ok<IEnumerable<SubjectCheckboxDto>>(allSubjects);
         }
+        public async Task<ServiceResponse<int>> AssignClassSubjectsAsync(Guid classId,  List<AssignClassSubjectItemDto> subjects, string currentUserId,string ipAddress)
+        {
+            var response = new ServiceResponse<int>();
+
+            var schoolClass = await _context.SchoolClasses
+                .FirstOrDefaultAsync(c => c.Id == classId);
+            if (schoolClass == null)
+            {
+                response.Success = false;
+                response.Message = "Class not found.";
+                response.StatusCode = 404;
+                return response;
+            }
+
+            var subjectIds = subjects.Select(s => s.SubjectId).Distinct().ToList();
+
+            if (subjectIds.Count > 0)
+            {
+                var validCount = await _context.Subjects
+                    .Where(s => subjectIds.Contains(s.Id))
+                    .CountAsync();
+
+                if (validCount != subjectIds.Count)
+                {
+                    response.Success = false;
+                    response.Message = "One or more subject IDs are invalid.";
+                    response.StatusCode = 400;
+                    return response;
+                }
+            }
+
+            // Streams only for Senior Secondary
+            if (schoolClass.AcademicSection != AcademicSection.SeniorSecondary &&
+                subjects.Any(s => s.Stream.HasValue))
+            {
+                response.Success = false;
+                response.Message = "Streams only apply to Senior Secondary classes.";
+                response.StatusCode = 400;
+                return response;
+            }
+
+            // Remove existing
+            var existing = await _context.ClassSubjects
+                .Where(cs => cs.SchoolClassId == classId)
+                .ToListAsync();
+            if (existing.Count > 0)
+                _context.ClassSubjects.RemoveRange(existing);
+
+            // Add new
+            foreach (var item in subjects)
+            {
+                _context.ClassSubjects.Add(new ClassSubject
+                {
+                    Id = Guid.NewGuid(),
+                    SchoolClassId = classId,
+                    SubjectId = item.SubjectId,
+                    Stream = item.Stream,
+                });
+            }
+
+            await _context.SaveChangesAsync();
+
+            await _auditLog.LogActivityAsync(
+                currentUserId,
+                "Class Subjects Updated",
+                $"Class '{schoolClass.Name}': {subjects.Count} subject(s) assigned.",
+                ipAddress);
+
+            response.Success = true;
+            response.Message = $"{subjects.Count} subject(s) assigned.";
+            response.StatusCode = 200;
+            response.Data = subjects.Count;
+            return response;
+        }
     }
 }

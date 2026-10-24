@@ -15,5 +15,6 @@ namespace DIBA_School_Portal.Server.Repository.IServices
         Task<ServiceResponse<string>> UpdateClassSubjectsAsync(
      Guid classId, List<ClassSubjectAssignmentDto> items, string currentUserId);
         Task<ServiceResponse<IEnumerable<SubjectCheckboxDto>>> GetClassSubjectsWithSelectionAsync(Guid classId);
+        Task<ServiceResponse<int>> AssignClassSubjectsAsync(Guid classId,List<AssignClassSubjectItemDto> subjects, string currentUserId,string ipAddress);
     }
 }

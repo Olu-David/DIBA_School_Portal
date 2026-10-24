@@ -107,5 +107,13 @@ namespace DIBA_School_Portal.Server.Controllers
             var result = await _service.GetClassSubjectsWithSelectionAsync(classId);
             return Ok(result);
         }
+        [HttpPut("{classId:guid}/subjects")]
+        [Authorize(Roles = "SuperAdmin,Principal,SchoolAdmin")]
+        public async Task<IActionResult> AssignClassSubjects( Guid classId,[FromBody] AssignClassSubjectsDto dto)
+        {
+            var result = await _service.AssignClassSubjectsAsync(
+                classId, dto.Subjects, CurrentUserId, Ip);
+            return StatusCode(result.StatusCode, result);
+        }
     }
 }

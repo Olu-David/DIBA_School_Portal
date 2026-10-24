@@ -681,6 +681,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             // ==========================================================
             // AUTO-ENROL — every subject offered by the student's class
+            // that matches the student's stream
             // ==========================================================
             if (isStudent && studentProfileId.HasValue)
             {
@@ -696,8 +697,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                var subjectIds = await _context.ClassSubjects.Where(cs => cs.SchoolClassId == request.SchoolClassId!.Value && (cs.Stream == null || cs.Stream == parsedStream))
-                .Select(cs => cs.SubjectId).Distinct().ToListAsync();
+                var subjectIds = await _context.ClassSubjects
+                    .Where(cs => cs.SchoolClassId == request.SchoolClassId!.Value &&
+                                 (cs.Stream == null || cs.Stream == parsedStream))
+                    .Select(cs => cs.SubjectId)
+                    .Distinct()
+                    .ToListAsync();
 
                 foreach (var sid in subjectIds)
                 {
@@ -706,11 +711,11 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         Id = Guid.NewGuid(),
                         StudentId = studentProfileId.Value,
                         SubjectId = sid,
-                        AcademicSessionId = currentSession.Id
-                        
+                        AcademicSessionId = currentSession.Id,
                     });
                 }
             }
+       
             // ==========================================================
 
             await _context.SaveChangesAsync();
