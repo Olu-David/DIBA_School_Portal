@@ -24,6 +24,9 @@ namespace DIBA_School_Portal.Server.Controllers
             ?? User.FindFirst("sub")?.Value
             ?? "System";
 
+        private string Ip =>
+            HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
         // CREATE — SuperAdmin or Principal
         [HttpPost("create")]
         [Authorize(Roles = "SuperAdmin,Principal")]
@@ -61,12 +64,10 @@ namespace DIBA_School_Portal.Server.Controllers
         }
 
         // UPDATE SUBJECTS — SuperAdmin or Principal
-      
-
         [HttpPut("subjects/{classId:guid}")]
         [Authorize(Roles = "SuperAdmin,Principal")]
         public async Task<IActionResult> UpdateSubjects(
-    Guid classId, [FromBody] List<ClassSubjectAssignmentDto> items)
+            Guid classId, [FromBody] List<ClassSubjectAssignmentDto> items)
         {
             var result = await _service.UpdateClassSubjectsAsync(classId, items, CurrentUserId);
             return result.Success ? Ok(result) : BadRequest(result);
@@ -107,9 +108,11 @@ namespace DIBA_School_Portal.Server.Controllers
             var result = await _service.GetClassSubjectsWithSelectionAsync(classId);
             return Ok(result);
         }
+
         [HttpPut("{classId:guid}/subjects")]
         [Authorize(Roles = "SuperAdmin,Principal,SchoolAdmin")]
-        public async Task<IActionResult> AssignClassSubjects( Guid classId,[FromBody] AssignClassSubjectsDto dto)
+        public async Task<IActionResult> AssignClassSubjects(
+            Guid classId, [FromBody] AssignClassSubjectsDto dto)
         {
             var result = await _service.AssignClassSubjectsAsync(
                 classId, dto.Subjects, CurrentUserId, Ip);
