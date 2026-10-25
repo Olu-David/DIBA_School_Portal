@@ -1654,7 +1654,10 @@ namespace DIBA_School_Portal.Server.Repository.Services
             if (string.IsNullOrWhiteSpace(cleanName))
                 cleanName = "user";
 
-            return $"{cleanName}@{year}";
+            // Capitalize the first letter so Identity's policy is satisfied
+            var capitalized = char.ToUpperInvariant(cleanName[0]) + cleanName.Substring(1);
+
+            return $"{capitalized}@{year}";
         }
         #endregion
 
