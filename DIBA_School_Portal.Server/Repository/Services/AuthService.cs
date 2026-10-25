@@ -90,7 +90,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ============================================================
-        // LOGIN — unchanged
+        // LOGIN - Student
         // ============================================================
         #region Login - Student
         public async Task<ServiceResponse<LoginResponseDto>> StudentLoginAsync(
@@ -194,6 +194,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+        // ============================================================
+        // LOGIN - Staff
+        // ============================================================
         #region Login - Staff
         public async Task<ServiceResponse<LoginResponseDto>> StaffLoginAsync(
             StaffLoginRequestDto request, string ipAddress)
@@ -300,6 +303,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
+        // ============================================================
+        // LOGIN - Parent
+        // ============================================================
         #region Login - Parent
         public async Task<ServiceResponse<LoginResponseDto>> ParentLoginAsync(
             ParentLoginRequestDto request, string ipAddress)
@@ -417,9 +423,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
-
         // ============================================================
-        // CREATE ACCOUNT — with Teachers row for every staff role
+        // CREATE ACCOUNT
         // ============================================================
         #region Create Account
         public async Task<ServiceResponse<CreateAccountResponseDto>> CreateAccountAsync(
@@ -580,7 +585,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 username = email!;
             }
 
-            var tempPassword = GenerateTemporaryPassword();
+            // 👇 NEW temp password — firstname@year
+            var sessionYear = await GetCurrentSessionYearAsync();
+            var tempPassword = GenerateTemporaryPassword(request.FirstName, sessionYear);
 
             var newUser = new ApplicationUser
             {
@@ -627,10 +634,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 _context.Students.Add(studentProfile);
                 studentProfileId = studentProfile.Id;
 
-                // ==========================================================
                 // CREATE ENROLLMENT for the current term
-                // Every registered student gets one — even with no fees.
-                // ==========================================================
                 var currentTerm = await _context.SchoolTerms
                     .Include(t => t.AcademicSession)
                     .Where(t => t.IsCurrentTerm && t.AcademicSession.IsCurrentSession)
@@ -662,9 +666,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                         EnrolledAt = DateTime.UtcNow,
                     });
                 }
-                // ==========================================================
             }
-            // 👈 FIX — every staff role gets a Teachers (staff profile) row
             else if (StaffRoles.Contains(request.Role))
             {
                 var staffId = await GenerateStaffIdAsync();
@@ -679,10 +681,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 });
             }
 
-            // ==========================================================
-            // AUTO-ENROL — every subject offered by the student's class
-            // that matches the student's stream
-            // ==========================================================
+            // AUTO-ENROL — every subject offered by the student's class that matches the stream
             if (isStudent && studentProfileId.HasValue)
             {
                 var currentSession = await _context.AcademicSessions
@@ -715,8 +714,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     });
                 }
             }
-       
-            // ==========================================================
 
             await _context.SaveChangesAsync();
             string? pictureWarning = null;
@@ -775,11 +772,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
         }
         #endregion
 
-
-
-
         // ============================================================
-        // UPDATE PROFILE — unchanged (already syncs Teacher + Student)
+        // UPDATE PROFILE
         // ============================================================
         #region Update Profile
         public async Task<ServiceResponse<UserProfileDto>> UpdateProfileAsync(
@@ -937,7 +931,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ============================================================
-        // CHANGE ROLE — creates Teachers row for every staff role
+        // CHANGE ROLE
         // ============================================================
         #region Change Role
         public async Task<ServiceResponse<UserProfileDto>> ChangeRoleAsync(
@@ -1090,7 +1084,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 target.UpdatedAt = DateTime.UtcNow;
                 await _userManager.UpdateAsync(target);
 
-                // 👈 FIX — ensure a Teachers row for any staff role
                 if (StaffRoles.Contains(newRole))
                 {
                     var existingTeacher = await _context.Teachers
@@ -1165,7 +1158,7 @@ namespace DIBA_School_Portal.Server.Repository.Services
         #endregion
 
         // ============================================================
-        // LINK PARENT — unchanged
+        // LINK PARENT
         // ============================================================
         #region Link Parent To Student
         public async Task<ServiceResponse<CreateAccountResponseDto>> LinkParentToStudentAsync(
@@ -1233,7 +1226,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                     return response;
                 }
 
-                tempPassword = GenerateTemporaryPassword();
+                // 👇 NEW temp password — firstname@year
+                var sessionYear = await GetCurrentSessionYearAsync();
+                tempPassword = GenerateTemporaryPassword(request.ParentFirstName, sessionYear);
 
                 parent = new ApplicationUser
                 {
@@ -1388,13 +1383,10 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
         #region Admin Reset Password
         public async Task<ServiceResponse<bool>> AdminResetPasswordAsync(
-     string currentUserId, AdminResetPasswordDto request, string ipAddress)
+            string currentUserId, AdminResetPasswordDto request, string ipAddress)
         {
             var response = new ServiceResponse<bool>();
 
-            // ============================================================
-            // 1. Authorize caller
-            // ============================================================
             var caller = await _userManager.FindByIdAsync(currentUserId);
             if (caller == null)
                 return Fail<bool>("Unauthorized.", 401);
@@ -1402,15 +1394,12 @@ namespace DIBA_School_Portal.Server.Repository.Services
             var callerRoles = await _userManager.GetRolesAsync(caller);
             var passwordResetters = new[]
             {
-        "SuperAdmin", "Principal", "SchoolAdmin", "Registrar"
-    };
+                "SuperAdmin", "Principal", "SchoolAdmin", "Registrar"
+            };
 
             if (!callerRoles.Any(r => passwordResetters.Contains(r)))
                 return Fail<bool>("Not authorized to reset passwords.", 403);
 
-            // ============================================================
-            // 2. Resolve target user — with honest diagnostics
-            // ============================================================
             ApplicationUser? target = null;
             string resolveReason = "n/a (neither identifier branch fired)";
 
@@ -1450,11 +1439,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
 
             if (target == null)
             {
-                // 👇 Diagnostic — proves what the server actually received.
-                //    If this prints "studentProfileId=null" while the browser
-                //    clearly sent a GUID, the DTO binder failed → check
-                //    AdminResetPasswordDto.StudentProfileId is Guid? and the
-                //    controller action is [FromBody], not [FromForm].
                 var diagnostic =
                     $"targetUserId='{request.TargetUserId ?? "null"}', " +
                     $"studentProfileId={(request.StudentProfileId?.ToString() ?? "null")}, " +
@@ -1468,15 +1452,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return Fail<bool>($"User not found. Server received: {diagnostic}", 404);
             }
 
-            // ============================================================
-            // 3. Validate new password
-            // ============================================================
             if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
                 return Fail<bool>("Password must be at least 8 characters.", 400);
 
-            // ============================================================
-            // 4. Privilege-escalation guard
-            // ============================================================
             var targetRoles = await _userManager.GetRolesAsync(target);
             var isSuperAdmin = callerRoles.Contains("SuperAdmin");
             var isPrincipal = callerRoles.Contains("Principal");
@@ -1485,9 +1463,9 @@ namespace DIBA_School_Portal.Server.Repository.Services
             {
                 var protectedRoles = new[]
                 {
-            "SuperAdmin", "Principal", "Headmaster", "Headmistress",
-            "VicePrincipal", "SchoolAdmin"
-        };
+                    "SuperAdmin", "Principal", "Headmaster", "Headmistress",
+                    "VicePrincipal", "SchoolAdmin"
+                };
 
                 if (targetRoles.Any(r => protectedRoles.Contains(r)))
                 {
@@ -1503,9 +1481,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 }
             }
 
-            // ============================================================
-            // 5. Reset
-            // ============================================================
             var token = await _userManager.GeneratePasswordResetTokenAsync(target);
             var result = await _userManager.ResetPasswordAsync(
                 target, token, request.NewPassword);
@@ -1514,12 +1489,8 @@ namespace DIBA_School_Portal.Server.Repository.Services
                 return Fail<bool>(
                     string.Join(", ", result.Errors.Select(e => e.Description)), 400);
 
-            // Invalidate any existing sessions
             await _userManager.UpdateSecurityStampAsync(target);
 
-            // ============================================================
-            // 6. Audit
-            // ============================================================
             var targetRoleLabel = targetRoles.FirstOrDefault() ?? "User";
             await _auditLog.LogActivityAsync(
                 currentUserId, "Password Reset",
@@ -1536,9 +1507,6 @@ namespace DIBA_School_Portal.Server.Repository.Services
             };
         }
 
-        // ============================================================
-        // Helper
-        // ============================================================
         private static ServiceResponse<T> Fail<T>(string message, int status) =>
             new()
             {
@@ -1627,19 +1595,66 @@ namespace DIBA_School_Portal.Server.Repository.Services
             return $"DIBA/STF/{nextSeq:D3}";
         }
 
-        private static string GenerateTemporaryPassword()
+        // ============================================================
+        // Extract current session year (e.g. 2026 from "2026/2027").
+        // Falls back to DateTime.UtcNow.Year when no current session exists.
+        // ============================================================
+        private async Task<int> GetCurrentSessionYearAsync()
         {
-            const string upper = "ABCDEFGHJKMNPQRSTUVWXYZ";
-            const string lower = "abcdefghjkmnpqrstuvwxyz";
-            const string digits = "23456789";
-            const string symbols = "!@#$%&*";
+            var sessionName = await _context.AcademicSessions
+                .AsNoTracking()
+                .Where(s => s.IsCurrentSession)
+                .Select(s => s.Name)
+                .FirstOrDefaultAsync();
 
-            var rng = new Random();
-            string Pick(string chars, int count) =>
-                new string(Enumerable.Range(0, count).Select(_ => chars[rng.Next(chars.Length)]).ToArray());
+            if (!string.IsNullOrWhiteSpace(sessionName))
+            {
+                var match = System.Text.RegularExpressions
+                    .Regex.Match(sessionName, @"(\d{4})");
 
-            return Pick(upper, 2) + Pick(lower, 4) + Pick(digits, 3) +
-                   Pick(symbols, 1) + Pick(upper + lower + digits, 2);
+                if (match.Success && int.TryParse(match.Groups[1].Value, out var year))
+                    return year;
+            }
+
+            return DateTime.UtcNow.Year;
+        }
+
+        // ============================================================
+        // OLD RANDOM PASSWORD GENERATOR — kept for future use.
+        // Do not delete — swap back by calling GenerateTemporaryPassword() with no args
+        // if you ever want the strong random pattern again.
+        // ============================================================
+        //private static string GenerateTemporaryPassword()
+        //{
+        //    const string upper = "ABCDEFGHJKMNPQRSTUVWXYZ";
+        //    const string lower = "abcdefghjkmnpqrstuvwxyz";
+        //    const string digits = "23456789";
+        //    const string symbols = "!@#$%&*";
+
+        //    var rng = new Random();
+        //    string Pick(string chars, int count) =>
+        //        new string(Enumerable.Range(0, count).Select(_ => chars[rng.Next(chars.Length)]).ToArray());
+
+        //    return Pick(upper, 2) + Pick(lower, 4) + Pick(digits, 3) +
+        //           Pick(symbols, 1) + Pick(upper + lower + digits, 2);
+        //}
+
+        // ============================================================
+        // CURRENT temp password: firstname@year (e.g. daniel@2026)
+        // ============================================================
+        private string GenerateTemporaryPassword(string firstName, int year)
+        {
+            var cleanName = new string(
+                (firstName ?? "user")
+                    .ToLowerInvariant()
+                    .Where(char.IsLetterOrDigit)
+                    .ToArray()
+            );
+
+            if (string.IsNullOrWhiteSpace(cleanName))
+                cleanName = "user";
+
+            return $"{cleanName}@{year}";
         }
         #endregion
 
